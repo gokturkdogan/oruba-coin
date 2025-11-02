@@ -1,0 +1,91 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  passwordHash  String         @map("password_hash")
+  name          String?
+  isVerified    Boolean        @default(false) @map("is_verified")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  
+  subscription  Subscription?
+  events        UserEvent[]
+  
+  @@map("users")
+}
+
+model Subscription {
+  id                    String   @id @default(uuid())
+  userId                String   @unique @map("user_id")
+  stripeSubscriptionId  String?  @unique @map("stripe_subscription_id")
+  plan                  String   @default("premium")
+  status                String   // active, canceled, past_due
+  currentPeriodEnd      DateTime @map("current_period_end")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+  
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("subscriptions")
+}
+
+model Coin {
+  symbol      String   @id
+  baseAsset   String   @map("base_asset")
+  quoteAsset  String   @map("quote_asset")
+  name        String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  snapshots   PriceSnapshot[]
+  
+  @@map("coins")
+}
+
+model PriceSnapshot {
+  id          String   @id @default(uuid())
+  symbol      String
+  price       Float
+  pctChange24h Float?  @map("pct_change_24h")
+  volume30m   Float?   @map("volume_30m")
+  buyVolume   Float?   @map("buy_volume")
+  sellVolume  Float?   @map("sell_volume")
+  meta        Json?
+  capturedAt  DateTime @default(now()) @map("captured_at")
+  
+  coin        Coin     @relation(fields: [symbol], references: [symbol], onDelete: Cascade)
+  
+  @@index([symbol, capturedAt])
+  @@index([capturedAt])
+  @@map("price_snapshots")
+}
+
+model UserEvent {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  eventType String   @map("event_type")
+  payload   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("user_events")
+}
