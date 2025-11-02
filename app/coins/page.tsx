@@ -37,27 +37,28 @@ export default function CoinsPage() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const wsRef = useRef<WebSocket | null>(null)
   const coinsMapRef = useRef<Map<string, Coin>>(new Map())
+  const previousPricesRef = useRef<Map<string, number>>(new Map())
+  const [flashAnimations, setFlashAnimations] = useState<Record<string, 'up' | 'down'>>({})
 
-  // Initial fetch
+  // Initial fetch - only called once on mount
   const fetchCoins = async () => {
     try {
-      const params = new URLSearchParams({
-        search,
-        sortBy,
-        sortOrder,
-        limit: '100',
-      })
-      const res = await fetch(`/api/coins?${params}`)
+      // Fetch all coins without filters (we'll filter/sort client-side)
+      const res = await fetch(`/api/coins?limit=100`)
       const data = await res.json()
       const coinsData = data.coins || []
       
-      // Update map
+      // Update map with all coins
       coinsMapRef.current.clear()
+      previousPricesRef.current.clear()
       coinsData.forEach((coin: Coin) => {
         coinsMapRef.current.set(coin.symbol, coin)
+        previousPricesRef.current.set(coin.symbol, parseFloat(coin.price))
       })
       
-      setCoins(coinsData)
+      // Initial sort and display
+      const sorted = sortCoins(coinsData, sortBy, sortOrder)
+      setCoins(sorted)
       setLoading(false)
       
       // Subscribe to WebSocket for these symbols
@@ -72,12 +73,16 @@ export default function CoinsPage() {
 
   const subscribeToWebSocket = (symbols: string[]) => {
     // Close existing connection
-    if (wsRef.current) {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.close()
+      wsRef.current = null
     }
 
-    // Limit to top 50 symbols for WebSocket (Binance limit)
-    const limitedSymbols = symbols.slice(0, 50)
+    if (symbols.length === 0) return
+
+    // Binance allows up to 200 streams in a single connection
+    // We'll subscribe to top 100 symbols for better coverage
+    const limitedSymbols = symbols.slice(0, 100).map((s) => s.toUpperCase())
     const streams = limitedSymbols
       .map((s) => `${s.toLowerCase()}@ticker`)
       .join('/')
@@ -108,13 +113,52 @@ export default function CoinsPage() {
               quoteVolume: data.q || data.quoteVolume || '0',
             }
 
-            coinsMapRef.current.set(symbol, updatedCoin)
+            // Only update if this symbol is in our map
+            if (coinsMapRef.current.has(symbol)) {
+              const previousPrice = previousPricesRef.current.get(symbol)
+              const currentPrice = parseFloat(updatedCoin.price)
+              
+              // Check if price changed and trigger flash animation
+              if (previousPrice !== undefined && previousPrice !== 0 && currentPrice !== 0 && currentPrice !== previousPrice) {
+                const priceDiff = Math.abs(currentPrice - previousPrice)
+                const priceChangePercent = (priceDiff / previousPrice) * 100
+                
+                // Trigger animation for any price change (even very small ones)
+                // But avoid if the change is extremely tiny (less than 0.001% which is noise)
+                if (priceChangePercent >= 0.001 || priceDiff >= 0.00000001) {
+                  const flashType = currentPrice > previousPrice ? 'up' : 'down'
+                  
+                  console.log(`💰 ${symbol}: ${previousPrice.toFixed(8)} → ${currentPrice.toFixed(8)} (${flashType}) [${priceChangePercent.toFixed(4)}%]`)
+                  
+                  // Trigger flash animation immediately
+                  setFlashAnimations(prev => {
+                    console.log('Flash animation triggered for:', symbol, flashType, 'Previous state:', prev)
+                    return {
+                      ...prev,
+                      [symbol]: flashType
+                    }
+                  })
+                  
+                  // Remove flash animation after 1.2 seconds
+                  setTimeout(() => {
+                    setFlashAnimations(prev => {
+                      const { [symbol]: _, ...rest } = prev
+                      return rest
+                    })
+                  }, 1200)
+                }
+              }
+              
+              // Update previous price
+              previousPricesRef.current.set(symbol, currentPrice)
+              coinsMapRef.current.set(symbol, updatedCoin)
 
-            // Update state with sorted coins
-            const updatedCoins = Array.from(coinsMapRef.current.values())
-            const sorted = sortCoins(updatedCoins, sortBy, sortOrder)
-            const filtered = searchCoins(sorted, search)
-            setCoins(filtered)
+              // Update state with sorted and filtered coins
+              const updatedCoins = Array.from(coinsMapRef.current.values())
+              const sorted = sortCoins(updatedCoins, sortBy, sortOrder)
+              const filtered = searchCoins(sorted, search)
+              setCoins(filtered)
+            }
           }
         } catch (error) {
           console.error('Error parsing WebSocket message:', error)
@@ -129,8 +173,9 @@ export default function CoinsPage() {
         console.log('WebSocket disconnected, reconnecting...')
         // Reconnect after 3 seconds
         setTimeout(() => {
-          if (coins.length > 0) {
-            subscribeToWebSocket(coins.map((c) => c.symbol))
+          const currentSymbols = Array.from(coinsMapRef.current.keys())
+          if (currentSymbols.length > 0) {
+            subscribeToWebSocket(currentSymbols)
           }
         }, 3000)
       }
@@ -179,6 +224,7 @@ export default function CoinsPage() {
     )
   }
 
+  // Initial fetch - only once on mount
   useEffect(() => {
     fetchCoins()
 
@@ -187,6 +233,17 @@ export default function CoinsPage() {
         wsRef.current.close()
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Client-side filtering and sorting when search/sort changes
+  useEffect(() => {
+    if (coinsMapRef.current.size === 0) return
+
+    const allCoins = Array.from(coinsMapRef.current.values())
+    const sorted = sortCoins(allCoins, sortBy, sortOrder)
+    const filtered = searchCoins(sorted, search)
+    setCoins(filtered)
   }, [search, sortBy, sortOrder])
 
   const handleSort = (field: SortBy) => {
@@ -214,119 +271,237 @@ export default function CoinsPage() {
   }
 
   return (
-    <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <div className="mb-12">
+    <div className="w-full py-16">
+      <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-16">
         <h1 className="text-5xl font-bold mb-4 gradient-text">Market Overview</h1>
         <p className="text-muted-foreground text-lg">Real-time cryptocurrency prices from Binance</p>
       </div>
 
-      <Card className="mb-8 glass-effect border-white/10">
-        <CardHeader>
-          <CardTitle className="text-xl">Search & Filter</CardTitle>
-          <CardDescription>Find coins and sort by different metrics</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Input
-            placeholder="Search coins (e.g., BTC, ETH, BNB)..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="max-w-sm glass-effect border-white/10 focus:border-primary/50"
-          />
-        </CardContent>
-      </Card>
+      <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-10">
+        <Card className="glass-effect border-white/10">
+          <CardHeader>
+            <CardTitle className="text-xl">Search & Filter</CardTitle>
+            <CardDescription>Find coins and sort by different metrics</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Input
+              placeholder="Search coins (e.g., BTC, ETH, BNB)..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="max-w-sm glass-effect border-white/10 focus:border-primary/50"
+            />
+          </CardContent>
+        </Card>
+      </div>
 
       {loading ? (
         <div className="text-center py-20 text-muted-foreground">
           <div className="animate-pulse text-lg">Loading market data...</div>
         </div>
       ) : (
-        <Card className="glass-effect border-white/10 overflow-hidden">
-          <div className="overflow-x-auto -mx-1 px-1">
-            <Table className="w-full">
-              <TableHeader>
-                <TableRow className="border-white/10 hover:bg-white/5 bg-white/5">
-                  <TableHead className="text-muted-foreground font-semibold whitespace-nowrap text-left align-middle" style={{ width: '150px', minWidth: '150px', verticalAlign: 'middle' }}>
-                    <Button
-                      variant="ghost"
-                      size="sm"
+      <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+        <div className="glass-effect border border-white/10 rounded-xl overflow-hidden bg-card shadow-xl">
+          <div className="overflow-x-auto">
+            {/* Custom Table - Pixel Perfect */}
+            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+              <colgroup>
+                <col style={{ width: '180px' }} />
+                <col style={{ width: 'auto' }} />
+                <col style={{ width: '180px' }} />
+                <col style={{ width: 'auto' }} />
+                <col style={{ width: '150px' }} />
+              </colgroup>
+              <thead>
+                <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', backgroundColor: 'rgba(255, 255, 255, 0.05)' }}>
+                  <th style={{ 
+                    textAlign: 'left', 
+                    padding: '12px 16px', 
+                    fontWeight: 600, 
+                    color: 'var(--muted-foreground)',
+                    width: '180px',
+                    minWidth: '180px',
+                    maxWidth: '180px'
+                  }}>
+                    <button
                       onClick={() => handleSort('symbol')}
-                      className="flex items-center gap-2 hover:text-primary transition-colors h-auto py-1 -ml-2"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        width: '100%',
+                        textAlign: 'left',
+                        background: 'transparent',
+                        border: 'none',
+                        padding: 0,
+                        margin: 0,
+                        cursor: 'pointer',
+                        color: 'inherit'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
+                      onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}
                     >
+                      <span style={{ width: '16px', height: '16px', flexShrink: 0, opacity: 0 }}>
+                        <TrendingUp style={{ width: '16px', height: '16px' }} />
+                      </span>
                       <span>Symbol</span>
-                      <ArrowUpDown className="h-4 w-4 flex-shrink-0" />
-                    </Button>
-                  </TableHead>
-                  <TableHead className="text-muted-foreground font-semibold whitespace-nowrap text-left align-middle" style={{ verticalAlign: 'middle' }}>
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                      <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
+                    </button>
+                  </th>
+                  <th style={{ 
+                    textAlign: 'left', 
+                    padding: '12px 16px', 
+                    fontWeight: 600, 
+                    color: 'var(--muted-foreground)'
+                  }}>
+                    <button
                       onClick={() => handleSort('price')}
-                      className="flex items-center gap-2 hover:text-primary h-auto py-1 -ml-2"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        width: '100%',
+                        textAlign: 'left',
+                        background: 'transparent',
+                        border: 'none',
+                        padding: 0,
+                        margin: 0,
+                        cursor: 'pointer',
+                        color: 'inherit'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
+                      onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}
                     >
                       <span>Price</span>
-                      <ArrowUpDown className="h-4 w-4" />
-                    </Button>
-                  </TableHead>
-                  <TableHead className="text-muted-foreground font-semibold whitespace-nowrap text-left align-middle" style={{ verticalAlign: 'middle' }}>
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                      <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
+                    </button>
+                  </th>
+                  <th style={{ 
+                    textAlign: 'left', 
+                    padding: '12px 16px', 
+                    fontWeight: 600, 
+                    color: 'var(--muted-foreground)',
+                    width: '180px',
+                    minWidth: '180px',
+                    maxWidth: '180px'
+                  }}>
+                    <button
                       onClick={() => handleSort('change')}
-                      className="flex items-center gap-2 hover:text-primary h-auto py-1 -ml-2"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        width: '100%',
+                        textAlign: 'left',
+                        background: 'transparent',
+                        border: 'none',
+                        padding: 0,
+                        margin: 0,
+                        cursor: 'pointer',
+                        color: 'inherit'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
+                      onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}
                     >
                       <span>24h Change</span>
-                      <ArrowUpDown className="h-4 w-4" />
-                    </Button>
-                  </TableHead>
-                  <TableHead className="text-muted-foreground font-semibold whitespace-nowrap text-left align-middle" style={{ verticalAlign: 'middle' }}>
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                      <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
+                    </button>
+                  </th>
+                  <th style={{ 
+                    textAlign: 'left', 
+                    padding: '12px 16px', 
+                    fontWeight: 600, 
+                    color: 'var(--muted-foreground)'
+                  }}>
+                    <button
                       onClick={() => handleSort('volume')}
-                      className="flex items-center gap-2 hover:text-primary h-auto py-1 -ml-2"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        width: '100%',
+                        textAlign: 'left',
+                        background: 'transparent',
+                        border: 'none',
+                        padding: 0,
+                        margin: 0,
+                        cursor: 'pointer',
+                        color: 'inherit'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
+                      onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}
                     >
                       <span>24h Volume</span>
-                      <ArrowUpDown className="h-4 w-4" />
-                    </Button>
-                  </TableHead>
-                  <TableHead className="text-muted-foreground font-semibold whitespace-nowrap text-left align-middle" style={{ verticalAlign: 'middle' }}>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+                      <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
+                    </button>
+                  </th>
+                  <th style={{ 
+                    textAlign: 'left', 
+                    padding: '12px 16px', 
+                    fontWeight: 600, 
+                    color: 'var(--muted-foreground)',
+                    width: '150px',
+                    minWidth: '150px',
+                    maxWidth: '150px'
+                  }}>
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
                 {coins.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-16 text-muted-foreground">
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '64px 16px', color: 'var(--muted-foreground)' }}>
                       No coins found
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ) : (
                   coins.map((coin) => {
                     const change = parseFloat(coin.priceChangePercent)
                     const isPositive = change >= 0
                     const changePercent = Math.abs(change)
+                    const flashType = flashAnimations[coin.symbol]
+                    const flashClass = flashType === 'up' 
+                      ? 'animate-flash-green' 
+                      : flashType === 'down' 
+                      ? 'animate-flash-red' 
+                      : ''
+                    
                     return (
-                      <TableRow 
-                        key={coin.symbol} 
-                        className={`border-white/10 hover:bg-white/5 transition-all duration-300 group relative ${
-                          isPositive 
-                            ? 'hover:shadow-lg hover:shadow-green-500/10 before:content-[""] before:absolute before:inset-0 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300 before:bg-gradient-to-r before:from-green-500/5 before:via-transparent before:to-transparent before:pointer-events-none' 
-                            : 'hover:shadow-lg hover:shadow-red-500/10 before:content-[""] before:absolute before:inset-0 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300 before:bg-gradient-to-r before:from-red-500/5 before:via-transparent before:to-transparent before:pointer-events-none'
-                        }`}
+                      <tr 
+                        key={coin.symbol}
+                        className={`group relative ${flashClass}`}
+                        style={{
+                          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                          transition: 'all 0.3s',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent'
+                        }}
                       >
-                        <TableCell className="font-bold text-lg relative z-10 whitespace-nowrap text-left align-middle" style={{ width: '150px', minWidth: '150px', verticalAlign: 'middle' }}>
-                          <div className="flex items-center gap-2">
-                            <span className="w-4 h-4 flex items-center justify-center flex-shrink-0">
+                        <td style={{ 
+                          padding: '12px 16px', 
+                          fontWeight: 700, 
+                          fontSize: '18px',
+                          width: '180px',
+                          minWidth: '180px',
+                          maxWidth: '180px'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                               {isPositive ? (
-                                <TrendingUp className="h-4 w-4 text-green-400" />
+                                <TrendingUp style={{ width: '16px', height: '16px', color: '#22c55e' }} />
                               ) : (
-                                <TrendingDown className="h-4 w-4 text-red-400" />
+                                <TrendingDown style={{ width: '16px', height: '16px', color: '#ef4444' }} />
                               )}
                             </span>
                             <span>{coin.symbol}</span>
                           </div>
-                        </TableCell>
+                        </td>
                         
-                        <TableCell className="font-medium relative z-10 whitespace-nowrap text-left align-middle" style={{ verticalAlign: 'middle' }}>
+                        <td style={{ padding: '12px 16px', fontWeight: 500 }}>
                           <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md transition-all duration-300 ${
                             isPositive 
                               ? 'text-green-400 bg-green-500/10 group-hover:bg-green-500/20 group-hover:shadow-lg group-hover:shadow-green-500/30' 
@@ -339,10 +514,15 @@ export default function CoinsPage() {
                             )}
                             <span className="font-semibold">${formatPrice(coin.price)}</span>
                           </div>
-                        </TableCell>
+                        </td>
                         
-                        <TableCell className="relative z-10 whitespace-nowrap text-left align-middle" style={{ verticalAlign: 'middle' }}>
-                          <div className="flex items-center gap-2">
+                        <td style={{ 
+                          padding: '12px 16px',
+                          width: '180px',
+                          minWidth: '180px',
+                          maxWidth: '180px'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Badge
                               variant={isPositive ? 'default' : 'destructive'}
                               className={`${
@@ -360,17 +540,24 @@ export default function CoinsPage() {
                               <span>{changePercent.toFixed(2)}%</span>
                             </Badge>
                           </div>
-                        </TableCell>
+                        </td>
                         
-                        <TableCell className="text-muted-foreground relative z-10 whitespace-nowrap text-left align-middle" style={{ verticalAlign: 'middle' }}>
-                          <span className="text-sm">
-                            ${parseFloat(coin.quoteVolume).toLocaleString('en-US', {
-                              maximumFractionDigits: 0,
-                            })}
-                          </span>
-                        </TableCell>
+                        <td style={{ 
+                          padding: '12px 16px', 
+                          color: 'var(--muted-foreground)',
+                          fontSize: '14px'
+                        }}>
+                          ${parseFloat(coin.quoteVolume).toLocaleString('en-US', {
+                            maximumFractionDigits: 0,
+                          })}
+                        </td>
                         
-                        <TableCell className="relative z-10 whitespace-nowrap text-left align-middle" style={{ verticalAlign: 'middle' }}>
+                        <td style={{ 
+                          padding: '12px 16px',
+                          width: '150px',
+                          minWidth: '150px',
+                          maxWidth: '150px'
+                        }}>
                           <Button
                             variant="outline"
                             size="sm"
@@ -379,15 +566,16 @@ export default function CoinsPage() {
                           >
                             <Link href={`/coins/${coin.symbol}`}>View Details</Link>
                           </Button>
-                        </TableCell>
-                      </TableRow>
+                        </td>
+                      </tr>
                     )
                   })
                 )}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
           </div>
-        </Card>
+        </div>
+      </div>
       )}
     </div>
   )

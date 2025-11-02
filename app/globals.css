@@ -213,7 +213,62 @@
     animation: pulse-green 2s ease-in-out infinite;
   }
   
-  .price-down-glow {
-    animation: pulse-red 2s ease-in-out infinite;
-  }
-}
+      .price-down-glow {
+        animation: pulse-red 2s ease-in-out infinite;
+      }
+
+      /* Flash animations for price changes - balanced version */
+      @keyframes flash-green {
+        0% {
+          background-color: rgba(34, 197, 94, 0);
+          border-color: rgba(255, 255, 255, 0.1);
+          box-shadow: 0 0 0 rgba(34, 197, 94, 0);
+        }
+        25% {
+          background-color: rgba(34, 197, 94, 0.25);
+          border-color: rgba(34, 197, 94, 0.5);
+          box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+        }
+        50% {
+          background-color: rgba(34, 197, 94, 0.15);
+          border-color: rgba(34, 197, 94, 0.35);
+          box-shadow: 0 0 15px rgba(34, 197, 94, 0.2);
+        }
+        100% {
+          background-color: rgba(34, 197, 94, 0);
+          border-color: rgba(255, 255, 255, 0.1);
+          box-shadow: 0 0 0 rgba(34, 197, 94, 0);
+        }
+      }
+
+      @keyframes flash-red {
+        0% {
+          background-color: rgba(239, 68, 68, 0);
+          border-color: rgba(255, 255, 255, 0.1);
+          box-shadow: 0 0 0 rgba(239, 68, 68, 0);
+        }
+        25% {
+          background-color: rgba(239, 68, 68, 0.25);
+          border-color: rgba(239, 68, 68, 0.5);
+          box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+        }
+        50% {
+          background-color: rgba(239, 68, 68, 0.15);
+          border-color: rgba(239, 68, 68, 0.35);
+          box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);
+        }
+        100% {
+          background-color: rgba(239, 68, 68, 0);
+          border-color: rgba(255, 255, 255, 0.1);
+          box-shadow: 0 0 0 rgba(239, 68, 68, 0);
+        }
+      }
+
+      .animate-flash-green {
+        animation: flash-green 1.2s ease-out;
+      }
+
+      .animate-flash-red {
+        animation: flash-red 1.2s ease-out;
+      }
+    }
