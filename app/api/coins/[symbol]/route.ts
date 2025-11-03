@@ -12,6 +12,10 @@ export async function GET(
     const isUserPremium = user?.subscription?.status === 'active' && 
                          user.subscription.currentPeriodEnd > new Date()
 
+    // Get time range from query params
+    const searchParams = request.nextUrl.searchParams
+    const timeRange = searchParams.get('range') || '1D'
+
     // Get basic ticker data
     const ticker = await getTicker(symbol.toUpperCase())
     if (!ticker) {
@@ -21,8 +25,38 @@ export async function GET(
       )
     }
 
+    // Determine interval and limit based on time range
+    let interval = '1h'
+    let limit = 24
+    
+    switch (timeRange) {
+      case '1D':
+        interval = '1h'
+        limit = 24 // 24 hours
+        break
+      case '7D':
+        interval = '1h'
+        limit = 168 // 7 days * 24 hours
+        break
+      case '30D':
+        interval = '4h'
+        limit = 180 // 30 days * 6 (4-hour intervals per day)
+        break
+      case '90D':
+        interval = '1d'
+        limit = 90 // 90 days
+        break
+      case '1Y':
+        interval = '1w'
+        limit = 52 // 52 weeks
+        break
+      default:
+        interval = '1h'
+        limit = 24
+    }
+
     // Get klines for chart
-    const klines = await getKlines(symbol.toUpperCase(), '1h', 24)
+    const klines = await getKlines(symbol.toUpperCase(), interval, limit)
 
     const response: any = {
       symbol: ticker.symbol,

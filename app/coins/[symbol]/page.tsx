@@ -76,6 +76,7 @@ export default function CoinDetailPage() {
   const futuresWsRef = useRef<WebSocket | null>(null)
   const tradesWsRef = useRef<WebSocket | null>(null)
   const coinDataRef = useRef<CoinData | null>(null)
+  const timeRangeRef = useRef<'1D' | '7D' | '30D' | '90D' | '1Y'>('1D')
   const previousValuesRef = useRef<{
     price?: number
     spotVolume?: number
@@ -86,6 +87,9 @@ export default function CoinDetailPage() {
   const [flashAnimations, setFlashAnimations] = useState<Record<string, 'up' | 'down'>>({})
   const [buyTrades, setBuyTrades] = useState<Trade[]>([])
   const [sellTrades, setSellTrades] = useState<Trade[]>([])
+  const [timeRange, setTimeRange] = useState<'1D' | '7D' | '30D' | '90D' | '1Y'>('1D')
+  const [chartLoading, setChartLoading] = useState(false)
+  const [chartKlines, setChartKlines] = useState<CoinData['klines']>([])
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -101,6 +105,44 @@ export default function CoinDetailPage() {
       }
     }
   }, [coinData])
+
+  // Keep timeRangeRef in sync with state
+  useEffect(() => {
+    timeRangeRef.current = timeRange
+  }, [timeRange])
+
+  // Initialize or reset chartKlines when timeRange is 1D
+  useEffect(() => {
+    if (timeRange === '1D' && coinData && coinData.klines) {
+      // When switching back to 1D, use the current coinData.klines (which is updated by WebSocket)
+      setChartKlines(coinData.klines)
+    }
+  }, [timeRange, coinData])
+
+  // Fetch chart data only when timeRange changes and it's NOT 1D
+  useEffect(() => {
+    if (!symbol || !coinData || timeRange === '1D') {
+      // For 1D, we use WebSocket data from coinData.klines, no API call needed
+      return
+    }
+
+    const fetchChartData = async () => {
+      setChartLoading(true)
+      try {
+        const res = await fetch(`/api/coins/${symbol}?range=${timeRange}`)
+        if (res.ok) {
+          const data = await res.json()
+          setChartKlines(data.klines || [])
+        }
+      } catch (error) {
+        console.error('Failed to fetch chart data:', error)
+      } finally {
+        setChartLoading(false)
+      }
+    }
+
+    fetchChartData()
+  }, [timeRange, symbol]) // Removed coinData from dependencies to prevent constant refetching
 
   useEffect(() => {
     console.log('CoinDetailPage mounted with symbol:', symbol)
@@ -294,6 +336,24 @@ export default function CoinDetailPage() {
               }
               
               setCoinData(updatedCoinData)
+              
+              // For 1D time range, update chartKlines with latest data from WebSocket
+              if (timeRangeRef.current === '1D') {
+                // For 1D, we update the last point with the current price for real-time updates
+                setChartKlines(prev => {
+                  if (prev.length === 0) return prev
+                  const updated = [...prev]
+                  const lastIndex = updated.length - 1
+                  const lastPoint = updated[lastIndex]
+                  updated[lastIndex] = {
+                    ...lastPoint,
+                    close: newPrice,
+                    high: Math.max(lastPoint.high, newPrice),
+                    low: Math.min(lastPoint.low, newPrice),
+                  }
+                  return updated
+                })
+              }
             }
           } catch (error) {
             console.error('Error parsing Spot WebSocket message:', error)
@@ -516,14 +576,39 @@ export default function CoinDetailPage() {
   const change = parseFloat(coinData.priceChangePercent)
   const isPositive = change >= 0
 
-  const formatKlineData = (klines: CoinData['klines']) => {
+  const formatKlineData = (klines: CoinData['klines'], timeRangeValue: string = timeRange) => {
     return klines.map((k, index) => {
       const isPositive = index === 0 ? true : k.close >= klines[index - 1].close
-      return {
-        time: new Date(k.time).toLocaleTimeString('en-US', {
+      
+      let timeFormat: string
+      if (timeRangeValue === '1Y') {
+        timeFormat = new Date(k.time).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        })
+      } else if (timeRangeValue === '90D' || timeRangeValue === '30D') {
+        timeFormat = new Date(k.time).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+        })
+      } else if (timeRangeValue === '7D') {
+        timeFormat = new Date(k.time).toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
           hour: '2-digit',
           minute: '2-digit',
-        }),
+        })
+      } else {
+        // 1D
+        timeFormat = new Date(k.time).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      }
+      
+      return {
+        time: timeFormat,
         timestamp: k.time,
         price: k.close,
         open: k.open,
@@ -556,10 +641,22 @@ export default function CoinDetailPage() {
     })
   }
 
-  const chartData = formatKlineData(coinData.klines)
+  // Only format and calculate if we have data
+  const chartData = chartKlines.length > 0 ? formatKlineData(chartKlines, timeRange) : []
   const priceChange = chartData.length > 0 && chartData[0] ? 
     ((chartData[chartData.length - 1].close - chartData[0].open) / chartData[0].open) * 100 : 0
   const isChartPositive = priceChange >= 0
+  
+  // Memoize chart data to prevent unnecessary re-renders
+  const memoizedChartData = chartData
+
+  const timeRangeOptions: Array<{ label: string; value: '1D' | '7D' | '30D' | '90D' | '1Y' }> = [
+    { label: '24 Saat', value: '1D' },
+    { label: '7 Gün', value: '7D' },
+    { label: '30 Gün', value: '30D' },
+    { label: '90 Gün', value: '90D' },
+    { label: '1 Yıl', value: '1Y' },
+  ]
 
   return (
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -792,22 +889,54 @@ export default function CoinDetailPage() {
         <TabsContent value="hourly" className="mt-6">
           <Card className="bg-gradient-to-br from-background to-background/80 border-border/50">
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
-                  <CardTitle className="text-2xl mb-1">Price Chart (24h)</CardTitle>
-                  <CardDescription>Hourly price movements with volume</CardDescription>
+                  <CardTitle className="text-2xl mb-1">Price Chart</CardTitle>
+                  <CardDescription>
+                    {timeRange === '1D' && '24 saatlik fiyat hareketleri'}
+                    {timeRange === '7D' && '7 günlük fiyat hareketleri'}
+                    {timeRange === '30D' && '30 günlük fiyat hareketleri'}
+                    {timeRange === '90D' && '90 günlük fiyat hareketleri'}
+                    {timeRange === '1Y' && '1 yıllık fiyat hareketleri'}
+                  </CardDescription>
                 </div>
-                <div className="text-right">
-                  <div className={`text-2xl font-bold ${isChartPositive ? 'text-green-400' : 'text-red-400'}`}>
-                    {isChartPositive ? '+' : ''}{priceChange.toFixed(2)}%
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="flex gap-2 bg-background/50 p-1 rounded-lg border border-border/50">
+                    {timeRangeOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => setTimeRange(option.value)}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all cursor-pointer ${
+                          timeRange === option.value
+                            ? 'bg-primary text-primary-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
                   </div>
-                  <div className="text-sm text-muted-foreground">24h Change</div>
+                  <div className="text-right">
+                    <div className={`text-2xl font-bold ${isChartPositive ? 'text-green-400' : 'text-red-400'}`}>
+                      {isChartPositive ? '+' : ''}{priceChange.toFixed(2)}%
+                    </div>
+                    <div className="text-sm text-muted-foreground">Dönem Değişimi</div>
+                  </div>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
+              {chartLoading ? (
+                <div className="flex items-center justify-center h-[500px]">
+                  <div className="text-muted-foreground">Grafik yükleniyor...</div>
+                </div>
+              ) : chartData.length === 0 ? (
+                <div className="flex items-center justify-center h-[500px]">
+                  <div className="text-muted-foreground">Veri yükleniyor...</div>
+                </div>
+              ) : (
               <ResponsiveContainer width="100%" height={500}>
-                <ComposedChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                <ComposedChart data={memoizedChartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                   <defs>
                     <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor={isChartPositive ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)"} stopOpacity={1} />
@@ -880,9 +1009,11 @@ export default function CoinDetailPage() {
                     fill="url(#volumeGradient)"
                     opacity={0.6}
                     radius={[4, 4, 0, 0]}
+                    isAnimationActive={timeRange !== '1D'} // Disable animation for real-time updates
                   />
                 </ComposedChart>
               </ResponsiveContainer>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -995,12 +1126,27 @@ export default function CoinDetailPage() {
 
           <Card className="mt-6 bg-gradient-to-br from-background to-background/80 border-border/50">
             <CardHeader>
-              <CardTitle className="text-xl">24h Trading Volume</CardTitle>
-              <CardDescription>Hourly volume distribution</CardDescription>
+              <CardTitle className="text-xl">Trading Volume</CardTitle>
+              <CardDescription>
+                {timeRange === '1D' && '24 saatlik hacim dağılımı'}
+                {timeRange === '7D' && '7 günlük hacim dağılımı'}
+                {timeRange === '30D' && '30 günlük hacim dağılımı'}
+                {timeRange === '90D' && '90 günlük hacim dağılımı'}
+                {timeRange === '1Y' && '1 yıllık hacim dağılımı'}
+              </CardDescription>
             </CardHeader>
             <CardContent>
+              {chartLoading ? (
+                <div className="flex items-center justify-center h-[350px]">
+                  <div className="text-muted-foreground">Grafik yükleniyor...</div>
+                </div>
+              ) : chartData.length === 0 ? (
+                <div className="flex items-center justify-center h-[350px]">
+                  <div className="text-muted-foreground">Veri yükleniyor...</div>
+                </div>
+              ) : (
               <ResponsiveContainer width="100%" height={350}>
-                <BarChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                <BarChart data={memoizedChartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                   <defs>
                     <linearGradient id="volumeBarGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="rgba(139, 92, 246, 0.8)" stopOpacity={1} />
@@ -1045,11 +1191,12 @@ export default function CoinDetailPage() {
                     dataKey="volume" 
                     fill="url(#volumeBarGradient)"
                     radius={[8, 8, 0, 0]}
-                    isAnimationActive={true}
+                    isAnimationActive={timeRange !== '1D'} // Disable animation for real-time updates
                     animationDuration={800}
                   />
                 </BarChart>
               </ResponsiveContainer>
+              )}
             </CardContent>
           </Card>
 
