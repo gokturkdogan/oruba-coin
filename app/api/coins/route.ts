@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || ''
     const sortBy = searchParams.get('sortBy') || 'volume'
     const sortOrder = searchParams.get('sortOrder') || 'desc'
-    const limit = parseInt(searchParams.get('limit') || '100')
+    const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : null
 
     // Get tickers from Binance
     const tickers = await getAllTickers()
@@ -45,8 +45,8 @@ export async function GET(request: NextRequest) {
       return sortOrder === 'asc' ? aVal - bVal : bVal - aVal
     })
 
-    // Apply limit
-    const limited = filtered.slice(0, limit)
+    // Apply limit if provided
+    const limited = limit ? filtered.slice(0, limit) : filtered
 
     return NextResponse.json({
       coins: limited,

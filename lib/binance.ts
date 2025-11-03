@@ -11,6 +11,8 @@ export interface BinanceTicker {
   priceChangePercent: string
   volume: string
   quoteVolume: string
+  futuresVolume?: string
+  futuresQuoteVolume?: string
   highPrice: string
   lowPrice: string
   openPrice: string
@@ -66,28 +68,57 @@ export async function getTicker(symbol: string): Promise<BinanceTicker | null> {
 
 export async function getAllTickers(): Promise<BinanceTicker[]> {
   try {
-    // Use REST API directly for better compatibility
-    const response = await fetch('https://api.binance.com/api/v3/ticker/24hr')
-    if (!response.ok) throw new Error('Failed to fetch tickers')
+    // Fetch both spot and futures tickers in parallel
+    const [spotResponse, futuresResponse] = await Promise.all([
+      fetch('https://api.binance.com/api/v3/ticker/24hr'),
+      fetch('https://fapi.binance.com/fapi/v1/ticker/24hr'),
+    ])
     
-    const tickers24hr = await response.json()
+    if (!spotResponse.ok) throw new Error('Failed to fetch spot tickers')
+    
+    const spotTickers = await spotResponse.json()
+    let futuresTickers: any[] = []
+    
+    if (futuresResponse.ok) {
+      futuresTickers = await futuresResponse.json()
+    }
+    
+    // Create a map of futures data by symbol
+    const futuresMap = new Map<string, any>()
+    for (const ticker of futuresTickers) {
+      if (ticker.symbol.endsWith('USDT')) {
+        futuresMap.set(ticker.symbol, ticker)
+      }
+    }
     
     const result: BinanceTicker[] = []
     
-    for (const ticker of tickers24hr) {
+    for (const ticker of spotTickers) {
       if (ticker.symbol.endsWith('USDT')) {
-        result.push({
-          symbol: ticker.symbol,
-          price: ticker.lastPrice || '0',
-          priceChangePercent: ticker.priceChangePercent || '0',
-          volume: ticker.volume || '0',
-          quoteVolume: ticker.quoteVolume || '0',
-          highPrice: ticker.highPrice || '0',
-          lowPrice: ticker.lowPrice || '0',
-          openPrice: ticker.openPrice || '0',
-          prevClosePrice: ticker.prevClosePrice || '0',
-          count: ticker.count || 0,
-        })
+        // Get price from multiple possible fields
+        const price = ticker.lastPrice || ticker.price || ticker.closePrice || '0'
+        const priceNum = parseFloat(price)
+        
+        // Filter out coins with zero or invalid price
+        // Also filter out coins that haven't traded recently (volume is 0)
+        if (priceNum > 0 && parseFloat(ticker.quoteVolume || '0') > 0) {
+          const futuresData = futuresMap.get(ticker.symbol)
+          
+          result.push({
+            symbol: ticker.symbol,
+            price: price,
+            priceChangePercent: ticker.priceChangePercent || '0',
+            volume: ticker.volume || '0',
+            quoteVolume: ticker.quoteVolume || '0',
+            futuresVolume: futuresData?.volume || '0',
+            futuresQuoteVolume: futuresData?.quoteVolume || '0',
+            highPrice: ticker.highPrice || '0',
+            lowPrice: ticker.lowPrice || '0',
+            openPrice: ticker.openPrice || '0',
+            prevClosePrice: ticker.prevClosePrice || '0',
+            count: ticker.count || 0,
+          })
+        }
       }
     }
     
