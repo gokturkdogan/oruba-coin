@@ -31,8 +31,13 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/checkout" className="text-muted-foreground hover:text-primary transition-colors">
+                <Link href="/premium" className="text-muted-foreground hover:text-primary transition-colors">
                   Premium
+                </Link>
+              </li>
+              <li>
+                <Link href="/checkout" className="text-muted-foreground hover:text-primary transition-colors">
+                  Premium'a Yükselt
                 </Link>
               </li>
             </ul>

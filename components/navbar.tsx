@@ -110,6 +110,21 @@ export function Navbar() {
                 <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-gradient-to-r from-primary to-primary/50 rounded-full" />
               )}
             </a>
+            <a
+              href="/premium"
+              onClick={(e) => {
+                e.preventDefault()
+                window.location.href = '/premium'
+              }}
+              className={`transition-all duration-200 hover:text-primary relative cursor-pointer ${
+                pathname === '/premium' ? 'text-primary font-semibold' : 'text-foreground/70'
+              }`}
+            >
+              Premium Programı
+              {pathname === '/premium' && (
+                <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-gradient-to-r from-primary to-primary/50 rounded-full" />
+              )}
+            </a>
           </div>
           
           <div className="flex items-center space-x-4">
@@ -165,14 +180,24 @@ export function Navbar() {
                         Profil
                       </DropdownMenuItem>
                       {!user.isPremium && (
-                        <DropdownMenuItem 
-                          onClick={(e) => {
-                            e.preventDefault()
-                            window.location.href = '/checkout'
-                          }}
-                        >
-                          Premium'a Yükselt
-                        </DropdownMenuItem>
+                        <>
+                          <DropdownMenuItem 
+                            onClick={(e) => {
+                              e.preventDefault()
+                              window.location.href = '/premium'
+                            }}
+                          >
+                            Premium Programı
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={(e) => {
+                              e.preventDefault()
+                              window.location.href = '/checkout'
+                            }}
+                          >
+                            Premium'a Yükselt
+                          </DropdownMenuItem>
+                        </>
                       )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={handleLogout}>
@@ -235,6 +260,19 @@ export function Navbar() {
             >
               Coinler
             </a>
+            <a
+              href="/premium"
+              onClick={(e) => {
+                e.preventDefault()
+                setMobileMenuOpen(false)
+                window.location.href = '/premium'
+              }}
+              className={`block px-4 py-2 rounded-lg transition-all cursor-pointer ${
+                pathname === '/premium' ? 'text-primary bg-primary/10' : 'text-foreground/70 hover:bg-white/5'
+              }`}
+            >
+              Premium Programı
+            </a>
             {user && (
               <>
                 <a
@@ -249,17 +287,30 @@ export function Navbar() {
                   Profil
                 </a>
                 {!user.isPremium && (
-                  <a
-                    href="/checkout"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      setMobileMenuOpen(false)
-                      window.location.href = '/checkout'
-                    }}
-                    className="block px-4 py-2 rounded-lg text-foreground/70 hover:bg-white/5 transition-all cursor-pointer"
-                  >
-                    Premium'a Yükselt
-                  </a>
+                  <>
+                    <a
+                      href="/premium"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setMobileMenuOpen(false)
+                        window.location.href = '/premium'
+                      }}
+                      className="block px-4 py-2 rounded-lg text-foreground/70 hover:bg-white/5 transition-all cursor-pointer"
+                    >
+                      Premium Programı
+                    </a>
+                    <a
+                      href="/checkout"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setMobileMenuOpen(false)
+                        window.location.href = '/checkout'
+                      }}
+                      className="block px-4 py-2 rounded-lg text-foreground/70 hover:bg-white/5 transition-all cursor-pointer"
+                    >
+                      Premium'a Yükselt
+                    </a>
+                  </>
                 )}
               </>
             )}
