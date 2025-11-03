@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getTicker, getKlines } from '@/lib/binance'
+import { getTicker, getKlines, getFuturesKlines } from '@/lib/binance'
 import { getAuthUser } from '@/lib/middleware'
 
 export async function GET(
@@ -55,8 +55,11 @@ export async function GET(
         limit = 24
     }
 
-    // Get klines for chart
-    const klines = await getKlines(symbol.toUpperCase(), interval, limit)
+    // Get klines for chart - both spot and futures
+    const [klines, futuresKlines] = await Promise.all([
+      getKlines(symbol.toUpperCase(), interval, limit),
+      getFuturesKlines(symbol.toUpperCase(), interval, limit).catch(() => []),
+    ])
 
     const response: any = {
       symbol: ticker.symbol,
@@ -76,7 +79,15 @@ export async function GET(
         high: parseFloat(k.high),
         low: parseFloat(k.low),
         close: parseFloat(k.close),
-        volume: parseFloat(k.volume),
+        volume: parseFloat(k.quoteVolume), // USDT cinsinden volume (quoteVolume)
+      })),
+      futuresKlines: futuresKlines.map((k: any) => ({
+        time: k.openTime,
+        open: parseFloat(k.open),
+        high: parseFloat(k.high),
+        low: parseFloat(k.low),
+        close: parseFloat(k.close),
+        volume: parseFloat(k.quoteVolume), // USDT cinsinden volume (quoteVolume)
       })),
     }
 
@@ -91,7 +102,7 @@ export async function GET(
           high: parseFloat(k.high),
           low: parseFloat(k.low),
           close: parseFloat(k.close),
-          volume: parseFloat(k.volume),
+          volume: parseFloat(k.quoteVolume), // USDT cinsinden volume (quoteVolume)
         })),
       }
     }

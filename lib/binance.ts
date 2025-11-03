@@ -206,3 +206,30 @@ export async function getKlines(symbol: string, interval: string = '1h', limit: 
   }
 }
 
+export async function getFuturesKlines(symbol: string, interval: string = '1h', limit: number = 24) {
+  try {
+    const response = await fetch(
+      `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`
+    )
+    if (!response.ok) return []
+    
+    const data = await response.json()
+    return data.map((k: any[]) => ({
+      openTime: k[0],
+      open: k[1],
+      high: k[2],
+      low: k[3],
+      close: k[4],
+      volume: k[5],
+      closeTime: k[6],
+      quoteVolume: k[7],
+      trades: k[8],
+      takerBuyBaseVolume: k[9],
+      takerBuyQuoteVolume: k[10],
+    }))
+  } catch (error) {
+    console.error(`Error fetching futures klines for ${symbol}:`, error)
+    return []
+  }
+}
+

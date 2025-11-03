@@ -22,6 +22,9 @@ import {
 import { TrendingUp, TrendingDown, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { formatNumberTR } from '@/lib/utils'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 
 interface CoinData {
   symbol: string
@@ -36,6 +39,14 @@ interface CoinData {
   openPrice: string
   prevClosePrice: string
   klines: Array<{
+    time: number
+    open: number
+    high: number
+    low: number
+    close: number
+    volume: number
+  }>
+  futuresKlines?: Array<{
     time: number
     open: number
     high: number
@@ -90,6 +101,10 @@ export default function CoinDetailPage() {
   const [timeRange, setTimeRange] = useState<'1D' | '7D' | '30D' | '90D' | '1Y'>('1D')
   const [chartLoading, setChartLoading] = useState(false)
   const [chartKlines, setChartKlines] = useState<CoinData['klines']>([])
+  const [chartFuturesKlines, setChartFuturesKlines] = useState<CoinData['futuresKlines']>([])
+  const [showPrice, setShowPrice] = useState(true)
+  const [showSpotVolume, setShowSpotVolume] = useState(true)
+  const [showFuturesVolume, setShowFuturesVolume] = useState(true)
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -116,6 +131,10 @@ export default function CoinDetailPage() {
     if (timeRange === '1D' && coinData && coinData.klines) {
       // When switching back to 1D, use the current coinData.klines (which is updated by WebSocket)
       setChartKlines(coinData.klines)
+      // For 1D, futures klines are not available in real-time, so we'll use initial data if available
+      if (coinData.futuresKlines) {
+        setChartFuturesKlines(coinData.futuresKlines)
+      }
     }
   }, [timeRange, coinData])
 
@@ -133,6 +152,7 @@ export default function CoinDetailPage() {
         if (res.ok) {
           const data = await res.json()
           setChartKlines(data.klines || [])
+          setChartFuturesKlines(data.futuresKlines || [])
         }
       } catch (error) {
         console.error('Failed to fetch chart data:', error)
@@ -187,8 +207,13 @@ export default function CoinDetailPage() {
           if (!data.klines) {
             data.klines = []
           }
+          if (!data.futuresKlines) {
+            data.futuresKlines = []
+          }
           console.log('Setting initial coin data...')
           setCoinData(data)
+          setChartKlines(data.klines || [])
+          setChartFuturesKlines(data.futuresKlines || [])
           setError(null)
           setLoading(false)
           
@@ -606,7 +631,13 @@ export default function CoinDetailPage() {
   const change = parseFloat(coinData.priceChangePercent)
   const isPositive = change >= 0
 
-  const formatKlineData = (klines: CoinData['klines'], timeRangeValue: string = timeRange) => {
+  const formatKlineData = (klines: CoinData['klines'], futuresKlines: CoinData['futuresKlines'] = [], timeRangeValue: string = timeRange) => {
+    // Create a map of futures klines by time for quick lookup
+    const futuresMap = new Map<number, number>()
+    futuresKlines.forEach(fk => {
+      futuresMap.set(fk.time, fk.volume)
+    })
+    
     return klines.map((k, index) => {
       const isPositive = index === 0 ? true : k.close >= klines[index - 1].close
       
@@ -637,6 +668,9 @@ export default function CoinDetailPage() {
         })
       }
       
+      // Find matching futures volume by time (closest match)
+      const futuresVolume = futuresMap.get(k.time) || 0
+      
       return {
         time: timeFormat,
         timestamp: k.time,
@@ -645,7 +679,8 @@ export default function CoinDetailPage() {
         high: k.high,
         low: k.low,
         close: k.close,
-        volume: k.volume,
+        volume: k.volume, // Spot volume
+        futuresVolume: futuresVolume, // Futures volume
         isPositive: isPositive,
       }
     })
@@ -672,7 +707,7 @@ export default function CoinDetailPage() {
   }
 
   // Only format and calculate if we have data
-  const chartData = chartKlines.length > 0 ? formatKlineData(chartKlines, timeRange) : []
+  const chartData = chartKlines.length > 0 ? formatKlineData(chartKlines, chartFuturesKlines, timeRange) : []
   const priceChange = chartData.length > 0 && chartData[0] ? 
     ((chartData[chartData.length - 1].close - chartData[0].open) / chartData[0].open) * 100 : 0
   const isChartPositive = priceChange >= 0
@@ -954,6 +989,34 @@ export default function CoinDetailPage() {
                   </div>
                 </div>
               </div>
+              <div className="mt-4 pt-4 border-t border-border/50">
+                <div className="flex items-center gap-6 flex-wrap">
+                  <Label className="text-sm font-medium text-muted-foreground cursor-pointer flex items-center gap-2">
+                    <Checkbox
+                      checked={showPrice}
+                      onCheckedChange={(checked) => setShowPrice(checked === true)}
+                      className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                    />
+                    <span>Fiyat</span>
+                  </Label>
+                  <Label className="text-sm font-medium text-muted-foreground cursor-pointer flex items-center gap-2">
+                    <Checkbox
+                      checked={showSpotVolume}
+                      onCheckedChange={(checked) => setShowSpotVolume(checked === true)}
+                      className="data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
+                    />
+                    <span className="text-blue-400">Spot Hacim</span>
+                  </Label>
+                  <Label className="text-sm font-medium text-muted-foreground cursor-pointer flex items-center gap-2">
+                    <Checkbox
+                      checked={showFuturesVolume}
+                      onCheckedChange={(checked) => setShowFuturesVolume(checked === true)}
+                      className="data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500"
+                    />
+                    <span className="text-purple-400">Vadeli Hacim</span>
+                  </Label>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {chartLoading ? (
@@ -973,8 +1036,12 @@ export default function CoinDetailPage() {
                       <stop offset="100%" stopColor={isChartPositive ? "rgba(34, 197, 94, 0)" : "rgba(239, 68, 68, 0)"} stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="volumeGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="rgba(139, 92, 246, 0.4)" stopOpacity={1} />
-                      <stop offset="100%" stopColor="rgba(139, 92, 246, 0)" stopOpacity={0} />
+                      <stop offset="0%" stopColor="rgba(96, 165, 250, 0.4)" stopOpacity={1} />
+                      <stop offset="100%" stopColor="rgba(96, 165, 250, 0)" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="futuresVolumeGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="rgba(167, 139, 250, 0.4)" stopOpacity={1} />
+                      <stop offset="100%" stopColor="rgba(167, 139, 250, 0)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid 
@@ -1011,36 +1078,91 @@ export default function CoinDetailPage() {
                       borderRadius: '8px',
                       color: '#fff',
                     }}
-                    formatter={(value: any, name: string) => {
-                      if (name === 'price') {
-                        return [`$${parseFloat(value).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`, 'Fiyat']
+                    content={({ active, payload, label }: any) => {
+                      if (!active || !payload || !payload.length) return null
+                      
+                      const formatVolume = (val: number) => {
+                        if (!val || isNaN(val)) return '0'
+                        const parts = val.toFixed(2).split('.')
+                        const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+                        const decimalPart = parts[1]
+                        return decimalPart === '00' ? integerPart : `${integerPart},${decimalPart}`
                       }
-                      if (name === 'volume') {
-                        return [`${parseFloat(value).toLocaleString('tr-TR', { maximumFractionDigits: 2 })}`, 'Volume']
-                      }
-                      return [value, name]
+                      
+                      return (
+                        <div className="rounded-lg border border-white/10 bg-black/90 p-3 shadow-lg">
+                          <p className="mb-2 text-sm text-white/70">{label}</p>
+                          {payload.map((entry: any, index: number) => {
+                            const dataKey = entry.dataKey || entry.name
+                            let formattedValue = String(entry.value || 0)
+                            let labelName = entry.name || dataKey
+                            let valueColor = 'text-white'
+                            
+                            if (dataKey === 'price') {
+                              formattedValue = `$${formatNumberTR(entry.value, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`
+                              labelName = 'Fiyat'
+                              // Fiyat için grafiğin genel yönüne göre renk (yeşil/kırmızı)
+                              const chartData = payload.find((p: any) => p.dataKey === 'price')
+                              if (chartData) {
+                                // Basit bir renk mantığı: fiyat için beyaz, grafik zaten renkli
+                                valueColor = 'text-white'
+                              }
+                            } else if (dataKey === 'volume') {
+                              formattedValue = `$${formatVolume(entry.value)}`
+                              labelName = 'Spot Hacim'
+                              valueColor = 'text-blue-400'
+                            } else if (dataKey === 'futuresVolume') {
+                              formattedValue = `$${formatVolume(entry.value)}`
+                              labelName = 'Vadeli Hacim'
+                              valueColor = 'text-purple-400'
+                            }
+                            
+                            return (
+                              <div key={index} className="flex items-center justify-between gap-4 text-sm">
+                                <span className="text-white/70">{labelName}:</span>
+                                <span className={`font-semibold ${valueColor}`}>{formattedValue}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
                     }}
-                    labelStyle={{ color: 'rgba(255, 255, 255, 0.7)' }}
                   />
-                  <Area
-                    yAxisId="price"
-                    type="monotone"
-                    dataKey="price"
-                    stroke={isChartPositive ? "#22c55e" : "#ef4444"}
-                    strokeWidth={2.5}
-                    fill="url(#priceGradient)"
-                    fillOpacity={1}
-                    isAnimationActive={true}
-                    animationDuration={800}
-                  />
-                  <Bar
-                    yAxisId="volume"
-                    dataKey="volume"
-                    fill="url(#volumeGradient)"
-                    opacity={0.6}
-                    radius={[4, 4, 0, 0]}
-                    isAnimationActive={timeRange !== '1D'} // Disable animation for real-time updates
-                  />
+                  {showPrice && (
+                    <Area
+                      yAxisId="price"
+                      type="monotone"
+                      dataKey="price"
+                      stroke={isChartPositive ? "#22c55e" : "#ef4444"}
+                      strokeWidth={2.5}
+                      fill="url(#priceGradient)"
+                      fillOpacity={1}
+                      isAnimationActive={true}
+                      animationDuration={800}
+                    />
+                  )}
+                  {showSpotVolume && (
+                    <Bar
+                      yAxisId="volume"
+                      dataKey="volume"
+                      fill="url(#volumeGradient)"
+                      opacity={0.7}
+                      radius={[4, 4, 0, 0]}
+                      isAnimationActive={timeRange !== '1D'} // Disable animation for real-time updates
+                      name="Spot Hacim"
+                    />
+                  )}
+                  {showFuturesVolume && (
+                    <Bar
+                      yAxisId="volume"
+                      dataKey="futuresVolume"
+                      fill="url(#futuresVolumeGradient)"
+                      opacity={0.7}
+                      radius={[4, 4, 0, 0]}
+                      isAnimationActive={timeRange !== '1D'} // Disable animation for real-time updates
+                      name="Vadeli Hacim"
+                    />
+                  )}
                 </ComposedChart>
               </ResponsiveContainer>
               )}
@@ -1104,14 +1226,45 @@ export default function CoinDetailPage() {
                         borderRadius: '8px',
                         color: '#fff',
                       }}
-                      formatter={(value: any, name: string) => {
-                        if (name === 'price') {
-                          return [`$${parseFloat(value).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`, 'Fiyat']
+                      content={({ active, payload, label }: any) => {
+                        if (!active || !payload || !payload.length) return null
+                        
+                        const formatVolume = (val: number) => {
+                          if (!val || isNaN(val)) return '0'
+                          const parts = val.toFixed(2).split('.')
+                          const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+                          const decimalPart = parts[1]
+                          return decimalPart === '00' ? integerPart : `${integerPart},${decimalPart}`
                         }
-                        if (name === 'volume') {
-                          return [`${parseFloat(value).toLocaleString('tr-TR', { maximumFractionDigits: 2 })}`, 'Volume']
-                        }
-                        return [value, name]
+                        
+                        return (
+                          <div className="rounded-lg border border-white/10 bg-black/90 p-3 shadow-lg">
+                            <p className="mb-2 text-sm text-white/70">{label}</p>
+                            {payload.map((entry: any, index: number) => {
+                              const dataKey = entry.dataKey || entry.name
+                              let formattedValue = String(entry.value || 0)
+                              let labelName = entry.name || dataKey
+                              let valueColor = 'text-white'
+                              
+                              if (dataKey === 'price') {
+                                formattedValue = `$${formatNumberTR(entry.value, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`
+                                labelName = 'Fiyat'
+                                valueColor = 'text-white'
+                              } else if (dataKey === 'volume') {
+                                formattedValue = `$${formatVolume(entry.value)}`
+                                labelName = 'Volume'
+                                valueColor = 'text-purple-400'
+                              }
+                              
+                              return (
+                                <div key={index} className="flex items-center justify-between gap-4 text-sm">
+                                  <span className="text-white/70">{labelName}:</span>
+                                  <span className={`font-semibold ${valueColor}`}>{formattedValue}</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )
                       }}
                       labelStyle={{ color: 'rgba(255, 255, 255, 0.7)' }}
                     />
@@ -1156,14 +1309,38 @@ export default function CoinDetailPage() {
 
           <Card className="mt-6 bg-gradient-to-br from-background to-background/80 border-border/50">
             <CardHeader>
-              <CardTitle className="text-xl">İşlem Hacmi</CardTitle>
-              <CardDescription>
-                {timeRange === '1D' && '24 saatlik hacim dağılımı'}
-                {timeRange === '7D' && '7 günlük hacim dağılımı'}
-                {timeRange === '30D' && '30 günlük hacim dağılımı'}
-                {timeRange === '90D' && '90 günlük hacim dağılımı'}
-                {timeRange === '1Y' && '1 yıllık hacim dağılımı'}
-              </CardDescription>
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                  <CardTitle className="text-xl">İşlem Hacmi</CardTitle>
+                  <CardDescription>
+                    {timeRange === '1D' && '24 saatlik hacim dağılımı'}
+                    {timeRange === '7D' && '7 günlük hacim dağılımı'}
+                    {timeRange === '30D' && '30 günlük hacim dağılımı'}
+                    {timeRange === '90D' && '90 günlük hacim dağılımı'}
+                    {timeRange === '1Y' && '1 yıllık hacim dağılımı'}
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-border/50">
+                <div className="flex items-center gap-6 flex-wrap">
+                  <Label className="text-sm font-medium text-muted-foreground cursor-pointer flex items-center gap-2">
+                    <Checkbox
+                      checked={showSpotVolume}
+                      onCheckedChange={(checked) => setShowSpotVolume(checked === true)}
+                      className="data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
+                    />
+                    <span className="text-blue-400">Spot Hacim</span>
+                  </Label>
+                  <Label className="text-sm font-medium text-muted-foreground cursor-pointer flex items-center gap-2">
+                    <Checkbox
+                      checked={showFuturesVolume}
+                      onCheckedChange={(checked) => setShowFuturesVolume(checked === true)}
+                      className="data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500"
+                    />
+                    <span className="text-purple-400">Vadeli Hacim</span>
+                  </Label>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {chartLoading ? (
@@ -1179,8 +1356,12 @@ export default function CoinDetailPage() {
                 <BarChart data={memoizedChartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                   <defs>
                     <linearGradient id="volumeBarGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="rgba(139, 92, 246, 0.8)" stopOpacity={1} />
-                      <stop offset="100%" stopColor="rgba(139, 92, 246, 0.3)" stopOpacity={1} />
+                      <stop offset="0%" stopColor="rgba(96, 165, 250, 0.8)" stopOpacity={1} />
+                      <stop offset="100%" stopColor="rgba(96, 165, 250, 0.3)" stopOpacity={1} />
+                    </linearGradient>
+                    <linearGradient id="futuresVolumeBarGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="rgba(167, 139, 250, 0.8)" stopOpacity={1} />
+                      <stop offset="100%" stopColor="rgba(167, 139, 250, 0.3)" stopOpacity={1} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid 
@@ -1211,19 +1392,67 @@ export default function CoinDetailPage() {
                       borderRadius: '8px',
                       color: '#fff',
                     }}
-                    formatter={(value: any) => [
-                      `${parseFloat(value).toLocaleString('tr-TR', { maximumFractionDigits: 2 })}`,
-                      'Hacim'
-                    ]}
-                    labelStyle={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                    content={({ active, payload, label }: any) => {
+                      if (!active || !payload || !payload.length) return null
+                      
+                      const formatVolume = (val: number) => {
+                        if (!val || isNaN(val)) return '0'
+                        const parts = val.toFixed(2).split('.')
+                        const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+                        const decimalPart = parts[1]
+                        return decimalPart === '00' ? integerPart : `${integerPart},${decimalPart}`
+                      }
+                      
+                      return (
+                        <div className="rounded-lg border border-white/10 bg-black/90 p-3 shadow-lg">
+                          <p className="mb-2 text-sm text-white/70">{label}</p>
+                          {payload.map((entry: any, index: number) => {
+                            const dataKey = entry.dataKey || entry.name
+                            let formattedValue = String(entry.value || 0)
+                            let labelName = entry.name || dataKey
+                            let valueColor = 'text-white'
+                            
+                            if (dataKey === 'volume') {
+                              formattedValue = `$${formatVolume(entry.value)}`
+                              labelName = 'Spot Hacim'
+                              valueColor = 'text-blue-400'
+                            } else if (dataKey === 'futuresVolume') {
+                              formattedValue = `$${formatVolume(entry.value)}`
+                              labelName = 'Vadeli Hacim'
+                              valueColor = 'text-purple-400'
+                            }
+                            
+                            return (
+                              <div key={index} className="flex items-center justify-between gap-4 text-sm">
+                                <span className="text-white/70">{labelName}:</span>
+                                <span className={`font-semibold ${valueColor}`}>{formattedValue}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+                    }}
                   />
-                  <Bar 
-                    dataKey="volume" 
-                    fill="url(#volumeBarGradient)"
-                    radius={[8, 8, 0, 0]}
-                    isAnimationActive={timeRange !== '1D'} // Disable animation for real-time updates
-                    animationDuration={800}
-                  />
+                  {showSpotVolume && (
+                    <Bar 
+                      dataKey="volume" 
+                      fill="url(#volumeBarGradient)"
+                      radius={[8, 8, 0, 0]}
+                      isAnimationActive={timeRange !== '1D'} // Disable animation for real-time updates
+                      animationDuration={800}
+                      name="Spot Hacim"
+                    />
+                  )}
+                  {showFuturesVolume && (
+                    <Bar 
+                      dataKey="futuresVolume" 
+                      fill="url(#futuresVolumeBarGradient)"
+                      radius={[8, 8, 0, 0]}
+                      isAnimationActive={timeRange !== '1D'} // Disable animation for real-time updates
+                      animationDuration={800}
+                      name="Vadeli Hacim"
+                    />
+                  )}
                 </BarChart>
               </ResponsiveContainer>
               )}
