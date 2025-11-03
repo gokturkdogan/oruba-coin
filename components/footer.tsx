@@ -91,15 +91,20 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-8 pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center text-sm text-muted-foreground">
-          <p>© 2024 Oruba Coin. Tüm hakları saklıdır.</p>
-          <div className="flex space-x-6 mt-4 md:mt-0">
-            <Link href="#" className="hover:text-primary transition-colors">
-              Gizlilik
-            </Link>
-            <Link href="#" className="hover:text-primary transition-colors">
-              Şartlar
-            </Link>
+        <div className="mt-8 pt-8 border-t border-white/10">
+          <div className="flex flex-col md:flex-row justify-between items-center text-sm text-muted-foreground">
+            <p>© 2024 Oruba Coin. Tüm hakları saklıdır.</p>
+            <div className="flex space-x-6 mt-4 md:mt-0">
+              <Link href="#" className="hover:text-primary transition-colors">
+                Gizlilik
+              </Link>
+              <Link href="#" className="hover:text-primary transition-colors">
+                Şartlar
+              </Link>
+            </div>
+          </div>
+          <div className="mt-4 text-center text-xs text-muted-foreground/70">
+            Göktürk DOĞAN tarafından geliştirilmiştir
           </div>
         </div>
       </div>

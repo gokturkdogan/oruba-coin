@@ -24,11 +24,16 @@ export default function PremiumPage() {
         </p>
         
         <Button 
-          asChild
           size="lg"
-          className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/30 text-base px-8 py-6 hover:scale-105 transition-transform duration-200"
+          className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/30 text-base px-8 py-6 hover:scale-105 transition-transform duration-200 cursor-pointer"
+          onClick={() => {
+            const element = document.getElementById('premium-pricing')
+            if (element) {
+              element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            }
+          }}
         >
-          <Link href="/checkout">Premium'a Yükselt</Link>
+          Premium'a Yükselt
         </Button>
       </section>
 
@@ -258,7 +263,7 @@ export default function PremiumPage() {
       </section>
 
       {/* CTA Section */}
-      <section className="text-center">
+      <section id="premium-pricing" className="text-center scroll-mt-20">
         <Card className="glass-effect border-primary/30 bg-gradient-to-br from-primary/10 to-transparent max-w-3xl mx-auto">
           <CardHeader>
             <CardTitle className="text-3xl md:text-4xl font-bold mb-4 gradient-text">
@@ -269,27 +274,56 @@ export default function PremiumPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button 
-                asChild
-                size="lg"
-                className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/30 text-base px-8 py-6 hover:scale-105 transition-transform duration-200"
-              >
-                <Link href="/checkout">Premium'a Yükselt</Link>
-              </Button>
-              <Button 
-                variant="outline" 
-                size="lg"
-                className="border-primary/30 hover:bg-primary/10 text-base px-8 py-6 hover:scale-105 transition-transform duration-200 cursor-pointer"
-                onClick={() => {
-                  window.location.href = '/coins'
-                }}
-              >
-                Önce Coinleri Keşfet
-              </Button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+              {/* Aylık Plan */}
+              <Card className="glass-effect border-primary/30 hover:border-primary/50 transition-all duration-300 hover:shadow-xl hover:shadow-primary/20">
+                <CardHeader className="text-center pb-4">
+                  <CardTitle className="text-2xl font-bold mb-2">Aylık Plan</CardTitle>
+                  <div className="space-y-1">
+                    <div className="text-4xl font-extrabold gradient-text">₺99</div>
+                    <div className="text-sm text-muted-foreground">aylık</div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <Button 
+                    asChild
+                    size="lg"
+                    className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/30 text-base px-8 py-6 hover:scale-105 transition-transform duration-200 cursor-pointer"
+                  >
+                    <Link href="/checkout">Aylık Planı Seç</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Yıllık Plan */}
+              <Card className="glass-effect border-primary/30 hover:border-primary/50 transition-all duration-300 hover:shadow-xl hover:shadow-primary/20 relative overflow-hidden">
+                <div className="absolute top-0 right-0 bg-primary text-white text-xs font-bold px-3 py-1 rounded-bl-lg">
+                  Popüler
+                </div>
+                <CardHeader className="text-center pb-4">
+                  <CardTitle className="text-2xl font-bold mb-2">Yıllık Plan</CardTitle>
+                  <div className="space-y-1">
+                    <div className="flex items-baseline justify-center gap-2">
+                      <div className="text-4xl font-extrabold gradient-text">₺899</div>
+                      <div className="text-sm text-muted-foreground line-through">₺1.188</div>
+                    </div>
+                    <div className="text-sm text-muted-foreground">yıllık</div>
+                    <div className="text-xs text-green-400 font-semibold mt-1">2 ay ücretsiz!</div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <Button 
+                    asChild
+                    size="lg"
+                    className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/30 text-base px-8 py-6 hover:scale-105 transition-transform duration-200 cursor-pointer"
+                  >
+                    <Link href="/checkout">Yıllık Planı Seç</Link>
+                  </Button>
+                </CardContent>
+              </Card>
             </div>
             
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground text-center">
               💳 Güvenli ödeme işleme • 🔒 İstediğiniz zaman iptal edin • ✨ 7/24 öncelikli destek
             </p>
           </CardContent>
