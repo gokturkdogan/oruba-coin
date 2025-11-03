@@ -181,10 +181,20 @@ export async function getAllTickers(): Promise<BinanceTicker[]> {
 
 export async function getKlines(symbol: string, interval: string = '1h', limit: number = 24) {
   try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 20000) // 20 saniye timeout
+    
     const response = await fetch(
-      `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`
+      `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+      { signal: controller.signal }
     )
-    if (!response.ok) return []
+    
+    clearTimeout(timeoutId)
+    
+    if (!response.ok) {
+      console.error(`Binance API error for ${symbol}:`, response.status, response.statusText)
+      return []
+    }
     
     const data = await response.json()
     return data.map((k: any[]) => ({
@@ -200,18 +210,32 @@ export async function getKlines(symbol: string, interval: string = '1h', limit: 
       takerBuyBaseVolume: k[9],
       takerBuyQuoteVolume: k[10],
     }))
-  } catch (error) {
-    console.error(`Error fetching klines for ${symbol}:`, error)
+  } catch (error: any) {
+    if (error.name === 'AbortError') {
+      console.error(`Timeout fetching klines for ${symbol}`)
+    } else {
+      console.error(`Error fetching klines for ${symbol}:`, error)
+    }
     return []
   }
 }
 
 export async function getFuturesKlines(symbol: string, interval: string = '1h', limit: number = 24) {
   try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 20000) // 20 saniye timeout
+    
     const response = await fetch(
-      `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`
+      `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+      { signal: controller.signal }
     )
-    if (!response.ok) return []
+    
+    clearTimeout(timeoutId)
+    
+    if (!response.ok) {
+      console.error(`Binance Futures API error for ${symbol}:`, response.status, response.statusText)
+      return []
+    }
     
     const data = await response.json()
     return data.map((k: any[]) => ({
@@ -227,8 +251,12 @@ export async function getFuturesKlines(symbol: string, interval: string = '1h', 
       takerBuyBaseVolume: k[9],
       takerBuyQuoteVolume: k[10],
     }))
-  } catch (error) {
-    console.error(`Error fetching futures klines for ${symbol}:`, error)
+  } catch (error: any) {
+    if (error.name === 'AbortError') {
+      console.error(`Timeout fetching futures klines for ${symbol}`)
+    } else {
+      console.error(`Error fetching futures klines for ${symbol}:`, error)
+    }
     return []
   }
 }

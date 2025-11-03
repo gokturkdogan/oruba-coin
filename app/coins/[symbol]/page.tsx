@@ -94,7 +94,8 @@ export default function CoinDetailPage() {
   const futuresWsRef = useRef<WebSocket | null>(null)
   const tradesWsRef = useRef<WebSocket | null>(null)
   const coinDataRef = useRef<CoinData | null>(null)
-  const timeRangeRef = useRef<'1D' | '7D' | '30D' | '90D' | '1Y'>('1D')
+  const timeRangeTopRef = useRef<'1D' | '7D' | '30D' | '90D' | '1Y'>('1D')
+  const timeRangeBottomRef = useRef<'1D' | '7D' | '30D' | '90D' | '1Y'>('1D')
   const previousValuesRef = useRef<{
     price?: number
     spotVolume?: number
@@ -105,13 +106,24 @@ export default function CoinDetailPage() {
   const [flashAnimations, setFlashAnimations] = useState<Record<string, 'up' | 'down'>>({})
   const [buyTrades, setBuyTrades] = useState<Trade[]>([])
   const [sellTrades, setSellTrades] = useState<Trade[]>([])
-  const [timeRange, setTimeRange] = useState<'1D' | '7D' | '30D' | '90D' | '1Y'>('1D')
-  const [chartLoading, setChartLoading] = useState(false)
-  const [chartKlines, setChartKlines] = useState<CoinData['klines']>([])
-  const [chartFuturesKlines, setChartFuturesKlines] = useState<CoinData['futuresKlines']>([])
+  // Üst grafik (Fiyat Grafiği) için zaman aralığı
+  const [timeRangeTop, setTimeRangeTop] = useState<'1D' | '7D' | '30D' | '90D' | '1Y'>('1D')
+  // Alt grafik (Hacim Grafiği) için zaman aralığı
+  const [timeRangeBottom, setTimeRangeBottom] = useState<'1D' | '7D' | '30D' | '90D' | '1Y'>('1D')
+  const [chartLoadingTop, setChartLoadingTop] = useState(false)
+  const [chartLoadingBottom, setChartLoadingBottom] = useState(false)
+  const [chartKlinesTop, setChartKlinesTop] = useState<CoinData['klines']>([])
+  const [chartFuturesKlinesTop, setChartFuturesKlinesTop] = useState<CoinData['futuresKlines']>([])
+  const [chartKlinesBottom, setChartKlinesBottom] = useState<CoinData['klines']>([])
+  const [chartFuturesKlinesBottom, setChartFuturesKlinesBottom] = useState<CoinData['futuresKlines']>([])
+  // Üst grafik (Fiyat Grafiği) için state'ler
   const [showPrice, setShowPrice] = useState(true)
-  const [showSpotVolume, setShowSpotVolume] = useState(true)
-  const [showFuturesVolume, setShowFuturesVolume] = useState(true)
+  const [showSpotVolumeTop, setShowSpotVolumeTop] = useState(true)
+  const [showFuturesVolumeTop, setShowFuturesVolumeTop] = useState(true)
+  
+  // Alt grafik (Hacim Grafiği) için state'ler
+  const [showSpotVolumeBottom, setShowSpotVolumeBottom] = useState(true)
+  const [showFuturesVolumeBottom, setShowFuturesVolumeBottom] = useState(true)
   const [showBuyVolume, setShowBuyVolume] = useState(true)
   const [showSellVolume, setShowSellVolume] = useState(true)
 
@@ -130,48 +142,144 @@ export default function CoinDetailPage() {
     }
   }, [coinData])
 
-  // Keep timeRangeRef in sync with state
+  // Keep timeRangeRefs in sync with state
   useEffect(() => {
-    timeRangeRef.current = timeRange
-  }, [timeRange])
+    timeRangeTopRef.current = timeRangeTop
+  }, [timeRangeTop])
 
-  // Initialize or reset chartKlines when timeRange is 1D
   useEffect(() => {
-    if (timeRange === '1D' && coinData && coinData.klines) {
-      // When switching back to 1D, use the current coinData.klines (which is updated by WebSocket)
-      setChartKlines(coinData.klines)
-      // For 1D, futures klines are not available in real-time, so we'll use initial data if available
+    timeRangeBottomRef.current = timeRangeBottom
+  }, [timeRangeBottom])
+
+  // Initialize or reset chartKlinesTop when timeRangeTop is 1D
+  useEffect(() => {
+    if (timeRangeTop === '1D' && coinData && coinData.klines) {
+      setChartKlinesTop(coinData.klines)
       if (coinData.futuresKlines) {
-        setChartFuturesKlines(coinData.futuresKlines)
+        setChartFuturesKlinesTop(coinData.futuresKlines)
       }
     }
-  }, [timeRange, coinData])
+  }, [timeRangeTop, coinData])
 
-  // Fetch chart data only when timeRange changes and it's NOT 1D
+  // Initialize or reset chartKlinesBottom when timeRangeBottom is 1D
   useEffect(() => {
-    if (!symbol || !coinData || timeRange === '1D') {
-      // For 1D, we use WebSocket data from coinData.klines, no API call needed
+    if (timeRangeBottom === '1D' && coinData && coinData.klines) {
+      setChartKlinesBottom(coinData.klines)
+      if (coinData.futuresKlines) {
+        setChartFuturesKlinesBottom(coinData.futuresKlines)
+      }
+    }
+  }, [timeRangeBottom, coinData])
+
+  // Fetch chart data for top chart only when timeRangeTop changes and it's NOT 1D
+  useEffect(() => {
+    if (!symbol || timeRangeTop === '1D') {
       return
     }
 
+    let isMounted = true
+
     const fetchChartData = async () => {
-      setChartLoading(true)
+      setChartLoadingTop(true)
       try {
-        const res = await fetch(`/api/coins/${symbol}?range=${timeRange}`)
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 30000)
+        
+        const res = await fetch(`/api/coins/${symbol}?range=${timeRangeTop}`, {
+          signal: controller.signal
+        })
+        
+        clearTimeout(timeoutId)
+        
+        if (!isMounted) return
+        
         if (res.ok) {
           const data = await res.json()
-          setChartKlines(data.klines || [])
-          setChartFuturesKlines(data.futuresKlines || [])
+          setChartKlinesTop(data.klines || [])
+          setChartFuturesKlinesTop(data.futuresKlines || [])
+        } else {
+          const errorData = await res.json().catch(() => ({}))
+          console.error('Failed to fetch top chart data:', res.status, errorData)
+          setError(errorData.error || 'Grafik verisi yüklenirken bir hata oluştu')
         }
-      } catch (error) {
-        console.error('Failed to fetch chart data:', error)
+      } catch (error: any) {
+        if (!isMounted) return
+        
+        if (error.name === 'AbortError') {
+          console.error('Top chart data fetch timeout')
+          setError('Veri çekme işlemi zaman aşımına uğradı. Lütfen tekrar deneyin.')
+        } else {
+          console.error('Failed to fetch top chart data:', error)
+          setError('Grafik verisi yüklenirken bir hata oluştu')
+        }
       } finally {
-        setChartLoading(false)
+        if (isMounted) {
+          setChartLoadingTop(false)
+        }
       }
     }
 
     fetchChartData()
-  }, [timeRange, symbol]) // Removed coinData from dependencies to prevent constant refetching
+    
+    return () => {
+      isMounted = false
+    }
+  }, [timeRangeTop, symbol]) // Only fetch when timeRangeTop or symbol changes
+
+  // Fetch chart data for bottom chart only when timeRangeBottom changes and it's NOT 1D
+  useEffect(() => {
+    if (!symbol || timeRangeBottom === '1D') {
+      return
+    }
+
+    let isMounted = true
+
+    const fetchChartData = async () => {
+      setChartLoadingBottom(true)
+      try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 30000)
+        
+        const res = await fetch(`/api/coins/${symbol}?range=${timeRangeBottom}`, {
+          signal: controller.signal
+        })
+        
+        clearTimeout(timeoutId)
+        
+        if (!isMounted) return
+        
+        if (res.ok) {
+          const data = await res.json()
+          setChartKlinesBottom(data.klines || [])
+          setChartFuturesKlinesBottom(data.futuresKlines || [])
+        } else {
+          const errorData = await res.json().catch(() => ({}))
+          console.error('Failed to fetch bottom chart data:', res.status, errorData)
+          setError(errorData.error || 'Grafik verisi yüklenirken bir hata oluştu')
+        }
+      } catch (error: any) {
+        if (!isMounted) return
+        
+        if (error.name === 'AbortError') {
+          console.error('Bottom chart data fetch timeout')
+          setError('Veri çekme işlemi zaman aşımına uğradı. Lütfen tekrar deneyin.')
+        } else {
+          console.error('Failed to fetch bottom chart data:', error)
+          setError('Grafik verisi yüklenirken bir hata oluştu')
+        }
+      } finally {
+        if (isMounted) {
+          setChartLoadingBottom(false)
+        }
+      }
+    }
+
+    fetchChartData()
+    
+    return () => {
+      isMounted = false
+    }
+  }, [timeRangeBottom, symbol]) // Only fetch when timeRangeBottom or symbol changes
 
   useEffect(() => {
     console.log('CoinDetailPage mounted with symbol:', symbol)
@@ -221,8 +329,11 @@ export default function CoinDetailPage() {
           }
           console.log('Setting initial coin data...')
           setCoinData(data)
-          setChartKlines(data.klines || [])
-          setChartFuturesKlines(data.futuresKlines || [])
+          // Set initial data for both charts
+          setChartKlinesTop(data.klines || [])
+          setChartFuturesKlinesTop(data.futuresKlines || [])
+          setChartKlinesBottom(data.klines || [])
+          setChartFuturesKlinesBottom(data.futuresKlines || [])
           setError(null)
           setLoading(false)
           
@@ -374,10 +485,25 @@ export default function CoinDetailPage() {
               
               setCoinData(updatedCoinData)
               
-              // For 1D time range, update chartKlines with latest data from WebSocket
-              if (timeRangeRef.current === '1D') {
-                // For 1D, we update the last point with the current price for real-time updates
-                setChartKlines(prev => {
+              // For 1D time range, update chartKlinesTop and chartKlinesBottom with latest data from WebSocket
+              if (timeRangeTopRef.current === '1D') {
+                setChartKlinesTop(prev => {
+                  if (prev.length === 0) return prev
+                  const updated = [...prev]
+                  const lastIndex = updated.length - 1
+                  const lastPoint = updated[lastIndex]
+                  updated[lastIndex] = {
+                    ...lastPoint,
+                    close: newPrice,
+                    high: Math.max(lastPoint.high, newPrice),
+                    low: Math.min(lastPoint.low, newPrice),
+                  }
+                  return updated
+                })
+              }
+              
+              if (timeRangeBottomRef.current === '1D') {
+                setChartKlinesBottom(prev => {
                   if (prev.length === 0) return prev
                   const updated = [...prev]
                   const lastIndex = updated.length - 1
@@ -726,14 +852,18 @@ export default function CoinDetailPage() {
     })
   }
 
-  // Only format and calculate if we have data
-  const chartData = chartKlines.length > 0 ? formatKlineData(chartKlines, chartFuturesKlines, timeRange) : []
-  const priceChange = chartData.length > 0 && chartData[0] ? 
-    ((chartData[chartData.length - 1].close - chartData[0].open) / chartData[0].open) * 100 : 0
+  // Only format and calculate if we have data for top chart
+  const chartDataTop = chartKlinesTop.length > 0 ? formatKlineData(chartKlinesTop, chartFuturesKlinesTop, timeRangeTop) : []
+  const priceChange = chartDataTop.length > 0 && chartDataTop[0] ? 
+    ((chartDataTop[chartDataTop.length - 1].close - chartDataTop[0].open) / chartDataTop[0].open) * 100 : 0
   const isChartPositive = priceChange >= 0
   
+  // Only format and calculate if we have data for bottom chart
+  const chartDataBottom = chartKlinesBottom.length > 0 ? formatKlineData(chartKlinesBottom, chartFuturesKlinesBottom, timeRangeBottom) : []
+  
   // Memoize chart data to prevent unnecessary re-renders
-  const memoizedChartData = chartData
+  const memoizedChartDataTop = chartDataTop
+  const memoizedChartDataBottom = chartDataBottom
 
   const timeRangeOptions: Array<{ label: string; value: '1D' | '7D' | '30D' | '90D' | '1Y' }> = [
     { label: '24 Saat', value: '1D' },
@@ -868,11 +998,11 @@ export default function CoinDetailPage() {
                 <div>
                   <CardTitle className="text-2xl mb-1">Fiyat Grafiği</CardTitle>
                   <CardDescription>
-                    {timeRange === '1D' && '24 saatlik fiyat hareketleri'}
-                    {timeRange === '7D' && '7 günlük fiyat hareketleri'}
-                    {timeRange === '30D' && '30 günlük fiyat hareketleri'}
-                    {timeRange === '90D' && '90 günlük fiyat hareketleri'}
-                    {timeRange === '1Y' && '1 yıllık fiyat hareketleri'}
+                    {timeRangeTop === '1D' && '24 saatlik fiyat hareketleri'}
+                    {timeRangeTop === '7D' && '7 günlük fiyat hareketleri'}
+                    {timeRangeTop === '30D' && '30 günlük fiyat hareketleri'}
+                    {timeRangeTop === '90D' && '90 günlük fiyat hareketleri'}
+                    {timeRangeTop === '1Y' && '1 yıllık fiyat hareketleri'}
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-4 flex-wrap">
@@ -880,9 +1010,9 @@ export default function CoinDetailPage() {
                     {timeRangeOptions.map((option) => (
                       <button
                         key={option.value}
-                        onClick={() => setTimeRange(option.value)}
+                        onClick={() => setTimeRangeTop(option.value)}
                         className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all cursor-pointer ${
-                          timeRange === option.value
+                          timeRangeTop === option.value
                             ? 'bg-primary text-primary-foreground shadow-sm'
                             : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
                         }`}
@@ -911,16 +1041,16 @@ export default function CoinDetailPage() {
                   </Label>
                   <Label className="text-sm font-medium text-muted-foreground cursor-pointer flex items-center gap-2">
                     <Checkbox
-                      checked={showSpotVolume}
-                      onCheckedChange={(checked) => setShowSpotVolume(checked === true)}
+                      checked={showSpotVolumeTop}
+                      onCheckedChange={(checked) => setShowSpotVolumeTop(checked === true)}
                       className="data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
                     />
                     <span className="text-blue-400">Spot Hacim</span>
                   </Label>
                   <Label className="text-sm font-medium text-muted-foreground cursor-pointer flex items-center gap-2">
                     <Checkbox
-                      checked={showFuturesVolume}
-                      onCheckedChange={(checked) => setShowFuturesVolume(checked === true)}
+                      checked={showFuturesVolumeTop}
+                      onCheckedChange={(checked) => setShowFuturesVolumeTop(checked === true)}
                       className="data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500"
                     />
                     <span className="text-purple-400">Vadeli Hacim</span>
@@ -929,17 +1059,17 @@ export default function CoinDetailPage() {
               </div>
             </CardHeader>
             <CardContent>
-              {chartLoading ? (
+              {chartLoadingTop ? (
                 <div className="flex items-center justify-center h-[500px]">
                   <div className="text-muted-foreground">Grafik yükleniyor...</div>
                 </div>
-              ) : chartData.length === 0 ? (
+              ) : chartDataTop.length === 0 ? (
                 <div className="flex items-center justify-center h-[500px]">
                   <div className="text-muted-foreground">Veri yükleniyor...</div>
                 </div>
               ) : (
               <ResponsiveContainer width="100%" height={500}>
-                <ComposedChart data={memoizedChartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                <ComposedChart data={memoizedChartDataTop} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                   <defs>
                     <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor={isChartPositive ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)"} stopOpacity={1} />
@@ -1051,25 +1181,25 @@ export default function CoinDetailPage() {
                       animationDuration={800}
                     />
                   )}
-                  {showSpotVolume && (
+                  {showSpotVolumeTop && (
                     <Bar
                       yAxisId="volume"
                       dataKey="volume"
                       fill="url(#volumeGradient)"
                       opacity={0.7}
                       radius={[4, 4, 0, 0]}
-                      isAnimationActive={timeRange !== '1D'} // Disable animation for real-time updates
+                      isAnimationActive={timeRangeTop !== '1D'} // Disable animation for real-time updates
                       name="Spot Hacim"
                     />
                   )}
-                  {showFuturesVolume && (
+                  {showFuturesVolumeTop && (
                     <Bar
                       yAxisId="volume"
                       dataKey="futuresVolume"
                       fill="url(#futuresVolumeGradient)"
                       opacity={0.7}
                       radius={[4, 4, 0, 0]}
-                      isAnimationActive={timeRange !== '1D'} // Disable animation for real-time updates
+                      isAnimationActive={timeRangeTop !== '1D'} // Disable animation for real-time updates
                       name="Vadeli Hacim"
                     />
                   )}
@@ -1223,28 +1353,45 @@ export default function CoinDetailPage() {
                 <div>
                   <CardTitle className="text-xl">İşlem Hacmi</CardTitle>
                   <CardDescription>
-                    {timeRange === '1D' && '24 saatlik hacim dağılımı'}
-                    {timeRange === '7D' && '7 günlük hacim dağılımı'}
-                    {timeRange === '30D' && '30 günlük hacim dağılımı'}
-                    {timeRange === '90D' && '90 günlük hacim dağılımı'}
-                    {timeRange === '1Y' && '1 yıllık hacim dağılımı'}
+                    {timeRangeBottom === '1D' && '24 saatlik hacim dağılımı'}
+                    {timeRangeBottom === '7D' && '7 günlük hacim dağılımı'}
+                    {timeRangeBottom === '30D' && '30 günlük hacim dağılımı'}
+                    {timeRangeBottom === '90D' && '90 günlük hacim dağılımı'}
+                    {timeRangeBottom === '1Y' && '1 yıllık hacim dağılımı'}
                   </CardDescription>
+                </div>
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="flex gap-2 bg-background/50 p-1 rounded-lg border border-border/50">
+                    {timeRangeOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => setTimeRangeBottom(option.value)}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all cursor-pointer ${
+                          timeRangeBottom === option.value
+                            ? 'bg-primary text-primary-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
               <div className="mt-4 pt-4 border-t border-border/50">
                 <div className="flex items-center gap-6 flex-wrap">
                   <Label className="text-sm font-medium text-muted-foreground cursor-pointer flex items-center gap-2">
                     <Checkbox
-                      checked={showSpotVolume}
-                      onCheckedChange={(checked) => setShowSpotVolume(checked === true)}
+                      checked={showSpotVolumeBottom}
+                      onCheckedChange={(checked) => setShowSpotVolumeBottom(checked === true)}
                       className="data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
                     />
                     <span className="text-blue-400">Spot Hacim</span>
                   </Label>
                   <Label className="text-sm font-medium text-muted-foreground cursor-pointer flex items-center gap-2">
                     <Checkbox
-                      checked={showFuturesVolume}
-                      onCheckedChange={(checked) => setShowFuturesVolume(checked === true)}
+                      checked={showFuturesVolumeBottom}
+                      onCheckedChange={(checked) => setShowFuturesVolumeBottom(checked === true)}
                       className="data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500"
                     />
                     <span className="text-purple-400">Vadeli Hacim</span>
@@ -1269,17 +1416,17 @@ export default function CoinDetailPage() {
               </div>
             </CardHeader>
             <CardContent>
-              {chartLoading ? (
+              {chartLoadingBottom ? (
                 <div className="flex items-center justify-center h-[350px]">
                   <div className="text-muted-foreground">Grafik yükleniyor...</div>
                 </div>
-              ) : chartData.length === 0 ? (
+              ) : chartDataBottom.length === 0 ? (
                 <div className="flex items-center justify-center h-[350px]">
                   <div className="text-muted-foreground">Veri yükleniyor...</div>
                 </div>
               ) : (
               <ResponsiveContainer width="100%" height={350}>
-                <BarChart data={memoizedChartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                <BarChart data={memoizedChartDataBottom} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                   <defs>
                     <linearGradient id="volumeBarGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="rgba(96, 165, 250, 0.8)" stopOpacity={1} />
@@ -1348,15 +1495,15 @@ export default function CoinDetailPage() {
                       }
                       
                       // Find the data point to get all volume values
-                      const dataPoint = memoizedChartData.find((d: any) => d.time === label)
+                      const dataPoint = memoizedChartDataBottom.find((d: any) => d.time === label)
                       
                       return (
                         <div className="rounded-lg border border-white/10 bg-black/90 p-3 shadow-lg">
                           <p className="mb-2 text-sm text-white/70">{label}</p>
                           
                           {/* Spot Volume Section */}
-                          {showSpotVolume && dataPoint && (
-                            <div className={`${showFuturesVolume ? 'mb-2 pb-2 border-b border-white/10' : ''}`}>
+                          {showSpotVolumeBottom && dataPoint && (
+                            <div className={`${showFuturesVolumeBottom ? 'mb-2 pb-2 border-b border-white/10' : ''}`}>
                               <p className="text-xs font-semibold text-blue-400 mb-1">Spot Hacim</p>
                               {(() => {
                                 const totalVolume = dataPoint.volume || 0
@@ -1399,7 +1546,7 @@ export default function CoinDetailPage() {
                           )}
                           
                           {/* Futures Volume Section */}
-                          {showFuturesVolume && dataPoint && (
+                          {showFuturesVolumeBottom && dataPoint && (
                             <div>
                               <p className="text-xs font-semibold text-purple-400 mb-1">Vadeli Hacim</p>
                               {(() => {
@@ -1445,7 +1592,7 @@ export default function CoinDetailPage() {
                       )
                     }}
                   />
-                  {showSpotVolume && (
+                  {showSpotVolumeBottom && (
                     <>
                       {showBuyVolume && (
                         <Bar 
@@ -1453,7 +1600,7 @@ export default function CoinDetailPage() {
                           stackId="spot"
                           fill="url(#spotBuyVolumeGradient)"
                           radius={[0, 0, 0, 0]}
-                          isAnimationActive={timeRange !== '1D'}
+                          isAnimationActive={timeRangeBottom !== '1D'}
                           animationDuration={800}
                           name="Spot Alış"
                         />
@@ -1464,14 +1611,14 @@ export default function CoinDetailPage() {
                           stackId="spot"
                           fill="url(#spotSellVolumeGradient)"
                           radius={showBuyVolume ? [0, 0, 0, 0] : [8, 8, 0, 0]}
-                          isAnimationActive={timeRange !== '1D'}
+                          isAnimationActive={timeRangeBottom !== '1D'}
                           animationDuration={800}
                           name="Spot Satış"
                         />
                       )}
                     </>
                   )}
-                  {showFuturesVolume && (
+                  {showFuturesVolumeBottom && (
                     <>
                       {showBuyVolume && (
                         <Bar 
@@ -1479,7 +1626,7 @@ export default function CoinDetailPage() {
                           stackId="futures"
                           fill="url(#futuresBuyVolumeGradient)"
                           radius={[0, 0, 0, 0]}
-                          isAnimationActive={timeRange !== '1D'}
+                          isAnimationActive={timeRangeBottom !== '1D'}
                           animationDuration={800}
                           name="Vadeli Alış"
                         />
@@ -1490,7 +1637,7 @@ export default function CoinDetailPage() {
                           stackId="futures"
                           fill="url(#futuresSellVolumeGradient)"
                           radius={showBuyVolume ? [0, 0, 0, 0] : [8, 8, 0, 0]}
-                          isAnimationActive={timeRange !== '1D'}
+                          isAnimationActive={timeRangeBottom !== '1D'}
                           animationDuration={800}
                           name="Vadeli Satış"
                         />

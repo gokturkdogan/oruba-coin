@@ -35,8 +35,8 @@ export async function GET(
         limit = 24 // 24 hours
         break
       case '7D':
-        interval = '1h'
-        limit = 168 // 7 days * 24 hours
+        interval = '4h' // 4 saatlik mumlar kullanarak veri sayısını azaltıyoruz (168 -> 42)
+        limit = 42 // 7 days * 24 hours / 4 hours = 42 mum
         break
       case '30D':
         interval = '4h'
@@ -56,11 +56,15 @@ export async function GET(
     }
 
     // Get klines for chart - both spot and futures
-    const [klines, futuresKlines, aggTradesResponse] = await Promise.all([
+    // Use Promise.allSettled for better error handling, especially for 7D which fetches 168 data points
+    const [klinesResult, futuresKlinesResult, aggTradesResponse] = await Promise.allSettled([
       getKlines(symbol.toUpperCase(), interval, limit),
-      getFuturesKlines(symbol.toUpperCase(), interval, limit).catch(() => []),
+      getFuturesKlines(symbol.toUpperCase(), interval, limit),
       fetch(`https://api.binance.com/api/v3/aggTrades?symbol=${symbol.toUpperCase()}&limit=1000`).catch(() => null),
     ])
+    
+    const klines = klinesResult.status === 'fulfilled' ? klinesResult.value : []
+    const futuresKlines = futuresKlinesResult.status === 'fulfilled' ? futuresKlinesResult.value : []
 
     // Calculate trade statistics
     let tradeCount = ticker.count || 0
