@@ -56,10 +56,50 @@ export async function GET(
     }
 
     // Get klines for chart - both spot and futures
-    const [klines, futuresKlines] = await Promise.all([
+    const [klines, futuresKlines, aggTradesResponse] = await Promise.all([
       getKlines(symbol.toUpperCase(), interval, limit),
       getFuturesKlines(symbol.toUpperCase(), interval, limit).catch(() => []),
+      fetch(`https://api.binance.com/api/v3/aggTrades?symbol=${symbol.toUpperCase()}&limit=1000`).catch(() => null),
     ])
+
+    // Calculate trade statistics
+    let tradeCount = ticker.count || 0
+    let highestBuyPrice = '0'
+    let highestSellPrice = '0'
+
+    if (aggTradesResponse && aggTradesResponse.ok) {
+      try {
+        const aggTrades = await aggTradesResponse.json()
+        let maxBuyPrice = 0
+        let maxSellPrice = 0
+
+        // aggTrades'de isBuyerMaker: true = satıcı, false = alıcı
+        // Yani isBuyerMaker: false = alış (buy), true = satış (sell)
+        for (const trade of aggTrades) {
+          const price = parseFloat(trade.p || trade.price || '0')
+          const isBuyerMaker = trade.m !== undefined ? trade.m : (trade.isBuyerMaker !== undefined ? trade.isBuyerMaker : false)
+          
+          if (price > 0) {
+            if (!isBuyerMaker) {
+              // Alış (buy) - buyer maker değil
+              if (price > maxBuyPrice) {
+                maxBuyPrice = price
+              }
+            } else {
+              // Satış (sell) - buyer maker (yani satıcı)
+              if (price > maxSellPrice) {
+                maxSellPrice = price
+              }
+            }
+          }
+        }
+
+        highestBuyPrice = maxBuyPrice > 0 ? maxBuyPrice.toString() : '0'
+        highestSellPrice = maxSellPrice > 0 ? maxSellPrice.toString() : '0'
+      } catch (error) {
+        console.error('Error parsing aggTrades:', error)
+      }
+    }
 
     const response: any = {
       symbol: ticker.symbol,
@@ -73,6 +113,9 @@ export async function GET(
       lowPrice: ticker.lowPrice,
       openPrice: ticker.openPrice,
       prevClosePrice: ticker.prevClosePrice,
+      tradeCount: tradeCount,
+      highestBuyPrice: highestBuyPrice,
+      highestSellPrice: highestSellPrice,
       klines: klines.map((k: any) => ({
         time: k.openTime,
         open: parseFloat(k.open),

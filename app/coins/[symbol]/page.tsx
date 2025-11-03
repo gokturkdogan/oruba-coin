@@ -38,6 +38,9 @@ interface CoinData {
   lowPrice: string
   openPrice: string
   prevClosePrice: string
+  tradeCount?: number
+  highestBuyPrice?: string
+  highestSellPrice?: string
   klines: Array<{
     time: number
     open: number
@@ -337,6 +340,8 @@ export default function CoinDetailPage() {
               }
               
               // Update coin data with Spot WebSocket data
+              // Note: openPrice and prevClosePrice should NOT be updated from WebSocket
+              // They represent fixed "previous day" values and should only come from initial API call
               const updatedCoinData: CoinData = {
                 ...currentCoinData,
                 price: data.c || data.lastPrice || currentCoinData.price,
@@ -345,8 +350,9 @@ export default function CoinDetailPage() {
                 quoteVolume: data.q || data.quoteVolume || currentCoinData.quoteVolume,
                 highPrice: data.h || data.highPrice || currentCoinData.highPrice,
                 lowPrice: data.l || data.lowPrice || currentCoinData.lowPrice,
-                openPrice: data.o || data.openPrice || currentCoinData.openPrice,
-                prevClosePrice: data.x || data.prevClosePrice || currentCoinData.prevClosePrice,
+                // Preserve original openPrice and prevClosePrice - do not update from WebSocket
+                openPrice: currentCoinData.openPrice,
+                prevClosePrice: currentCoinData.prevClosePrice,
                 // Preserve futures data
                 futuresVolume: currentCoinData.futuresVolume,
                 futuresQuoteVolume: currentCoinData.futuresQuoteVolume,
@@ -739,16 +745,11 @@ export default function CoinDetailPage() {
           {coinData.symbol}
         </h1>
         <div className="flex items-center gap-4">
-          <div className={`text-3xl font-bold flex items-center gap-2 ${
+          <div className={`text-3xl font-bold ${
             flashAnimations.price === 'up' ? 'text-green-400' : 
             flashAnimations.price === 'down' ? 'text-red-400' : 
             ''
           }`}>
-            {flashAnimations.price === 'up' ? (
-              <TrendingUp className="h-6 w-6" />
-            ) : flashAnimations.price === 'down' ? (
-              <TrendingDown className="h-6 w-6" />
-            ) : null}
             ${parseFloat(coinData.price).toLocaleString('tr-TR', {
               minimumFractionDigits: 2,
               maximumFractionDigits: 6,
@@ -770,57 +771,17 @@ export default function CoinDetailPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 mb-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Market Data</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className={`flex justify-between items-center p-3 rounded-lg transition-all duration-300 border ${
-              flashAnimations.price === 'up' ? 'animate-flash-green border-green-500/50' : 
-              flashAnimations.price === 'down' ? 'animate-flash-red border-red-500/50' : 
-              'bg-transparent border-transparent'
-            }`}>
-              <span className="text-muted-foreground flex items-center gap-2">
-                {flashAnimations.price === 'up' ? (
-                  <TrendingUp className="h-4 w-4 text-green-400" />
-                ) : flashAnimations.price === 'down' ? (
-                  <TrendingDown className="h-4 w-4 text-red-400" />
-                ) : (
-                  <TrendingUp className="h-4 w-4" />
-                )}
-                Fiyat
-              </span>
-              <span className={`font-semibold ${
-                flashAnimations.price === 'up' ? 'text-green-400' : 
-                flashAnimations.price === 'down' ? 'text-red-400' : 
-                ''
-              }`}>
-                ${parseFloat(coinData.price).toLocaleString('tr-TR', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 6,
-                })}
-              </span>
-            </div>
-            <div className={`flex justify-between items-center p-3 rounded-lg transition-all duration-300 border ${
-              flashAnimations.highPrice === 'up' ? 'animate-flash-green border-green-500/50' : 
-              flashAnimations.highPrice === 'down' ? 'animate-flash-red border-red-500/50' : 
-              'bg-transparent border-transparent'
-            }`}>
-              <span className="text-muted-foreground flex items-center gap-2">
-                {flashAnimations.highPrice === 'up' ? (
-                  <TrendingUp className="h-4 w-4 text-green-400" />
-                ) : flashAnimations.highPrice === 'down' ? (
-                  <TrendingDown className="h-4 w-4 text-red-400" />
-                ) : (
-                  <TrendingUp className="h-4 w-4 text-green-400" />
-                )}
-                24s En Yüksek
-              </span>
-              <span className={`font-semibold ${
+      {/* Bilgi Kartı */}
+      <Card className="mb-6 bg-gradient-to-br from-background/95 to-background/80 border-border/50 shadow-lg">
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+            {/* 24s En Yüksek */}
+            <div className="flex flex-col gap-2 p-4 rounded-lg bg-gradient-to-br from-green-500/10 to-green-500/5 border border-green-500/20">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">24s En Yüksek</span>
+              <span className={`text-xl font-bold ${
                 flashAnimations.highPrice === 'up' ? 'text-green-400' : 
-                flashAnimations.highPrice === 'down' ? 'text-red-400' : 
-                ''
+                flashAnimations.highPrice === 'down' ? 'text-green-300' : 
+                'text-green-400'
               }`}>
                 ${parseFloat(coinData.highPrice).toLocaleString('tr-TR', {
                   minimumFractionDigits: 2,
@@ -828,120 +789,55 @@ export default function CoinDetailPage() {
                 })}
               </span>
             </div>
-            <div className="flex justify-between items-center p-3 rounded-lg bg-transparent">
-              <span className="text-muted-foreground flex items-center gap-2">
-                <TrendingDown className="h-4 w-4 text-red-400" />
-                24s En Düşük
+
+            {/* 24s En Düşük */}
+            <div className="flex flex-col gap-2 p-4 rounded-lg bg-gradient-to-br from-red-500/10 to-red-500/5 border border-red-500/20">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">24s En Düşük</span>
+              <span className="text-xl font-bold text-red-400">
+                ${parseFloat(coinData.lowPrice).toLocaleString('tr-TR', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 6,
+                })}
               </span>
-              <span className="font-semibold">${parseFloat(coinData.lowPrice).toLocaleString('tr-TR', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 6,
-              })}</span>
             </div>
-            <div className={`flex justify-between items-center p-3 rounded-lg transition-all duration-300 border ${
-              flashAnimations.spotVolume === 'up' ? 'animate-flash-green border-green-500/50' : 
-              flashAnimations.spotVolume === 'down' ? 'animate-flash-red border-red-500/50' : 
-              'bg-transparent border-transparent'
-            }`}>
-              <span className="text-muted-foreground flex items-center gap-2">
-                {flashAnimations.spotVolume === 'up' ? (
-                  <TrendingUp className="h-4 w-4 text-green-400" />
-                ) : flashAnimations.spotVolume === 'down' ? (
-                  <TrendingDown className="h-4 w-4 text-red-400" />
-                ) : (
-                  <TrendingUp className="h-4 w-4" />
-                )}
-                24s Spot Hacim
-              </span>
-              <span className={`font-semibold ${
-                flashAnimations.spotVolume === 'up' ? 'text-green-400' : 
-                flashAnimations.spotVolume === 'down' ? 'text-red-400' : 
-                ''
+
+            {/* 24 Saatlik Spot Hacim */}
+            <div className="flex flex-col gap-2 p-4 rounded-lg bg-gradient-to-br from-blue-500/10 to-blue-500/5 border border-blue-500/20">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">24s Spot Hacim</span>
+              <span className={`text-xl font-bold text-blue-400 ${
+                flashAnimations.spotVolume === 'up' ? 'animate-pulse' : ''
               }`}>
                 ${parseFloat(coinData.quoteVolume || '0').toLocaleString('tr-TR', {
                   maximumFractionDigits: 0,
                 })}
               </span>
             </div>
-            <div className={`flex justify-between items-center p-3 rounded-lg transition-all duration-300 border ${
-              flashAnimations.futuresVolume === 'up' ? 'animate-flash-green border-green-500/50' : 
-              flashAnimations.futuresVolume === 'down' ? 'animate-flash-red border-red-500/50' : 
-              'bg-transparent border-transparent'
-            }`}>
-              <span className="text-muted-foreground flex items-center gap-2">
-                {flashAnimations.futuresVolume === 'up' ? (
-                  <TrendingUp className="h-4 w-4 text-green-400" />
-                ) : flashAnimations.futuresVolume === 'down' ? (
-                  <TrendingDown className="h-4 w-4 text-red-400" />
-                ) : (
-                  <TrendingUp className="h-4 w-4" />
-                )}
-                24s Vadeli Hacim
-              </span>
-              <span className={`font-semibold ${
-                flashAnimations.futuresVolume === 'up' ? 'text-green-400' : 
-                flashAnimations.futuresVolume === 'down' ? 'text-red-400' : 
-                ''
+
+            {/* 24 Saatlik Vadeli Hacim */}
+            <div className="flex flex-col gap-2 p-4 rounded-lg bg-gradient-to-br from-purple-500/10 to-purple-500/5 border border-purple-500/20">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">24s Vadeli Hacim</span>
+              <span className={`text-xl font-bold text-purple-400 ${
+                flashAnimations.futuresVolume === 'up' ? 'animate-pulse' : ''
               }`}>
                 ${parseFloat(coinData.futuresQuoteVolume || '0').toLocaleString('tr-TR', {
                   maximumFractionDigits: 0,
                 })}
               </span>
             </div>
-            <div className="flex justify-between items-center p-3 rounded-lg bg-transparent">
-              <span className="text-muted-foreground flex items-center gap-2">
-                <TrendingUp className="h-4 w-4" />
-                Açılış Fiyatı
-              </span>
-              <span className="font-semibold">${parseFloat(coinData.openPrice).toLocaleString('tr-TR', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 6,
-              })}</span>
-            </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>İstatistikler</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex justify-between items-center p-3 rounded-lg bg-transparent">
-              <span className="text-muted-foreground flex items-center gap-2">
-                <TrendingUp className="h-4 w-4" />
-                Önceki Kapanış
-              </span>
-              <span className="font-semibold">${parseFloat(coinData.prevClosePrice).toLocaleString('tr-TR', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 6,
-              })}</span>
-            </div>
-            <div className={`flex justify-between items-center p-3 rounded-lg transition-all duration-300 ${
-              isPositive ? 'bg-green-500/10' : 'bg-red-500/10'
-            }`}>
-              <span className="text-muted-foreground flex items-center gap-2">
-                {isPositive ? (
-                  <TrendingUp className="h-4 w-4 text-green-400" />
-                ) : (
-                  <TrendingDown className="h-4 w-4 text-red-400" />
-                )}
-                Fiyat Değişimi
-              </span>
-              <span className={`font-semibold flex items-center gap-1.5 ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
-                {isPositive ? (
-                  <TrendingUp className="h-4 w-4" />
-                ) : (
-                  <TrendingDown className="h-4 w-4" />
-                )}
-                {isPositive ? '+' : ''}
-                {(
-                  parseFloat(coinData.price) - parseFloat(coinData.prevClosePrice)
-                ).toFixed(6)}
+            {/* 24 Saatlik Dolar Cinsinden Değişim */}
+            <div className="flex flex-col gap-2 p-4 rounded-lg bg-gradient-to-br from-amber-500/10 to-amber-500/5 border border-amber-500/20">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">24s Dolar Değişim</span>
+              <span className={`text-xl font-bold ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
+                {isPositive ? '+' : ''}${(parseFloat(coinData.price) - parseFloat(coinData.prevClosePrice)).toLocaleString('tr-TR', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 6,
+                })}
               </span>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Tabs defaultValue="hourly" className="w-full">
         <TabsList>
