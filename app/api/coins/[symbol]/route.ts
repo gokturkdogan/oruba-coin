@@ -116,22 +116,36 @@ export async function GET(
       tradeCount: tradeCount,
       highestBuyPrice: highestBuyPrice,
       highestSellPrice: highestSellPrice,
-      klines: klines.map((k: any) => ({
-        time: k.openTime,
-        open: parseFloat(k.open),
-        high: parseFloat(k.high),
-        low: parseFloat(k.low),
-        close: parseFloat(k.close),
-        volume: parseFloat(k.quoteVolume), // USDT cinsinden volume (quoteVolume)
-      })),
-      futuresKlines: futuresKlines.map((k: any) => ({
-        time: k.openTime,
-        open: parseFloat(k.open),
-        high: parseFloat(k.high),
-        low: parseFloat(k.low),
-        close: parseFloat(k.close),
-        volume: parseFloat(k.quoteVolume), // USDT cinsinden volume (quoteVolume)
-      })),
+      klines: klines.map((k: any) => {
+        const quoteVolume = parseFloat(k.quoteVolume || '0')
+        const buyVolume = parseFloat(k.takerBuyQuoteVolume || '0')
+        const sellVolume = quoteVolume - buyVolume // Toplam - Alış = Satış
+        return {
+          time: k.openTime,
+          open: parseFloat(k.open),
+          high: parseFloat(k.high),
+          low: parseFloat(k.low),
+          close: parseFloat(k.close),
+          volume: quoteVolume, // USDT cinsinden toplam volume (quoteVolume)
+          buyVolume: buyVolume, // Alış hacmi (takerBuyQuoteVolume)
+          sellVolume: sellVolume > 0 ? sellVolume : 0, // Satış hacmi
+        }
+      }),
+      futuresKlines: futuresKlines.map((k: any) => {
+        const quoteVolume = parseFloat(k.quoteVolume || '0')
+        const buyVolume = parseFloat(k.takerBuyQuoteVolume || '0')
+        const sellVolume = quoteVolume - buyVolume
+        return {
+          time: k.openTime,
+          open: parseFloat(k.open),
+          high: parseFloat(k.high),
+          low: parseFloat(k.low),
+          close: parseFloat(k.close),
+          volume: quoteVolume, // USDT cinsinden toplam volume (quoteVolume)
+          buyVolume: buyVolume, // Alış hacmi
+          sellVolume: sellVolume > 0 ? sellVolume : 0, // Satış hacmi
+        }
+      }),
     }
 
     // Premium features

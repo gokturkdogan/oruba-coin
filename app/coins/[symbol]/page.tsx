@@ -48,6 +48,8 @@ interface CoinData {
     low: number
     close: number
     volume: number
+    buyVolume?: number
+    sellVolume?: number
   }>
   futuresKlines?: Array<{
     time: number
@@ -56,6 +58,8 @@ interface CoinData {
     low: number
     close: number
     volume: number
+    buyVolume?: number
+    sellVolume?: number
   }>
   premium?: {
     dailyChart: Array<{
@@ -108,6 +112,8 @@ export default function CoinDetailPage() {
   const [showPrice, setShowPrice] = useState(true)
   const [showSpotVolume, setShowSpotVolume] = useState(true)
   const [showFuturesVolume, setShowFuturesVolume] = useState(true)
+  const [showBuyVolume, setShowBuyVolume] = useState(true)
+  const [showSellVolume, setShowSellVolume] = useState(true)
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -639,9 +645,13 @@ export default function CoinDetailPage() {
 
   const formatKlineData = (klines: CoinData['klines'], futuresKlines: CoinData['futuresKlines'] = [], timeRangeValue: string = timeRange) => {
     // Create a map of futures klines by time for quick lookup
-    const futuresMap = new Map<number, number>()
+    const futuresMap = new Map<number, { volume: number, buyVolume?: number, sellVolume?: number }>()
     futuresKlines.forEach(fk => {
-      futuresMap.set(fk.time, fk.volume)
+      futuresMap.set(fk.time, {
+        volume: fk.volume,
+        buyVolume: fk.buyVolume,
+        sellVolume: fk.sellVolume,
+      })
     })
     
     return klines.map((k, index) => {
@@ -674,8 +684,8 @@ export default function CoinDetailPage() {
         })
       }
       
-      // Find matching futures volume by time (closest match)
-      const futuresVolume = futuresMap.get(k.time) || 0
+      // Find matching futures data by time (closest match)
+      const futuresData = futuresMap.get(k.time) || { volume: 0, buyVolume: 0, sellVolume: 0 }
       
       return {
         time: timeFormat,
@@ -685,8 +695,12 @@ export default function CoinDetailPage() {
         high: k.high,
         low: k.low,
         close: k.close,
-        volume: k.volume, // Spot volume
-        futuresVolume: futuresVolume, // Futures volume
+        volume: k.volume, // Spot toplam volume
+        buyVolume: k.buyVolume || 0, // Spot alış hacmi
+        sellVolume: k.sellVolume || 0, // Spot satış hacmi
+        futuresVolume: futuresData.volume, // Futures toplam volume
+        futuresBuyVolume: futuresData.buyVolume || 0, // Futures alış hacmi
+        futuresSellVolume: futuresData.sellVolume || 0, // Futures satış hacmi
         isPositive: isPositive,
       }
     })
@@ -1235,6 +1249,22 @@ export default function CoinDetailPage() {
                     />
                     <span className="text-purple-400">Vadeli Hacim</span>
                   </Label>
+                  <Label className="text-sm font-medium text-muted-foreground cursor-pointer flex items-center gap-2">
+                    <Checkbox
+                      checked={showBuyVolume}
+                      onCheckedChange={(checked) => setShowBuyVolume(checked === true)}
+                      className="data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
+                    />
+                    <span className="text-green-400">Alış</span>
+                  </Label>
+                  <Label className="text-sm font-medium text-muted-foreground cursor-pointer flex items-center gap-2">
+                    <Checkbox
+                      checked={showSellVolume}
+                      onCheckedChange={(checked) => setShowSellVolume(checked === true)}
+                      className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500"
+                    />
+                    <span className="text-red-400">Satış</span>
+                  </Label>
                 </div>
               </div>
             </CardHeader>
@@ -1258,6 +1288,24 @@ export default function CoinDetailPage() {
                     <linearGradient id="futuresVolumeBarGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="rgba(167, 139, 250, 0.8)" stopOpacity={1} />
                       <stop offset="100%" stopColor="rgba(167, 139, 250, 0.3)" stopOpacity={1} />
+                    </linearGradient>
+                    {/* Spot alış/satış gradyanları */}
+                    <linearGradient id="spotBuyVolumeGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="rgba(34, 197, 94, 0.8)" stopOpacity={1} />
+                      <stop offset="100%" stopColor="rgba(34, 197, 94, 0.3)" stopOpacity={1} />
+                    </linearGradient>
+                    <linearGradient id="spotSellVolumeGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="rgba(239, 68, 68, 0.8)" stopOpacity={1} />
+                      <stop offset="100%" stopColor="rgba(239, 68, 68, 0.3)" stopOpacity={1} />
+                    </linearGradient>
+                    {/* Vadeli alış/satış gradyanları */}
+                    <linearGradient id="futuresBuyVolumeGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="rgba(74, 222, 128, 0.8)" stopOpacity={1} />
+                      <stop offset="100%" stopColor="rgba(74, 222, 128, 0.3)" stopOpacity={1} />
+                    </linearGradient>
+                    <linearGradient id="futuresSellVolumeGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="rgba(248, 113, 113, 0.8)" stopOpacity={1} />
+                      <stop offset="100%" stopColor="rgba(248, 113, 113, 0.3)" stopOpacity={1} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid 
@@ -1299,55 +1347,155 @@ export default function CoinDetailPage() {
                         return decimalPart === '00' ? integerPart : `${integerPart},${decimalPart}`
                       }
                       
+                      // Find the data point to get all volume values
+                      const dataPoint = memoizedChartData.find((d: any) => d.time === label)
+                      
                       return (
                         <div className="rounded-lg border border-white/10 bg-black/90 p-3 shadow-lg">
                           <p className="mb-2 text-sm text-white/70">{label}</p>
-                          {payload.map((entry: any, index: number) => {
-                            const dataKey = entry.dataKey || entry.name
-                            let formattedValue = String(entry.value || 0)
-                            let labelName = entry.name || dataKey
-                            let valueColor = 'text-white'
-                            
-                            if (dataKey === 'volume') {
-                              formattedValue = `$${formatVolume(entry.value)}`
-                              labelName = 'Spot Hacim'
-                              valueColor = 'text-blue-400'
-                            } else if (dataKey === 'futuresVolume') {
-                              formattedValue = `$${formatVolume(entry.value)}`
-                              labelName = 'Vadeli Hacim'
-                              valueColor = 'text-purple-400'
-                            }
-                            
-                            return (
-                              <div key={index} className="flex items-center justify-between gap-4 text-sm">
-                                <span className="text-white/70">{labelName}:</span>
-                                <span className={`font-semibold ${valueColor}`}>{formattedValue}</span>
-                              </div>
-                            )
-                          })}
+                          
+                          {/* Spot Volume Section */}
+                          {showSpotVolume && dataPoint && (
+                            <div className={`${showFuturesVolume ? 'mb-2 pb-2 border-b border-white/10' : ''}`}>
+                              <p className="text-xs font-semibold text-blue-400 mb-1">Spot Hacim</p>
+                              {(() => {
+                                const totalVolume = dataPoint.volume || 0
+                                const buyVolume = dataPoint.buyVolume || 0
+                                const sellVolume = dataPoint.sellVolume || 0
+                                const buyPercentage = totalVolume > 0 ? (buyVolume / totalVolume) * 100 : 0
+                                const sellPercentage = totalVolume > 0 ? (sellVolume / totalVolume) * 100 : 0
+                                
+                                const showBuy = showBuyVolume
+                                const showSell = showSellVolume
+                                
+                                return (
+                                  <>
+                                    {(showBuy || showSell) && (
+                                      <div className="flex items-center justify-between gap-4 text-sm">
+                                        <span className="text-white/70">Toplam:</span>
+                                        <span className="font-semibold text-blue-400">${formatVolume(totalVolume)}</span>
+                                      </div>
+                                    )}
+                                    {showBuy && (
+                                      <div className="flex items-center justify-between gap-4 text-sm">
+                                        <span className="text-white/70">Alış:</span>
+                                        <span className="font-semibold text-green-400">
+                                          ${formatVolume(buyVolume)} ({buyPercentage.toFixed(1)}%)
+                                        </span>
+                                      </div>
+                                    )}
+                                    {showSell && (
+                                      <div className="flex items-center justify-between gap-4 text-sm">
+                                        <span className="text-white/70">Satış:</span>
+                                        <span className="font-semibold text-red-400">
+                                          ${formatVolume(sellVolume)} ({sellPercentage.toFixed(1)}%)
+                                        </span>
+                                      </div>
+                                    )}
+                                  </>
+                                )
+                              })()}
+                            </div>
+                          )}
+                          
+                          {/* Futures Volume Section */}
+                          {showFuturesVolume && dataPoint && (
+                            <div>
+                              <p className="text-xs font-semibold text-purple-400 mb-1">Vadeli Hacim</p>
+                              {(() => {
+                                const totalVolume = dataPoint.futuresVolume || 0
+                                const buyVolume = dataPoint.futuresBuyVolume || 0
+                                const sellVolume = dataPoint.futuresSellVolume || 0
+                                const buyPercentage = totalVolume > 0 ? (buyVolume / totalVolume) * 100 : 0
+                                const sellPercentage = totalVolume > 0 ? (sellVolume / totalVolume) * 100 : 0
+                                
+                                const showBuy = showBuyVolume
+                                const showSell = showSellVolume
+                                
+                                return (
+                                  <>
+                                    {(showBuy || showSell) && (
+                                      <div className="flex items-center justify-between gap-4 text-sm">
+                                        <span className="text-white/70">Toplam:</span>
+                                        <span className="font-semibold text-purple-400">${formatVolume(totalVolume)}</span>
+                                      </div>
+                                    )}
+                                    {showBuy && (
+                                      <div className="flex items-center justify-between gap-4 text-sm">
+                                        <span className="text-white/70">Alış:</span>
+                                        <span className="font-semibold text-green-300">
+                                          ${formatVolume(buyVolume)} ({buyPercentage.toFixed(1)}%)
+                                        </span>
+                                      </div>
+                                    )}
+                                    {showSell && (
+                                      <div className="flex items-center justify-between gap-4 text-sm">
+                                        <span className="text-white/70">Satış:</span>
+                                        <span className="font-semibold text-red-300">
+                                          ${formatVolume(sellVolume)} ({sellPercentage.toFixed(1)}%)
+                                        </span>
+                                      </div>
+                                    )}
+                                  </>
+                                )
+                              })()}
+                            </div>
+                          )}
                         </div>
                       )
                     }}
                   />
                   {showSpotVolume && (
-                    <Bar 
-                      dataKey="volume" 
-                      fill="url(#volumeBarGradient)"
-                      radius={[8, 8, 0, 0]}
-                      isAnimationActive={timeRange !== '1D'} // Disable animation for real-time updates
-                      animationDuration={800}
-                      name="Spot Hacim"
-                    />
+                    <>
+                      {showBuyVolume && (
+                        <Bar 
+                          dataKey="buyVolume" 
+                          stackId="spot"
+                          fill="url(#spotBuyVolumeGradient)"
+                          radius={[0, 0, 0, 0]}
+                          isAnimationActive={timeRange !== '1D'}
+                          animationDuration={800}
+                          name="Spot Alış"
+                        />
+                      )}
+                      {showSellVolume && (
+                        <Bar 
+                          dataKey="sellVolume" 
+                          stackId="spot"
+                          fill="url(#spotSellVolumeGradient)"
+                          radius={showBuyVolume ? [0, 0, 0, 0] : [8, 8, 0, 0]}
+                          isAnimationActive={timeRange !== '1D'}
+                          animationDuration={800}
+                          name="Spot Satış"
+                        />
+                      )}
+                    </>
                   )}
                   {showFuturesVolume && (
-                    <Bar 
-                      dataKey="futuresVolume" 
-                      fill="url(#futuresVolumeBarGradient)"
-                      radius={[8, 8, 0, 0]}
-                      isAnimationActive={timeRange !== '1D'} // Disable animation for real-time updates
-                      animationDuration={800}
-                      name="Vadeli Hacim"
-                    />
+                    <>
+                      {showBuyVolume && (
+                        <Bar 
+                          dataKey="futuresBuyVolume" 
+                          stackId="futures"
+                          fill="url(#futuresBuyVolumeGradient)"
+                          radius={[0, 0, 0, 0]}
+                          isAnimationActive={timeRange !== '1D'}
+                          animationDuration={800}
+                          name="Vadeli Alış"
+                        />
+                      )}
+                      {showSellVolume && (
+                        <Bar 
+                          dataKey="futuresSellVolume" 
+                          stackId="futures"
+                          fill="url(#futuresSellVolumeGradient)"
+                          radius={showBuyVolume ? [0, 0, 0, 0] : [8, 8, 0, 0]}
+                          isAnimationActive={timeRange !== '1D'}
+                          animationDuration={800}
+                          name="Vadeli Satış"
+                        />
+                      )}
+                    </>
                   )}
                 </BarChart>
               </ResponsiveContainer>
