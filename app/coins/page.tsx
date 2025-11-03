@@ -45,6 +45,7 @@ export default function CoinsPage() {
   const sortByRef = useRef<SortBy>(sortBy)
   const sortOrderRef = useRef<SortOrder>(sortOrder)
   const searchRef = useRef<string>(search)
+  const isMountedRef = useRef<boolean>(true)
 
   // Initial fetch - only called once on mount
   const fetchCoins = async () => {
@@ -104,6 +105,8 @@ export default function CoinsPage() {
 
     // Helper function to update coins and trigger re-render
     const updateCoinsDisplay = () => {
+      // Only update if component is still mounted
+      if (!isMountedRef.current) return
       const updatedCoins = Array.from(coinsMapRef.current.values())
       const sorted = sortCoins(updatedCoins, sortByRef.current, sortOrderRef.current)
       const filtered = searchCoins(sorted, searchRef.current)
@@ -119,6 +122,9 @@ export default function CoinsPage() {
       }
 
       spotWs.onmessage = (event) => {
+        // Component unmount edilmişse mesaj işleme
+        if (!isMountedRef.current) return
+        
         try {
           const message = JSON.parse(event.data)
           if (message.stream && message.data) {
@@ -126,8 +132,8 @@ export default function CoinsPage() {
             const data = message.data
             const symbol = stream.split('@')[0].toUpperCase()
 
-            // Only update if this symbol is in our map
-            if (coinsMapRef.current.has(symbol)) {
+            // Only update if this symbol is in our map and component is mounted
+            if (isMountedRef.current && coinsMapRef.current.has(symbol)) {
               const existingCoin = coinsMapRef.current.get(symbol)!
               const previousPrice = previousPricesRef.current.get(symbol)
               const currentPrice = parseFloat(data.c || data.lastPrice || '0')
@@ -144,24 +150,28 @@ export default function CoinsPage() {
               }
               
               // Check if price changed and trigger flash animation
-              if (previousPrice !== undefined && previousPrice !== 0 && currentPrice !== 0 && currentPrice !== previousPrice) {
+              if (isMountedRef.current && previousPrice !== undefined && previousPrice !== 0 && currentPrice !== 0 && currentPrice !== previousPrice) {
                 const priceDiff = Math.abs(currentPrice - previousPrice)
                 const priceChangePercent = (priceDiff / previousPrice) * 100
                 
                 if (priceChangePercent >= 0.001 || priceDiff >= 0.00000001) {
                   const flashType = currentPrice > previousPrice ? 'up' : 'down'
                   
-                  setFlashAnimations(prev => ({
-                    ...prev,
-                    [symbol]: flashType
-                  }))
-                  
-                  setTimeout(() => {
-                    setFlashAnimations(prev => {
-                      const { [symbol]: _, ...rest } = prev
-                      return rest
-                    })
-                  }, 1200)
+                  if (isMountedRef.current) {
+                    setFlashAnimations(prev => ({
+                      ...prev,
+                      [symbol]: flashType
+                    }))
+                    
+                    setTimeout(() => {
+                      if (isMountedRef.current) {
+                        setFlashAnimations(prev => {
+                          const { [symbol]: _, ...rest } = prev
+                          return rest
+                        })
+                      }
+                    }, 1200)
+                  }
                 }
               }
               
@@ -181,13 +191,16 @@ export default function CoinsPage() {
       }
 
       spotWs.onclose = () => {
-        console.log('Spot WebSocket disconnected, reconnecting...')
-        setTimeout(() => {
-          const currentSymbols = Array.from(coinsMapRef.current.keys())
-          if (currentSymbols.length > 0) {
-            subscribeToWebSocket(currentSymbols)
-          }
-        }, 3000)
+        // Component unmount edilmişse yeniden bağlanma
+        if (isMountedRef.current && wsRef.current === spotWs) {
+          console.log('Spot WebSocket disconnected, reconnecting...')
+          setTimeout(() => {
+            const currentSymbols = Array.from(coinsMapRef.current.keys())
+            if (isMountedRef.current && currentSymbols.length > 0 && wsRef.current === spotWs) {
+              subscribeToWebSocket(currentSymbols)
+            }
+          }, 3000)
+        }
       }
 
       wsRef.current = spotWs
@@ -204,6 +217,9 @@ export default function CoinsPage() {
       }
 
       futuresWs.onmessage = (event) => {
+        // Component unmount edilmişse mesaj işleme
+        if (!isMountedRef.current) return
+        
         try {
           const message = JSON.parse(event.data)
           if (message.stream && message.data) {
@@ -211,8 +227,8 @@ export default function CoinsPage() {
             const data = message.data
             const symbol = stream.split('@')[0].toUpperCase()
 
-            // Only update if this symbol is in our map
-            if (coinsMapRef.current.has(symbol)) {
+            // Only update if this symbol is in our map and component is mounted
+            if (isMountedRef.current && coinsMapRef.current.has(symbol)) {
               const existingCoin = coinsMapRef.current.get(symbol)!
               
               // Update coin data, preserving spot data and updating only futures volume
@@ -236,13 +252,16 @@ export default function CoinsPage() {
       }
 
       futuresWs.onclose = () => {
-        console.log('Futures WebSocket disconnected, reconnecting...')
-        setTimeout(() => {
-          const currentSymbols = Array.from(coinsMapRef.current.keys())
-          if (currentSymbols.length > 0) {
-            subscribeToWebSocket(currentSymbols)
-          }
-        }, 3000)
+        // Component unmount edilmişse yeniden bağlanma
+        if (isMountedRef.current && futuresWsRef.current === futuresWs) {
+          console.log('Futures WebSocket disconnected, reconnecting...')
+          setTimeout(() => {
+            const currentSymbols = Array.from(coinsMapRef.current.keys())
+            if (isMountedRef.current && currentSymbols.length > 0 && futuresWsRef.current === futuresWs) {
+              subscribeToWebSocket(currentSymbols)
+            }
+          }, 3000)
+        }
       }
 
       futuresWsRef.current = futuresWs
@@ -302,16 +321,43 @@ export default function CoinsPage() {
 
   // Initial fetch - only once on mount
   useEffect(() => {
+    isMountedRef.current = true
     fetchCoins()
 
-      return () => {
-        if (wsRef.current) {
-          wsRef.current.close()
+    // Cleanup function - WebSocket'leri kapat
+    return () => {
+      isMountedRef.current = false
+      
+      // Tüm event handler'ları kaldır ve WebSocket'leri kapat
+      if (wsRef.current) {
+        try {
+          wsRef.current.onmessage = null
+          wsRef.current.onerror = null
+          wsRef.current.onclose = null
+          wsRef.current.onopen = null
+          if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
+            wsRef.current.close()
+          }
+        } catch (error) {
+          console.error('Error closing spot WebSocket:', error)
         }
-        if (futuresWsRef.current) {
-          futuresWsRef.current.close()
-        }
+        wsRef.current = null
       }
+      if (futuresWsRef.current) {
+        try {
+          futuresWsRef.current.onmessage = null
+          futuresWsRef.current.onerror = null
+          futuresWsRef.current.onclose = null
+          futuresWsRef.current.onopen = null
+          if (futuresWsRef.current.readyState === WebSocket.OPEN || futuresWsRef.current.readyState === WebSocket.CONNECTING) {
+            futuresWsRef.current.close()
+          }
+        } catch (error) {
+          console.error('Error closing futures WebSocket:', error)
+        }
+        futuresWsRef.current = null
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -422,19 +468,19 @@ export default function CoinsPage() {
   return (
     <div className="w-full py-16">
       <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-16">
-        <h1 className="text-5xl font-bold mb-4 gradient-text">Market Overview</h1>
-        <p className="text-muted-foreground text-lg">Real-time cryptocurrency prices from Binance</p>
+        <h1 className="text-5xl font-bold mb-4 gradient-text">Piyasa Genel Bakış</h1>
+        <p className="text-muted-foreground text-lg">Binance'tan gerçek zamanlı kripto para fiyatları</p>
       </div>
 
       <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-10">
         <Card className="glass-effect border-white/10">
           <CardHeader>
-            <CardTitle className="text-xl">Search & Filter</CardTitle>
-            <CardDescription>Find coins and sort by different metrics</CardDescription>
+            <CardTitle className="text-xl">Ara ve Filtrele</CardTitle>
+            <CardDescription>Coinleri bulun ve farklı metriklerle sıralayın</CardDescription>
           </CardHeader>
           <CardContent>
             <Input
-              placeholder="Search coins (e.g., BTC, ETH, BNB)..."
+              placeholder="Coin ara (örn: BTC, ETH, BNB)..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="max-w-sm glass-effect border-white/10 focus:border-primary/50"
@@ -445,7 +491,7 @@ export default function CoinsPage() {
 
       {loading ? (
         <div className="text-center py-20 text-muted-foreground">
-          <div className="animate-pulse text-lg">Loading market data...</div>
+          <div className="animate-pulse text-lg">Piyasa verileri yükleniyor...</div>
         </div>
       ) : (
       <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
@@ -493,7 +539,7 @@ export default function CoinsPage() {
                       <span style={{ width: '16px', height: '16px', flexShrink: 0, opacity: 0 }}>
                         <TrendingUp style={{ width: '16px', height: '16px' }} />
                       </span>
-                      <span>Symbol</span>
+                      <span>Sembol</span>
                       <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
                     </button>
                   </th>
@@ -521,7 +567,7 @@ export default function CoinsPage() {
                       onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
                       onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}
                     >
-                      <span>Price</span>
+                      <span>Fiyat</span>
                       <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
                     </button>
                   </th>
@@ -552,7 +598,7 @@ export default function CoinsPage() {
                       onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
                       onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}
                     >
-                      <span>24h Change</span>
+                      <span>24s Değişim</span>
                       <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
                     </button>
                   </th>
@@ -580,7 +626,7 @@ export default function CoinsPage() {
                       onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
                       onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}
                     >
-                      <span>Spot Volume</span>
+                      <span>Spot Hacim</span>
                       <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
                     </button>
                   </th>
@@ -608,7 +654,7 @@ export default function CoinsPage() {
                       onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
                       onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}
                     >
-                      <span>Futures Volume</span>
+                      <span>Vadeli Hacim</span>
                       <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
                     </button>
                   </th>
@@ -621,7 +667,7 @@ export default function CoinsPage() {
                     minWidth: '150px',
                     maxWidth: '150px'
                   }}>
-                    Actions
+                    İşlemler
                   </th>
                 </tr>
               </thead>
@@ -629,7 +675,7 @@ export default function CoinsPage() {
                 {coins.length === 0 ? (
                   <tr>
                     <td colSpan={5} style={{ textAlign: 'center', padding: '64px 16px', color: 'var(--muted-foreground)' }}>
-                      No coins found
+                      Coin bulunamadı
                     </td>
                   </tr>
                 ) : (
@@ -657,6 +703,13 @@ export default function CoinsPage() {
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.backgroundColor = 'transparent'
+                        }}
+                        onClick={(e) => {
+                          // Sadece td içindeki link dışındaki tıklamalarda durduralım
+                          const target = e.target as HTMLElement
+                          if (!target.closest('a') && !target.closest('button')) {
+                            e.stopPropagation()
+                          }
                         }}
                       >
                         <td style={{ 
@@ -748,18 +801,25 @@ export default function CoinsPage() {
                           position: 'relative',
                           zIndex: 10
                         }}>
-                          <a
+                          <Link
                             href={`/coins/${coin.symbol}`}
                             onClick={(e) => {
-                              e.preventDefault()
-                              console.log('Link clicked, navigating to:', `/coins/${coin.symbol}`)
-                              window.location.href = `/coins/${coin.symbol}`
+                              e.stopPropagation()
+                              // WebSocket'leri temizle
+                              if (wsRef.current) {
+                                wsRef.current.close()
+                                wsRef.current = null
+                              }
+                              if (futuresWsRef.current) {
+                                futuresWsRef.current.close()
+                                futuresWsRef.current = null
+                              }
                             }}
                             className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-primary/30 bg-background hover:bg-primary/10 hover:border-primary/50 h-9 px-4 py-2 relative z-10 cursor-pointer"
                             style={{ position: 'relative', zIndex: 10 }}
                           >
-                            View Details
-                          </a>
+                            Detayları Gör
+                          </Link>
                         </td>
                       </tr>
                     )

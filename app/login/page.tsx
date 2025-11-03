@@ -31,15 +31,15 @@ export default function LoginPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        toast.error(data.error || 'Login failed')
+        toast.error(data.error || 'Giriş başarısız')
         return
       }
 
-      toast.success('Login successful')
+      toast.success('Giriş başarılı')
       router.push('/coins')
       router.refresh()
     } catch (error) {
-      toast.error('An error occurred')
+      toast.error('Bir hata oluştu')
     } finally {
       setLoading(false)
     }
@@ -54,13 +54,13 @@ export default function LoginPage() {
       
       <Card className="w-full max-w-md glass-effect border-white/10 relative z-10">
         <CardHeader className="text-center space-y-2">
-          <CardTitle className="text-3xl font-bold gradient-text">Welcome Back</CardTitle>
-          <CardDescription className="text-base">Enter your credentials to access your account</CardDescription>
+          <CardTitle className="text-3xl font-bold gradient-text">Tekrar Hoş Geldiniz</CardTitle>
+          <CardDescription className="text-base">Hesabınıza erişmek için bilgilerinizi girin</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+              <Label htmlFor="email" className="text-sm font-medium">E-posta</Label>
               <Input
                 id="email"
                 type="email"
@@ -72,7 +72,7 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+              <Label htmlFor="password" className="text-sm font-medium">Şifre</Label>
               <Input
                 id="password"
                 type="password"
@@ -89,12 +89,12 @@ export default function LoginPage() {
               className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/20" 
               disabled={loading}
             >
-              {loading ? 'Logging in...' : 'Login'}
+              {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
             </Button>
             <p className="text-sm text-center text-muted-foreground">
-              Don't have an account?{' '}
+              Hesabınız yok mu?{' '}
               <Link href="/register" className="text-primary hover:underline font-medium">
-                Register
+                Kayıt Ol
               </Link>
             </p>
           </CardFooter>

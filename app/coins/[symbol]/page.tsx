@@ -474,7 +474,7 @@ export default function CoinDetailPage() {
                   const isBuy = !data.m
                   
                   const trade: Trade = {
-                    id: data.t || Date.now(),
+                    id: data.t || Date.now() + Math.random(), // Add random to ensure uniqueness
                     price: price,
                     quantity: quantity,
                     quoteAmount: quoteAmount,
@@ -525,15 +525,45 @@ export default function CoinDetailPage() {
         return () => {
           // Cleanup: close WebSockets on unmount
           if (wsRef.current) {
-            wsRef.current.close()
+            try {
+              wsRef.current.onmessage = null
+              wsRef.current.onerror = null
+              wsRef.current.onclose = null
+              wsRef.current.onopen = null
+              if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
+                wsRef.current.close()
+              }
+            } catch (error) {
+              console.error('Error closing spot WebSocket:', error)
+            }
             wsRef.current = null
           }
           if (futuresWsRef.current) {
-            futuresWsRef.current.close()
+            try {
+              futuresWsRef.current.onmessage = null
+              futuresWsRef.current.onerror = null
+              futuresWsRef.current.onclose = null
+              futuresWsRef.current.onopen = null
+              if (futuresWsRef.current.readyState === WebSocket.OPEN || futuresWsRef.current.readyState === WebSocket.CONNECTING) {
+                futuresWsRef.current.close()
+              }
+            } catch (error) {
+              console.error('Error closing futures WebSocket:', error)
+            }
             futuresWsRef.current = null
           }
           if (tradesWsRef.current) {
-            tradesWsRef.current.close()
+            try {
+              tradesWsRef.current.onmessage = null
+              tradesWsRef.current.onerror = null
+              tradesWsRef.current.onclose = null
+              tradesWsRef.current.onopen = null
+              if (tradesWsRef.current.readyState === WebSocket.OPEN || tradesWsRef.current.readyState === WebSocket.CONNECTING) {
+                tradesWsRef.current.close()
+              }
+            } catch (error) {
+              console.error('Error closing trades WebSocket:', error)
+            }
             tradesWsRef.current = null
           }
         }
@@ -544,7 +574,7 @@ export default function CoinDetailPage() {
   if (loading) {
     return (
       <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="text-center py-12 text-muted-foreground">Loading coin data...</div>
+        <div className="text-center py-12 text-muted-foreground">Coin verileri yükleniyor...</div>
       </div>
     )
   }
@@ -554,10 +584,10 @@ export default function CoinDetailPage() {
     return (
       <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="text-center py-12">
-          <h1 className="text-2xl font-bold mb-4">Coin not found</h1>
+          <h1 className="text-2xl font-bold mb-4">Coin bulunamadı</h1>
           <p className="text-muted-foreground mb-4">{error}</p>
           <Button asChild>
-            <Link href="/coins">Back to Coins</Link>
+            <Link href="/coins">Coinlere Dön</Link>
           </Button>
         </div>
       </div>
@@ -568,7 +598,7 @@ export default function CoinDetailPage() {
   if (!coinData) {
     return (
       <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="text-center py-12 text-muted-foreground">Loading coin data...</div>
+        <div className="text-center py-12 text-muted-foreground">Coin verileri yükleniyor...</div>
       </div>
     )
   }
@@ -724,7 +754,7 @@ export default function CoinDetailPage() {
                 ) : (
                   <TrendingUp className="h-4 w-4" />
                 )}
-                Price
+                Fiyat
               </span>
               <span className={`font-semibold ${
                 flashAnimations.price === 'up' ? 'text-green-400' : 
@@ -750,7 +780,7 @@ export default function CoinDetailPage() {
                 ) : (
                   <TrendingUp className="h-4 w-4 text-green-400" />
                 )}
-                24h High
+                24s En Yüksek
               </span>
               <span className={`font-semibold ${
                 flashAnimations.highPrice === 'up' ? 'text-green-400' : 
@@ -766,7 +796,7 @@ export default function CoinDetailPage() {
             <div className="flex justify-between items-center p-3 rounded-lg bg-transparent">
               <span className="text-muted-foreground flex items-center gap-2">
                 <TrendingDown className="h-4 w-4 text-red-400" />
-                24h Low
+                24s En Düşük
               </span>
               <span className="font-semibold">${parseFloat(coinData.lowPrice).toLocaleString('en-US', {
                 minimumFractionDigits: 2,
@@ -786,7 +816,7 @@ export default function CoinDetailPage() {
                 ) : (
                   <TrendingUp className="h-4 w-4" />
                 )}
-                24h Spot Volume
+                24s Spot Hacim
               </span>
               <span className={`font-semibold ${
                 flashAnimations.spotVolume === 'up' ? 'text-green-400' : 
@@ -811,7 +841,7 @@ export default function CoinDetailPage() {
                 ) : (
                   <TrendingUp className="h-4 w-4" />
                 )}
-                24h Futures Volume
+                24s Vadeli Hacim
               </span>
               <span className={`font-semibold ${
                 flashAnimations.futuresVolume === 'up' ? 'text-green-400' : 
@@ -826,7 +856,7 @@ export default function CoinDetailPage() {
             <div className="flex justify-between items-center p-3 rounded-lg bg-transparent">
               <span className="text-muted-foreground flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
-                Open Price
+                Açılış Fiyatı
               </span>
               <span className="font-semibold">${parseFloat(coinData.openPrice).toLocaleString('en-US', {
                 minimumFractionDigits: 2,
@@ -838,13 +868,13 @@ export default function CoinDetailPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Statistics</CardTitle>
+            <CardTitle>İstatistikler</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex justify-between items-center p-3 rounded-lg bg-transparent">
               <span className="text-muted-foreground flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
-                Previous Close
+                Önceki Kapanış
               </span>
               <span className="font-semibold">${parseFloat(coinData.prevClosePrice).toLocaleString('en-US', {
                 minimumFractionDigits: 2,
@@ -860,7 +890,7 @@ export default function CoinDetailPage() {
                 ) : (
                   <TrendingDown className="h-4 w-4 text-red-400" />
                 )}
-                Price Change
+                Fiyat Değişimi
               </span>
               <span className={`font-semibold flex items-center gap-1.5 ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
                 {isPositive ? (
@@ -880,10 +910,10 @@ export default function CoinDetailPage() {
 
       <Tabs defaultValue="hourly" className="w-full">
         <TabsList>
-          <TabsTrigger value="hourly">24h Chart</TabsTrigger>
+          <TabsTrigger value="hourly">24s Grafik</TabsTrigger>
           <TabsTrigger value="daily" disabled={!isPremium}>
             {!isPremium && <Lock className="h-3 w-3 ml-1" />}
-            Daily Chart (Premium)
+            Günlük Grafik (Premium)
           </TabsTrigger>
         </TabsList>
         <TabsContent value="hourly" className="mt-6">
@@ -891,7 +921,7 @@ export default function CoinDetailPage() {
             <CardHeader>
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
-                  <CardTitle className="text-2xl mb-1">Price Chart</CardTitle>
+                  <CardTitle className="text-2xl mb-1">Fiyat Grafiği</CardTitle>
                   <CardDescription>
                     {timeRange === '1D' && '24 saatlik fiyat hareketleri'}
                     {timeRange === '7D' && '7 günlük fiyat hareketleri'}
@@ -983,7 +1013,7 @@ export default function CoinDetailPage() {
                     }}
                     formatter={(value: any, name: string) => {
                       if (name === 'price') {
-                        return [`$${parseFloat(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`, 'Price']
+                        return [`$${parseFloat(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`, 'Fiyat']
                       }
                       if (name === 'volume') {
                         return [`${parseFloat(value).toLocaleString('en-US', { maximumFractionDigits: 2 })}`, 'Volume']
@@ -1021,8 +1051,8 @@ export default function CoinDetailPage() {
           {isPremium && coinData.premium?.dailyChart ? (
             <Card className="bg-gradient-to-br from-background to-background/80 border-border/50">
               <CardHeader>
-                <CardTitle className="text-2xl mb-1">Daily Chart (30 days)</CardTitle>
-                <CardDescription>Premium feature - Daily price movements with volume</CardDescription>
+                <CardTitle className="text-2xl mb-1">Günlük Grafik (30 gün)</CardTitle>
+                <CardDescription>Premium özellik - Hacimle günlük fiyat hareketleri</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={500}>
@@ -1076,7 +1106,7 @@ export default function CoinDetailPage() {
                       }}
                       formatter={(value: any, name: string) => {
                         if (name === 'price') {
-                          return [`$${parseFloat(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`, 'Price']
+                          return [`$${parseFloat(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`, 'Fiyat']
                         }
                         if (name === 'volume') {
                           return [`${parseFloat(value).toLocaleString('en-US', { maximumFractionDigits: 2 })}`, 'Volume']
@@ -1111,12 +1141,12 @@ export default function CoinDetailPage() {
             <Card>
               <CardContent className="py-12 text-center">
                 <Lock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-xl font-semibold mb-2">Premium Feature</h3>
+                <h3 className="text-xl font-semibold mb-2">Premium Özellik</h3>
                 <p className="text-muted-foreground mb-4">
-                  Upgrade to Premium to access daily charts and advanced indicators
+                  Günlük grafikler ve gelişmiş göstergelere erişmek için Premium'a yükseltin
                 </p>
                 <Button asChild>
-                  <Link href="/checkout">Upgrade to Premium</Link>
+                  <Link href="/checkout">Premium'a Yükselt</Link>
                 </Button>
               </CardContent>
             </Card>
@@ -1126,7 +1156,7 @@ export default function CoinDetailPage() {
 
           <Card className="mt-6 bg-gradient-to-br from-background to-background/80 border-border/50">
             <CardHeader>
-              <CardTitle className="text-xl">Trading Volume</CardTitle>
+              <CardTitle className="text-xl">İşlem Hacmi</CardTitle>
               <CardDescription>
                 {timeRange === '1D' && '24 saatlik hacim dağılımı'}
                 {timeRange === '7D' && '7 günlük hacim dağılımı'}
@@ -1183,7 +1213,7 @@ export default function CoinDetailPage() {
                     }}
                     formatter={(value: any) => [
                       `${parseFloat(value).toLocaleString('en-US', { maximumFractionDigits: 2 })}`,
-                      'Volume'
+                      'Hacim'
                     ]}
                     labelStyle={{ color: 'rgba(255, 255, 255, 0.7)' }}
                   />
@@ -1205,7 +1235,7 @@ export default function CoinDetailPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <TrendingUp className="h-5 w-5 text-green-400" />
-                  Alış Emirleri (Buy Orders)
+                  Alış Emirleri
                 </CardTitle>
                 <CardDescription>Son 20 alış emri (gerçek zamanlı)</CardDescription>
               </CardHeader>
@@ -1226,8 +1256,8 @@ export default function CoinDetailPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {buyTrades.map((trade) => (
-                          <tr key={trade.id} className="border-b border-border/30 hover:bg-green-500/5 transition-colors">
+                        {buyTrades.map((trade, index) => (
+                          <tr key={`buy-${trade.id}-${trade.time}-${index}`} className="border-b border-border/30 hover:bg-green-500/5 transition-colors">
                             <td className="p-2 text-muted-foreground">
                               {new Date(trade.time).toLocaleTimeString('tr-TR', {
                                 hour: '2-digit',
@@ -1265,7 +1295,7 @@ export default function CoinDetailPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <TrendingDown className="h-5 w-5 text-red-400" />
-                  Satış Emirleri (Sell Orders)
+                  Satış Emirleri
                 </CardTitle>
                 <CardDescription>Son 20 satış emri (gerçek zamanlı)</CardDescription>
               </CardHeader>
@@ -1286,8 +1316,8 @@ export default function CoinDetailPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {sellTrades.map((trade) => (
-                          <tr key={trade.id} className="border-b border-border/30 hover:bg-red-500/5 transition-colors">
+                        {sellTrades.map((trade, index) => (
+                          <tr key={`sell-${trade.id}-${trade.time}-${index}`} className="border-b border-border/30 hover:bg-red-500/5 transition-colors">
                             <td className="p-2 text-muted-foreground">
                               {new Date(trade.time).toLocaleTimeString('tr-TR', {
                                 hour: '2-digit',

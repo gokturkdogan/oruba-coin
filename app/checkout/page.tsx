@@ -40,17 +40,17 @@ export default function CheckoutPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        toast.error(data.error || 'Failed to create checkout session')
+        toast.error(data.error || 'Ödeme oturumu oluşturulamadı')
         return
       }
 
       if (data.url) {
         window.location.href = data.url
       } else {
-        toast.error('No checkout URL received')
+        toast.error('Ödeme URL'si alınamadı')
       }
     } catch (error) {
-      toast.error('An error occurred')
+        toast.error('Bir hata oluştu')
     } finally {
       setLoading(false)
     }
@@ -59,7 +59,7 @@ export default function CheckoutPage() {
   if (!user) {
     return (
       <div className="container py-8">
-        <div className="text-center py-12 text-muted-foreground">Loading...</div>
+        <div className="text-center py-12 text-muted-foreground">Yükleniyor...</div>
       </div>
     )
   }
@@ -67,7 +67,7 @@ export default function CheckoutPage() {
   return (
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="max-w-2xl mx-auto">
-      <h1 className="text-3xl font-bold mb-8">Upgrade to Premium</h1>
+      <h1 className="text-3xl font-bold mb-8">Premium'a Yükselt</h1>
 
       <Card>
         <CardHeader>
@@ -75,43 +75,43 @@ export default function CheckoutPage() {
             <Lock className="h-6 w-6 text-yellow-500" />
             <CardTitle>Premium Plan</CardTitle>
           </div>
-          <CardDescription>Unlock advanced features and insights</CardDescription>
+          <CardDescription>Gelişmiş özellikler ve içgörülere erişin</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4">
             <div className="flex items-start gap-3">
               <Check className="h-5 w-5 text-green-500 mt-0.5" />
               <div>
-                <div className="font-semibold">Advanced Coin Analytics</div>
+                <div className="font-semibold">Gelişmiş Coin Analitiği</div>
                 <div className="text-sm text-muted-foreground">
-                  Daily charts, extended historical data, and detailed market indicators
+                  Günlük grafikler, genişletilmiş geçmiş veriler ve detaylı piyasa göstergeleri
                 </div>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <Check className="h-5 w-5 text-green-500 mt-0.5" />
               <div>
-                <div className="font-semibold">Premium Indicators</div>
+                <div className="font-semibold">Premium Göstergeler</div>
                 <div className="text-sm text-muted-foreground">
-                  Access to advanced technical indicators and market analysis tools
+                  Gelişmiş teknik göstergelere ve piyasa analiz araçlarına erişim
                 </div>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <Check className="h-5 w-5 text-green-500 mt-0.5" />
               <div>
-                <div className="font-semibold">Export Data</div>
+                <div className="font-semibold">Veri Dışa Aktarma</div>
                 <div className="text-sm text-muted-foreground">
-                  Download coin data and charts in multiple formats
+                  Coin verilerini ve grafikleri birden fazla formatta indirin
                 </div>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <Check className="h-5 w-5 text-green-500 mt-0.5" />
               <div>
-                <div className="font-semibold">Price Alerts</div>
+                <div className="font-semibold">Fiyat Uyarıları</div>
                 <div className="text-sm text-muted-foreground">
-                  Set custom price alerts for your favorite coins
+                  Favori coinleriniz için özel fiyat uyarıları ayarlayın
                 </div>
               </div>
             </div>
@@ -121,7 +121,7 @@ export default function CheckoutPage() {
             <div className="text-center space-y-4">
               <div>
                 <div className="text-4xl font-bold">Premium</div>
-                <div className="text-muted-foreground">Subscription-based plan</div>
+                <div className="text-muted-foreground">Abonelik tabanlı plan</div>
               </div>
               <Button
                 size="lg"
@@ -129,10 +129,10 @@ export default function CheckoutPage() {
                 onClick={handleCheckout}
                 disabled={loading}
               >
-                {loading ? 'Processing...' : 'Subscribe with Stripe'}
+                {loading ? 'İşleniyor...' : 'Stripe ile Abone Ol'}
               </Button>
               <p className="text-xs text-muted-foreground">
-                Secure payment processing powered by Stripe
+                Stripe tarafından güçlendirilmiş güvenli ödeme işleme
               </p>
             </div>
           </div>

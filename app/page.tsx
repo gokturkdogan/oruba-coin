@@ -38,36 +38,36 @@ export default async function HomePage() {
           <div className="absolute top-1/2 left-1/2 w-[400px] h-[400px] bg-primary/8 rounded-full blur-[90px] animate-glow" style={{ animationDelay: '3s' }} />
         </div>
         
-        <div className="container relative z-10">
-          <div className="max-w-4xl mx-auto space-y-8 px-4 sm:px-6 lg:px-8">
+        <div className="relative z-10">
+          <div className="max-w-4xl mx-auto space-y-8 px-4 sm:px-6 lg:px-8 text-center">
             <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full glass-effect border border-primary/20 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
               <Sparkles className="h-4 w-4 text-primary animate-pulse" />
-              <span className="text-sm font-medium">Real-time Crypto Analytics</span>
+              <span className="text-sm font-medium">Gerçek Zamanlı Kripto Analitiği</span>
             </div>
             
             <div className="space-y-6 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
               <h1 className="text-5xl md:text-7xl lg:text-8xl font-extrabold leading-tight tracking-tight">
                 <span className="gradient-text inline-block animate-gradient">Oruba Coin</span>
                 <br />
-                <span className="text-foreground inline-block">Your Crypto</span>
+                <span className="text-foreground inline-block">Kripto Para</span>
                 <br />
-                <span className="text-foreground inline-block">Intelligence Hub</span>
+                <span className="text-foreground inline-block">İstihbarat Merkezi</span>
               </h1>
               
               <p className="max-w-2xl text-xl md:text-2xl text-muted-foreground leading-relaxed animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
-                Track prices, analyze trends, and make informed decisions with real-time data from Binance. 
-                Advanced indicators and premium insights at your fingertips.
+                Binance'dan gelen gerçek zamanlı verilerle fiyatları takip edin, trendleri analiz edin ve bilinçli kararlar verin. 
+                Gelişmiş göstergeler ve premium içgörüler parmaklarınızın ucunda.
               </p>
               
-              <div className="flex flex-col sm:flex-row gap-4 pt-4 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
+              <div className="flex flex-col sm:flex-row gap-4 pt-4 animate-fade-in-up justify-center items-center" style={{ animationDelay: '0.4s' }}>
                 <Button asChild size="lg" className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/30 text-base px-8 py-6 hover:scale-105 transition-transform duration-200">
                   <Link href="/register">
-                    Get Started Free
+                    Ücretsiz Başlayın
                     <ArrowRight className="ml-2 h-5 w-5 inline-block group-hover:translate-x-1 transition-transform" />
                   </Link>
                 </Button>
                 <Button variant="outline" size="lg" className="border-primary/30 hover:bg-primary/10 text-base px-8 py-6 hover:scale-105 transition-transform duration-200">
-                  <Link href="/coins">Explore Markets</Link>
+                  <Link href="/coins">Piyasaları Keşfet</Link>
                 </Button>
               </div>
             </div>
@@ -77,10 +77,10 @@ export default async function HomePage() {
 
       {/* Popular Coins Preview */}
       <section className="py-16 md:py-24 relative">
-        <div className="container px-4 sm:px-6 lg:px-8">
-          <div className="mb-12 text-center animate-fade-in-up">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4 gradient-text">Top Performer</h2>
-            <p className="text-muted-foreground text-lg md:text-xl">Most traded coins right now</p>
+        <div className="px-4 sm:px-6 lg:px-8">
+          <div className="mb-12 text-center animate-fade-in-up max-w-4xl mx-auto">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4 gradient-text">En İyi Performans</h2>
+            <p className="text-muted-foreground text-lg md:text-xl">Şu anda en çok işlem gören coinler</p>
           </div>
           
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5 max-w-7xl mx-auto">
@@ -107,7 +107,7 @@ export default async function HomePage() {
                         )}
                       </div>
                     </CardTitle>
-                    <CardDescription className="text-xs">24h Performance</CardDescription>
+                    <CardDescription className="text-xs">24 Saatlik Performans</CardDescription>
                   </CardHeader>
                   
                   <CardContent className="relative z-10 space-y-3">
@@ -145,7 +145,7 @@ export default async function HomePage() {
           
           {coins.length === 0 && (
             <div className="text-center py-16 text-muted-foreground">
-              <div className="animate-pulse text-lg">Loading market data...</div>
+              <div className="animate-pulse text-lg">Piyasa verileri yükleniyor...</div>
             </div>
           )}
         </div>
@@ -153,11 +153,11 @@ export default async function HomePage() {
 
       {/* Features Section */}
       <section className="py-20 md:py-28 border-t border-white/10 relative">
-        <div className="container px-4 sm:px-6 lg:px-8">
-          <div className="mb-16 text-center animate-fade-in-up">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4 gradient-text">Powerful Features</h2>
+        <div className="px-4 sm:px-6 lg:px-8">
+          <div className="mb-16 text-center animate-fade-in-up max-w-4xl mx-auto">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4 gradient-text">Güçlü Özellikler</h2>
             <p className="text-muted-foreground text-lg md:text-xl max-w-2xl mx-auto">
-              Everything you need for professional crypto analysis
+              Profesyonel kripto analizi için ihtiyacınız olan her şey
             </p>
           </div>
           
@@ -170,9 +170,9 @@ export default async function HomePage() {
                 <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300">
                   <Zap className="h-7 w-7 text-primary" />
                 </div>
-                <CardTitle className="text-2xl mb-2">Real-time Data</CardTitle>
+                <CardTitle className="text-2xl mb-2">Gerçek Zamanlı Veri</CardTitle>
                 <CardDescription className="text-base">
-                  Live price updates from Binance using WebSocket technology. Never miss a market movement.
+                  WebSocket teknolojisi kullanarak Binance'tan canlı fiyat güncellemeleri. Piyasa hareketlerini kaçırmayın.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -185,9 +185,9 @@ export default async function HomePage() {
                 <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300">
                   <BarChart3 className="h-7 w-7 text-primary" />
                 </div>
-                <CardTitle className="text-2xl mb-2">Advanced Analysis</CardTitle>
+                <CardTitle className="text-2xl mb-2">Gelişmiş Analiz</CardTitle>
                 <CardDescription className="text-base">
-                  Premium indicators and detailed coin analytics for informed trading decisions.
+                  Bilinçli işlem kararları için premium göstergeler ve detaylı coin analitiği.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -200,9 +200,9 @@ export default async function HomePage() {
                 <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300">
                   <Sparkles className="h-7 w-7 text-primary" />
                 </div>
-                <CardTitle className="text-2xl mb-2">Market Insights</CardTitle>
+                <CardTitle className="text-2xl mb-2">Piyasa İçgörüleri</CardTitle>
                 <CardDescription className="text-base">
-                  Track buy/sell volumes, price movements, and market trends with precision.
+                  Alış/satış hacimlerini, fiyat hareketlerini ve piyasa trendlerini hassasiyetle takip edin.
                 </CardDescription>
               </CardHeader>
             </Card>

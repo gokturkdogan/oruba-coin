@@ -55,10 +55,10 @@ export function Navbar() {
     try {
       await fetch('/api/auth/logout', { method: 'POST' })
       setUser(null)
-      toast.success('Logged out successfully')
+      toast.success('Başarıyla çıkış yapıldı')
       router.push('/')
     } catch (error) {
-      toast.error('Failed to logout')
+      toast.error('Çıkış yapılamadı')
     }
   }
 
@@ -67,34 +67,49 @@ export function Navbar() {
       <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center">
-            <Link href="/" className="flex items-center space-x-2 group">
+            <a 
+              href="/" 
+              onClick={(e) => {
+                e.preventDefault()
+                window.location.href = '/'
+              }}
+              className="flex items-center space-x-2 group cursor-pointer"
+            >
               <span className="font-bold text-xl gradient-text">Oruba Coin</span>
               <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">₿</span>
-            </Link>
+            </a>
           </div>
           <div className="hidden md:flex items-center space-x-8 text-sm font-medium">
-            <Link
+            <a
               href="/"
-              className={`transition-all duration-200 hover:text-primary relative ${
+              onClick={(e) => {
+                e.preventDefault()
+                window.location.href = '/'
+              }}
+              className={`transition-all duration-200 hover:text-primary relative cursor-pointer ${
                 pathname === '/' ? 'text-primary font-semibold' : 'text-foreground/70'
               }`}
             >
-              Home
+              Ana Sayfa
               {pathname === '/' && (
                 <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-gradient-to-r from-primary to-primary/50 rounded-full" />
               )}
-            </Link>
-            <Link
+            </a>
+            <a
               href="/coins"
-              className={`transition-all duration-200 hover:text-primary relative ${
+              onClick={(e) => {
+                e.preventDefault()
+                window.location.href = '/coins'
+              }}
+              className={`transition-all duration-200 hover:text-primary relative cursor-pointer ${
                 pathname === '/coins' ? 'text-primary font-semibold' : 'text-foreground/70'
               }`}
             >
-              Coins
+              Coinler
               {pathname === '/coins' && (
                 <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-gradient-to-r from-primary to-primary/50 rounded-full" />
               )}
-            </Link>
+            </a>
           </div>
           
           <div className="flex items-center space-x-4">
@@ -141,28 +156,49 @@ export function Navbar() {
                         </div>
                       </DropdownMenuLabel>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem asChild>
-                        <Link href="/profile">Profile</Link>
+                      <DropdownMenuItem 
+                        onClick={(e) => {
+                          e.preventDefault()
+                          window.location.href = '/profile'
+                        }}
+                      >
+                        Profil
                       </DropdownMenuItem>
                       {!user.isPremium && (
-                        <DropdownMenuItem asChild>
-                          <Link href="/checkout">Upgrade to Premium</Link>
+                        <DropdownMenuItem 
+                          onClick={(e) => {
+                            e.preventDefault()
+                            window.location.href = '/checkout'
+                          }}
+                        >
+                          Premium'a Yükselt
                         </DropdownMenuItem>
                       )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={handleLogout}>
-                        Log out
+                        Çıkış Yap
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </>
               ) : (
                 <>
-                  <Button variant="ghost" asChild className="hover:text-primary">
-                    <Link href="/login">Login</Link>
+                  <Button 
+                    variant="ghost" 
+                    className="hover:text-primary cursor-pointer"
+                    onClick={() => {
+                      window.location.href = '/login'
+                    }}
+                  >
+                    Giriş Yap
                   </Button>
-                  <Button asChild className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/20">
-                    <Link href="/register">Register</Link>
+                  <Button 
+                    className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/20 cursor-pointer"
+                    onClick={() => {
+                      window.location.href = '/register'
+                    }}
+                  >
+                    Kayıt Ol
                   </Button>
                 </>
               )}
@@ -173,41 +209,57 @@ export function Navbar() {
         {/* Mobile menu */}
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-white/10 py-4 space-y-4">
-            <Link
+            <a
               href="/"
-              className={`block px-4 py-2 rounded-lg transition-all ${
+              onClick={(e) => {
+                e.preventDefault()
+                setMobileMenuOpen(false)
+                window.location.href = '/'
+              }}
+              className={`block px-4 py-2 rounded-lg transition-all cursor-pointer ${
                 pathname === '/' ? 'text-primary bg-primary/10' : 'text-foreground/70 hover:bg-white/5'
               }`}
-              onClick={() => setMobileMenuOpen(false)}
             >
-              Home
-            </Link>
-            <Link
+              Ana Sayfa
+            </a>
+            <a
               href="/coins"
-              className={`block px-4 py-2 rounded-lg transition-all ${
+              onClick={(e) => {
+                e.preventDefault()
+                setMobileMenuOpen(false)
+                window.location.href = '/coins'
+              }}
+              className={`block px-4 py-2 rounded-lg transition-all cursor-pointer ${
                 pathname === '/coins' ? 'text-primary bg-primary/10' : 'text-foreground/70 hover:bg-white/5'
               }`}
-              onClick={() => setMobileMenuOpen(false)}
             >
-              Coins
-            </Link>
+              Coinler
+            </a>
             {user && (
               <>
-                <Link
+                <a
                   href="/profile"
-                  className="block px-4 py-2 rounded-lg text-foreground/70 hover:bg-white/5 transition-all"
-                  onClick={() => setMobileMenuOpen(false)}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    setMobileMenuOpen(false)
+                    window.location.href = '/profile'
+                  }}
+                  className="block px-4 py-2 rounded-lg text-foreground/70 hover:bg-white/5 transition-all cursor-pointer"
                 >
-                  Profile
-                </Link>
+                  Profil
+                </a>
                 {!user.isPremium && (
-                  <Link
+                  <a
                     href="/checkout"
-                    className="block px-4 py-2 rounded-lg text-foreground/70 hover:bg-white/5 transition-all"
-                    onClick={() => setMobileMenuOpen(false)}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setMobileMenuOpen(false)
+                      window.location.href = '/checkout'
+                    }}
+                    className="block px-4 py-2 rounded-lg text-foreground/70 hover:bg-white/5 transition-all cursor-pointer"
                   >
-                    Upgrade to Premium
-                  </Link>
+                    Premium'a Yükselt
+                  </a>
                 )}
               </>
             )}

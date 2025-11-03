@@ -32,15 +32,15 @@ export default function RegisterPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        toast.error(data.error || 'Registration failed')
+        toast.error(data.error || 'Kayıt başarısız')
         return
       }
 
-      toast.success('Registration successful')
+      toast.success('Kayıt başarılı')
       router.push('/coins')
       router.refresh()
     } catch (error) {
-      toast.error('An error occurred')
+      toast.error('Bir hata oluştu')
     } finally {
       setLoading(false)
     }
@@ -55,13 +55,13 @@ export default function RegisterPage() {
       
       <Card className="w-full max-w-md glass-effect border-white/10 relative z-10">
         <CardHeader className="text-center space-y-2">
-          <CardTitle className="text-3xl font-bold gradient-text">Join Oruba Coin</CardTitle>
-          <CardDescription className="text-base">Create a new account to get started</CardDescription>
+          <CardTitle className="text-3xl font-bold gradient-text">Oruba Coin'a Katıl</CardTitle>
+          <CardDescription className="text-base">Başlamak için yeni bir hesap oluşturun</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-medium">Name (Optional)</Label>
+              <Label htmlFor="name" className="text-sm font-medium">İsim (İsteğe Bağlı)</Label>
               <Input
                 id="name"
                 type="text"
@@ -72,7 +72,7 @@ export default function RegisterPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+              <Label htmlFor="email" className="text-sm font-medium">E-posta</Label>
               <Input
                 id="email"
                 type="email"
@@ -84,7 +84,7 @@ export default function RegisterPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+              <Label htmlFor="password" className="text-sm font-medium">Şifre</Label>
               <Input
                 id="password"
                 type="password"
@@ -94,7 +94,7 @@ export default function RegisterPage() {
                 minLength={8}
                 className="glass-effect border-white/10 focus:border-primary/50"
               />
-              <p className="text-xs text-muted-foreground">Minimum 8 characters</p>
+              <p className="text-xs text-muted-foreground">En az 8 karakter</p>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
@@ -103,12 +103,12 @@ export default function RegisterPage() {
               className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/20" 
               disabled={loading}
             >
-              {loading ? 'Registering...' : 'Create Account'}
+              {loading ? 'Kayıt yapılıyor...' : 'Hesap Oluştur'}
             </Button>
             <p className="text-sm text-center text-muted-foreground">
-              Already have an account?{' '}
+              Zaten hesabınız var mı?{' '}
               <Link href="/login" className="text-primary hover:underline font-medium">
-                Login
+                Giriş Yap
               </Link>
             </p>
           </CardFooter>

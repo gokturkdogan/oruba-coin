@@ -12,22 +12,22 @@ export function Footer() {
           <div className="space-y-4">
             <h3 className="font-bold text-xl gradient-text">Oruba Coin</h3>
             <p className="text-sm text-muted-foreground">
-              Real-time cryptocurrency analysis platform with advanced insights and market data.
+              Gelişmiş içgörüler ve piyasa verileri ile gerçek zamanlı kripto para analiz platformu.
             </p>
           </div>
 
           {/* Quick Links */}
           <div className="space-y-4">
-            <h4 className="font-semibold text-sm">Quick Links</h4>
+            <h4 className="font-semibold text-sm">Hızlı Bağlantılar</h4>
             <ul className="space-y-2 text-sm">
               <li>
                 <Link href="/" className="text-muted-foreground hover:text-primary transition-colors">
-                  Home
+                  Ana Sayfa
                 </Link>
               </li>
               <li>
                 <Link href="/coins" className="text-muted-foreground hover:text-primary transition-colors">
-                  Market
+                  Piyasa
                 </Link>
               </li>
               <li>
@@ -40,16 +40,16 @@ export function Footer() {
 
           {/* Resources */}
           <div className="space-y-4">
-            <h4 className="font-semibold text-sm">Resources</h4>
+            <h4 className="font-semibold text-sm">Kaynaklar</h4>
             <ul className="space-y-2 text-sm">
               <li>
                 <Link href="/profile" className="text-muted-foreground hover:text-primary transition-colors">
-                  Profile
+                  Profil
                 </Link>
               </li>
               <li>
                 <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                  Documentation
+                  Dokümantasyon
                 </a>
               </li>
               <li>
@@ -62,7 +62,7 @@ export function Footer() {
 
           {/* Social */}
           <div className="space-y-4">
-            <h4 className="font-semibold text-sm">Connect</h4>
+            <h4 className="font-semibold text-sm">Bağlan</h4>
             <div className="flex space-x-4">
               <a
                 href="#"
@@ -87,13 +87,13 @@ export function Footer() {
         </div>
 
         <div className="mt-8 pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center text-sm text-muted-foreground">
-          <p>© 2024 Oruba Coin. All rights reserved.</p>
+          <p>© 2024 Oruba Coin. Tüm hakları saklıdır.</p>
           <div className="flex space-x-6 mt-4 md:mt-0">
             <Link href="#" className="hover:text-primary transition-colors">
-              Privacy
+              Gizlilik
             </Link>
             <Link href="#" className="hover:text-primary transition-colors">
-              Terms
+              Şartlar
             </Link>
           </div>
         </div>
