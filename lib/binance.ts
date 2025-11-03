@@ -91,18 +91,45 @@ export async function getTicker(symbol: string): Promise<BinanceTicker | null> {
 
 export async function getAllTickers(): Promise<BinanceTicker[]> {
   try {
-    // Fetch both spot and futures tickers in parallel
+    // Fetch both spot and futures tickers in parallel with timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 saniye timeout
+    
     const [spotResponse, futuresResponse] = await Promise.all([
-      fetch('https://api.binance.com/api/v3/ticker/24hr'),
-      fetch('https://fapi.binance.com/fapi/v1/ticker/24hr'),
+      fetch('https://api.binance.com/api/v3/ticker/24hr', {
+        signal: controller.signal,
+        headers: {
+          'Accept': 'application/json',
+        },
+      }).catch((error) => {
+        if (error.name === 'AbortError') {
+          console.error('Spot tickers fetch timeout')
+        }
+        throw error
+      }),
+      fetch('https://fapi.binance.com/fapi/v1/ticker/24hr', {
+        signal: controller.signal,
+        headers: {
+          'Accept': 'application/json',
+        },
+      }).catch(() => {
+        // Futures başarısız olursa devam et, sadece spot ile çalış
+        return null
+      }),
     ])
     
-    if (!spotResponse.ok) throw new Error('Failed to fetch spot tickers')
+    clearTimeout(timeoutId)
+    
+    if (!spotResponse || !spotResponse.ok) {
+      console.error('Failed to fetch spot tickers:', spotResponse?.status, spotResponse?.statusText)
+      // Hata durumunda boş array döndür, exception fırlatma
+      return []
+    }
     
     const spotTickers = await spotResponse.json()
     let futuresTickers: any[] = []
     
-    if (futuresResponse.ok) {
+    if (futuresResponse && futuresResponse.ok) {
       futuresTickers = await futuresResponse.json()
     }
     

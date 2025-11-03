@@ -1,31 +1,296 @@
+'use client'
+
+import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { TrendingUp, TrendingDown, Sparkles, Zap, BarChart3, ArrowRight } from 'lucide-react'
 
-async function getPopularCoins() {
-  try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/coins/popular`, {
-      cache: 'no-store',
-    })
-    if (!res.ok) return []
-    const data = await res.json()
-    return data.coins || []
-  } catch {
-    return []
-  }
-}
-
 interface Coin {
   symbol: string
   price: string
   priceChangePercent: string
   volume: string
+  quoteVolume?: string
+  futuresVolume?: string
+  futuresQuoteVolume?: string
 }
 
-export default async function HomePage() {
-  const coins = await getPopularCoins()
+export default function HomePage() {
+  const [coins, setCoins] = useState<Coin[]>([])
+  const [loading, setLoading] = useState(true)
+  const [flashAnimations, setFlashAnimations] = useState<Record<string, 'up' | 'down'>>({})
+  const wsRef = useRef<WebSocket | null>(null)
+  const futuresWsRef = useRef<WebSocket | null>(null)
+  const coinsMapRef = useRef<Map<string, Coin>>(new Map())
+  const previousPricesRef = useRef<Map<string, number>>(new Map())
+  const isMountedRef = useRef<boolean>(true)
+
+  // Initial fetch
+  useEffect(() => {
+    isMountedRef.current = true
+    
+    const fetchPopularCoins = async () => {
+      try {
+        const res = await fetch('/api/coins/popular')
+        if (!res.ok) {
+          setLoading(false)
+          return
+        }
+        const data = await res.json()
+        const coinsData = data.coins || []
+        
+        // Update map with popular coins
+        coinsMapRef.current.clear()
+        previousPricesRef.current.clear()
+        coinsData.forEach((coin: Coin) => {
+          coinsMapRef.current.set(coin.symbol, coin)
+          previousPricesRef.current.set(coin.symbol, parseFloat(coin.price))
+        })
+        
+        // Sort by volume (descending) and take top 5
+        const sorted = [...coinsData].sort((a, b) => {
+          const aVol = parseFloat(a.quoteVolume || a.volume || '0')
+          const bVol = parseFloat(b.quoteVolume || b.volume || '0')
+          return bVol - aVol
+        }).slice(0, 5)
+        
+        setCoins(sorted)
+        setLoading(false)
+        
+        // Subscribe to WebSocket for these symbols
+        if (sorted.length > 0) {
+          subscribeToWebSocket(sorted.map((c: Coin) => c.symbol))
+        }
+      } catch (error) {
+        console.error('Failed to fetch popular coins:', error)
+        setLoading(false)
+      }
+    }
+    
+    fetchPopularCoins()
+    
+    return () => {
+      isMountedRef.current = false
+      // Cleanup WebSocket connections
+      if (wsRef.current) {
+        wsRef.current.onmessage = null
+        wsRef.current.onerror = null
+        wsRef.current.onclose = null
+        wsRef.current.onopen = null
+        if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
+          wsRef.current.close()
+        }
+        wsRef.current = null
+      }
+      if (futuresWsRef.current) {
+        futuresWsRef.current.onmessage = null
+        futuresWsRef.current.onerror = null
+        futuresWsRef.current.onclose = null
+        futuresWsRef.current.onopen = null
+        if (futuresWsRef.current.readyState === WebSocket.OPEN || futuresWsRef.current.readyState === WebSocket.CONNECTING) {
+          futuresWsRef.current.close()
+        }
+        futuresWsRef.current = null
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const subscribeToWebSocket = useCallback((symbols: string[]) => {
+    // Close existing connections
+    if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
+      wsRef.current.onmessage = null
+      wsRef.current.onerror = null
+      wsRef.current.onclose = null
+      wsRef.current.onopen = null
+      wsRef.current.close()
+      wsRef.current = null
+    }
+    if (futuresWsRef.current && (futuresWsRef.current.readyState === WebSocket.OPEN || futuresWsRef.current.readyState === WebSocket.CONNECTING)) {
+      futuresWsRef.current.onmessage = null
+      futuresWsRef.current.onerror = null
+      futuresWsRef.current.onclose = null
+      futuresWsRef.current.onopen = null
+      futuresWsRef.current.close()
+      futuresWsRef.current = null
+    }
+
+    if (symbols.length === 0) return
+
+    const limitedSymbols = symbols.map((s) => s.toUpperCase())
+    const streams = limitedSymbols
+      .map((s) => `${s.toLowerCase()}@ticker`)
+      .join('/')
+
+    // Spot WebSocket
+    const spotWsUrl = `wss://stream.binance.com:9443/stream?streams=${streams}`
+    // Futures WebSocket
+    const futuresWsUrl = `wss://fstream.binance.com/stream?streams=${streams}`
+
+    // Helper function to update coins and trigger re-render
+    const updateCoinsDisplay = () => {
+      if (!isMountedRef.current) return
+      const updatedCoins = Array.from(coinsMapRef.current.values())
+      // Sort by volume (descending) and take top 5
+      const sorted = [...updatedCoins].sort((a, b) => {
+        const aVol = parseFloat(a.quoteVolume || a.volume || '0')
+        const bVol = parseFloat(b.quoteVolume || b.volume || '0')
+        return bVol - aVol
+      }).slice(0, 5)
+      setCoins(sorted)
+    }
+
+    // Spot WebSocket
+    try {
+      const spotWs = new WebSocket(spotWsUrl)
+
+      spotWs.onopen = () => {
+        console.log('Homepage Spot WebSocket connected')
+      }
+
+      spotWs.onmessage = (event) => {
+        if (!isMountedRef.current) return
+        
+        try {
+          const message = JSON.parse(event.data)
+          if (message.stream && message.data) {
+            const stream = message.stream
+            const data = message.data
+            const symbol = stream.split('@')[0].toUpperCase()
+
+            if (isMountedRef.current && coinsMapRef.current.has(symbol)) {
+              const existingCoin = coinsMapRef.current.get(symbol)!
+              const previousPrice = previousPricesRef.current.get(symbol)
+              const currentPrice = parseFloat(data.c || data.lastPrice || '0')
+
+              // Update coin data, preserving futures data
+              const updatedCoin: Coin = {
+                symbol,
+                price: data.c || data.lastPrice || '0',
+                priceChangePercent: data.P || data.priceChangePercent || '0',
+                volume: data.v || data.volume || '0',
+                quoteVolume: data.q || data.quoteVolume || existingCoin.quoteVolume || '0',
+                futuresVolume: existingCoin.futuresVolume,
+                futuresQuoteVolume: existingCoin.futuresQuoteVolume,
+              }
+              
+              // Check if price changed and trigger flash animation
+              if (isMountedRef.current && previousPrice !== undefined && previousPrice !== 0 && currentPrice !== 0 && currentPrice !== previousPrice) {
+                const priceDiff = Math.abs(currentPrice - previousPrice)
+                const priceChangePercent = (priceDiff / previousPrice) * 100
+                
+                if (priceChangePercent >= 0.001 || priceDiff >= 0.00000001) {
+                  const flashType = currentPrice > previousPrice ? 'up' : 'down'
+                  
+                  if (isMountedRef.current) {
+                    setFlashAnimations(prev => ({
+                      ...prev,
+                      [symbol]: flashType
+                    }))
+                    
+                    setTimeout(() => {
+                      if (isMountedRef.current) {
+                        setFlashAnimations(prev => {
+                          const { [symbol]: _, ...rest } = prev
+                          return rest
+                        })
+                      }
+                    }, 1200)
+                  }
+                }
+              }
+              
+              previousPricesRef.current.set(symbol, currentPrice)
+              coinsMapRef.current.set(symbol, updatedCoin)
+              updateCoinsDisplay()
+            }
+          }
+        } catch (error) {
+          console.error('Error parsing Spot WebSocket message:', error)
+        }
+      }
+
+      spotWs.onerror = (error) => {
+        console.error('Spot WebSocket error:', error)
+      }
+
+      spotWs.onclose = () => {
+        if (isMountedRef.current && wsRef.current === spotWs) {
+          console.log('Spot WebSocket disconnected, reconnecting...')
+          setTimeout(() => {
+            const currentSymbols = Array.from(coinsMapRef.current.keys())
+            if (isMountedRef.current && currentSymbols.length > 0 && wsRef.current === spotWs) {
+              subscribeToWebSocket(currentSymbols)
+            }
+          }, 3000)
+        }
+      }
+
+      wsRef.current = spotWs
+    } catch (error) {
+      console.error('Failed to create Spot WebSocket:', error)
+    }
+
+    // Futures WebSocket
+    try {
+      const futuresWs = new WebSocket(futuresWsUrl)
+
+      futuresWs.onopen = () => {
+        console.log('Homepage Futures WebSocket connected')
+      }
+
+      futuresWs.onmessage = (event) => {
+        if (!isMountedRef.current) return
+        
+        try {
+          const message = JSON.parse(event.data)
+          if (message.stream && message.data) {
+            const stream = message.stream
+            const data = message.data
+            const symbol = stream.split('@')[0].toUpperCase()
+
+            if (isMountedRef.current && coinsMapRef.current.has(symbol)) {
+              const existingCoin = coinsMapRef.current.get(symbol)!
+              
+              // Update coin data, preserving spot data and updating only futures volume
+              const updatedCoin: Coin = {
+                ...existingCoin,
+                futuresVolume: data.v || data.volume || existingCoin.futuresVolume || '0',
+                futuresQuoteVolume: data.q || data.quoteVolume || existingCoin.futuresQuoteVolume || '0',
+              }
+              
+              coinsMapRef.current.set(symbol, updatedCoin)
+              updateCoinsDisplay()
+            }
+          }
+        } catch (error) {
+          console.error('Error parsing Futures WebSocket message:', error)
+        }
+      }
+
+      futuresWs.onerror = (error) => {
+        console.error('Futures WebSocket error:', error)
+      }
+
+      futuresWs.onclose = () => {
+        if (isMountedRef.current && futuresWsRef.current === futuresWs) {
+          console.log('Futures WebSocket disconnected, reconnecting...')
+          setTimeout(() => {
+            const currentSymbols = Array.from(coinsMapRef.current.keys())
+            if (isMountedRef.current && currentSymbols.length > 0 && futuresWsRef.current === futuresWs) {
+              subscribeToWebSocket(currentSymbols)
+            }
+          }, 3000)
+        }
+      }
+
+      futuresWsRef.current = futuresWs
+    } catch (error) {
+      console.error('Failed to create Futures WebSocket:', error)
+    }
+  }, [])
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -111,8 +376,14 @@ export default async function HomePage() {
                   </CardHeader>
                   
                   <CardContent className="relative z-10 space-y-3">
-                    <div className="text-2xl font-bold transition-transform duration-300 group-hover:scale-105">
-                      ${parseFloat(coin.price).toLocaleString('en-US', {
+                    <div 
+                      className={`text-2xl font-bold transition-transform duration-300 group-hover:scale-105 ${
+                        flashAnimations[coin.symbol] === 'up' ? 'animate-flash-green' : ''
+                      } ${
+                        flashAnimations[coin.symbol] === 'down' ? 'animate-flash-red' : ''
+                      }`}
+                    >
+                      ${parseFloat(coin.price).toLocaleString('tr-TR', {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 6,
                       })}
@@ -125,15 +396,24 @@ export default async function HomePage() {
                           isPositive 
                             ? 'bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-400 border-green-500/30' 
                             : 'bg-gradient-to-r from-red-500/20 to-rose-500/20 text-red-400 border-red-500/30'
-                        } border transition-transform duration-300 group-hover:scale-110`}
+                        } border transition-transform duration-300 group-hover:scale-110 ${
+                          flashAnimations[coin.symbol] === 'up' ? 'animate-flash-green' : ''
+                        } ${
+                          flashAnimations[coin.symbol] === 'down' ? 'animate-flash-red' : ''
+                        }`}
                       >
+                        {isPositive ? (
+                          <TrendingUp className="h-3 w-3 mr-1 inline-block" />
+                        ) : (
+                          <TrendingDown className="h-3 w-3 mr-1 inline-block" />
+                        )}
                         {isPositive ? '+' : ''}
                         {change.toFixed(2)}%
                       </Badge>
                     </div>
                     
                     <div className="text-xs text-muted-foreground pt-2 border-t border-white/5">
-                      Vol: ${parseFloat(coin.volume).toLocaleString('en-US', {
+                      Vol: ${parseFloat(coin.quoteVolume || coin.volume).toLocaleString('tr-TR', {
                         maximumFractionDigits: 0,
                       })}
                     </div>

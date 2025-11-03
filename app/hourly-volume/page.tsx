@@ -25,12 +25,14 @@ interface Coin {
   quoteVolume: string
   futuresVolume?: string
   futuresQuoteVolume?: string
+  hourlySpotVolume?: string
+  hourlyFuturesVolume?: string
 }
 
-type SortBy = 'symbol' | 'price' | 'change' | 'volume' | 'futuresVolume'
+type SortBy = 'symbol' | 'price' | 'change' | 'volume' | 'futuresVolume' | 'hourlySpotVolume' | 'hourlyFuturesVolume'
 type SortOrder = 'asc' | 'desc'
 
-export default function CoinsPage() {
+export default function HourlyVolumePage() {
   const router = useRouter()
   const [coins, setCoins] = useState<Coin[]>([])
   const [loading, setLoading] = useState(true)
@@ -39,33 +41,139 @@ export default function CoinsPage() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const wsRef = useRef<WebSocket | null>(null)
   const futuresWsRef = useRef<WebSocket | null>(null)
+  const tradesWsRef = useRef<WebSocket | null>(null)
   const coinsMapRef = useRef<Map<string, Coin>>(new Map())
   const previousPricesRef = useRef<Map<string, number>>(new Map())
+  const hourlyVolumeStartTimeRef = useRef<Map<string, number>>(new Map()) // Her coin için mevcut saatin başlangıç zamanı
+  const hourlyVolumeAccumulatorRef = useRef<Map<string, { spot: number, futures: number }>>(new Map()) // Saatlik hacim toplayıcıları
+  const previousQuoteVolumesRef = useRef<Map<string, { spot: number, futures: number }>>(new Map()) // Önceki 24 saatlik toplam volume'lar (sadece değişiklik hesaplamak için)
   const [flashAnimations, setFlashAnimations] = useState<Record<string, 'up' | 'down'>>({})
+  const [pageOpenTime, setPageOpenTime] = useState<number | null>(null) // Sayfa açıldığı zaman
   const sortByRef = useRef<SortBy>(sortBy)
   const sortOrderRef = useRef<SortOrder>(sortOrder)
   const searchRef = useRef<string>(search)
   const isMountedRef = useRef<boolean>(true)
 
+  // Fetch hourly volume for a single coin - Dinamik hesaplama
+  // Şu anki zamandan tam 1 saat öncesine kadar olan hacmi hesaplıyoruz
+  // Örnek: Eğer şu an 2:55 ise, 1:55-2:55 arası hacmi gösteririz
+  // Binance Klines API saat başına göre çalıştığı için, son 2 saatlik mum çubuklarını alıp
+  // şu anki saatten 1 saat öncesine kadar olan kısmı hesaplıyoruz
+  const fetchHourlyVolume = useCallback(async (symbol: string): Promise<{ spot: string, futures: string }> => {
+    try {
+      const currentTime = Date.now()
+      const oneHourAgo = currentTime - (60 * 60 * 1000) // Tam 1 saat önce
+      
+      // Son 2 saatlik mum çubuklarını al (şu anki saat ve önceki saat)
+      const [spotResponse, futuresResponse] = await Promise.all([
+        fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1h&limit=2`),
+        fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1h&limit=2`).catch(() => null),
+      ])
+      
+      let spotVolume = 0
+      let futuresVolume = 0
+      
+      if (spotResponse.ok) {
+        const spotData = await spotResponse.json()
+        // Mum çubuklarını işle ve son 1 saat içindeki hacmi topla
+        for (const kline of spotData) {
+          const openTime = kline[0] // Mum çubuğunun açılış zamanı
+          const closeTime = kline[6] // Mum çubuğunun kapanış zamanı
+          const quoteVolume = parseFloat(kline[7] || '0')
+          
+          // Eğer bu mum çubuğu son 1 saat içindeyse, hacmini ekle
+          if (closeTime >= oneHourAgo) {
+            // Mum çubuğu tamamen son 1 saat içindeyse, tamamını ekle
+            if (openTime >= oneHourAgo) {
+              spotVolume += quoteVolume
+            } else {
+              // Mum çubuğu kısmen son 1 saat içindeyse, orantılı olarak ekle
+              // Örnek: 2:55'te açtıysak, 1:00-2:00 mum çubuğunun sadece 1:55-2:00 arası kısmı
+              const totalDuration = closeTime - openTime
+              const relevantDuration = closeTime - oneHourAgo
+              const proportion = relevantDuration / totalDuration
+              spotVolume += quoteVolume * proportion
+            }
+          }
+        }
+      }
+      
+      if (futuresResponse && futuresResponse.ok) {
+        const futuresData = await futuresResponse.json()
+        for (const kline of futuresData) {
+          const openTime = kline[0]
+          const closeTime = kline[6]
+          const quoteVolume = parseFloat(kline[7] || '0')
+          
+          if (closeTime >= oneHourAgo) {
+            if (openTime >= oneHourAgo) {
+              futuresVolume += quoteVolume
+            } else {
+              const totalDuration = closeTime - openTime
+              const relevantDuration = closeTime - oneHourAgo
+              const proportion = relevantDuration / totalDuration
+              futuresVolume += quoteVolume * proportion
+            }
+          }
+        }
+      }
+      
+      return { 
+        spot: spotVolume.toFixed(2), 
+        futures: futuresVolume.toFixed(2) 
+      }
+    } catch (error) {
+      console.error(`Error fetching hourly volume for ${symbol}:`, error)
+      return { spot: '0', futures: '0' }
+    }
+  }, [])
+
   // Initial fetch - only called once on mount
+  // Server-side API kullanarak tüm coinlerin saatlik hacim verilerini tek seferde alıyoruz
   const fetchCoins = async () => {
     try {
-      // Fetch all coins without filters (we'll filter/sort client-side)
-      const res = await fetch(`/api/coins`)
+      // Özel API endpoint'i kullan - server-side'da toplu veri çekiyor
+      const res = await fetch(`/api/coins/hourly-volume`)
       const data = await res.json()
       const coinsData = data.coins || []
       
       // Update map with all coins
       coinsMapRef.current.clear()
       previousPricesRef.current.clear()
+      
+      // Her coin için dinamik hesaplama: Şu anki zamandan tam 1 saat öncesini başlangıç olarak kaydet
+      // Örnek: Eğer şu an 2:55 ise, 1:55'i başlangıç zamanı olarak kaydediyoruz
+      // Böylece 1:55-2:55 arası hacmi gösterip, sonra 2:55'ten itibaren gelen trade'leri ekleyeceğiz
+      const currentTime = Date.now()
+      const oneHourAgo = currentTime - (60 * 60 * 1000) // Tam 1 saat önce
+      
+      // Sayfa açıldığı zamanı kaydet (info kutusu için)
+      setPageOpenTime(oneHourAgo)
+      
       coinsData.forEach((coin: Coin) => {
         coinsMapRef.current.set(coin.symbol, coin)
         previousPricesRef.current.set(coin.symbol, parseFloat(coin.price))
+        
+        // Her coin için saatlik hacim başlangıç zamanını ve toplayıcıları ayarla
+        // İlk yüklemede gelen hourlySpotVolume ve hourlyFuturesVolume, tam 1 saat öncesinden şu ana kadar olan hacim
+        // Örnek: 2:55'te açtıysak, 1:55-2:55 arası hacim gösterilir
+        // Şimdi 2:55'ten itibaren gelen trade'leri ekleyeceğiz
+        hourlyVolumeStartTimeRef.current.set(coin.symbol, oneHourAgo)
+        hourlyVolumeAccumulatorRef.current.set(coin.symbol, {
+          spot: parseFloat(coin.hourlySpotVolume || '0'), // İlk yüklemeden gelen 1 saatlik hacim
+          futures: parseFloat(coin.hourlyFuturesVolume || '0'),
+        })
+        // İlk 24 saatlik toplam volume'ları kaydet (sadece değişiklik hesaplamak için)
+        previousQuoteVolumesRef.current.set(coin.symbol, {
+          spot: parseFloat(coin.quoteVolume || '0'),
+          futures: parseFloat(coin.futuresQuoteVolume || '0'),
+        })
       })
       
       // Initial sort and display
       const sorted = sortCoins(coinsData, sortBy, sortOrder)
-      setCoins(sorted)
+      const filtered = searchCoins(sorted, search)
+      setCoins(filtered)
       setLoading(false)
       
       // Subscribe to WebSocket for these symbols
@@ -137,8 +245,43 @@ export default function CoinsPage() {
               const existingCoin = coinsMapRef.current.get(symbol)!
               const previousPrice = previousPricesRef.current.get(symbol)
               const currentPrice = parseFloat(data.c || data.lastPrice || '0')
+              
+              // Saatlik hacim güncellemesi - Sadece yeni trade'leri ekle
+              // Zaman aralığı sabit kalacak (sayfa açıldığı andan 1 saat öncesi)
+              const currentQuoteVolume = parseFloat(data.q || data.quoteVolume || '0')
+              const previousQuoteVolumeRef = previousQuoteVolumesRef.current.get(symbol) || { spot: 0, futures: 0 }
+              const previousQuoteVolume = previousQuoteVolumeRef.spot
+              
+              // Volume değişikliğini hesapla (24 saatlik toplam volume'daki artış)
+              // ÖNEMLİ: WebSocket ticker stream'i sadece 24 saatlik toplam volume'u gösterir
+              // Bu değişiklik çok büyük olabilir (çünkü geçmiş trade'ler 24 saat dışına çıkıyor)
+              // Bu yüzden sadece pozitif ve makul değişiklikleri kabul ediyoruz
+              const volumeDiff = currentQuoteVolume - previousQuoteVolume
+              
+              let updatedHourlySpotVolume = parseFloat(existingCoin.hourlySpotVolume || '0')
+              
+              // Sadece volume arttıysa VE değişiklik makul bir aralıktaysa saatlik hacme ekle
+              // Makul aralık: saatlik hacim, 24 saatlik hacmin maksimum %5'i kadar olabilir
+              // Eğer değişiklik çok büyükse, bu bir hesaplama hatası olabilir, ekleme
+              const maxReasonableChange = parseFloat(existingCoin.quoteVolume || '0') * 0.05
+              
+              if (volumeDiff > 0 && volumeDiff <= maxReasonableChange) {
+                const accumulator = hourlyVolumeAccumulatorRef.current.get(symbol) || { spot: 0, futures: 0 }
+                accumulator.spot += volumeDiff
+                hourlyVolumeAccumulatorRef.current.set(symbol, accumulator)
+                updatedHourlySpotVolume = accumulator.spot
+              } else if (volumeDiff < 0) {
+                // Volume azaldıysa (24 saatlik toplam volume'dan eski trade'ler çıktı), saatlik hacmi etkilemez
+                // Çünkü biz sadece sayfa açıldıktan sonraki yeni trade'leri takip ediyoruz
+              }
+              
+              // Önceki volume'u güncelle
+              previousQuoteVolumesRef.current.set(symbol, {
+                spot: currentQuoteVolume,
+                futures: previousQuoteVolumeRef.futures,
+              })
 
-              // Update coin data, preserving futures data
+              // Update coin data, preserving futures data and hourly volumes
               const updatedCoin: Coin = {
                 symbol,
                 price: data.c || data.lastPrice || '0',
@@ -147,6 +290,8 @@ export default function CoinsPage() {
                 quoteVolume: data.q || data.quoteVolume || '0',
                 futuresVolume: existingCoin.futuresVolume,
                 futuresQuoteVolume: existingCoin.futuresQuoteVolume,
+                hourlySpotVolume: updatedHourlySpotVolume.toString(),
+                hourlyFuturesVolume: existingCoin.hourlyFuturesVolume || '0',
               }
               
               // Check if price changed and trigger flash animation
@@ -231,11 +376,48 @@ export default function CoinsPage() {
             if (isMountedRef.current && coinsMapRef.current.has(symbol)) {
               const existingCoin = coinsMapRef.current.get(symbol)!
               
-              // Update coin data, preserving spot data and updating only futures volume
+              // Saatlik futures hacim güncellemesi - Sadece yeni trade'leri ekle
+              // Zaman aralığı sabit kalacak (sayfa açıldığı andan 1 saat öncesi)
+              const currentFuturesQuoteVolume = parseFloat(data.q || data.quoteVolume || '0')
+              const previousQuoteVolumeRef = previousQuoteVolumesRef.current.get(symbol) || { spot: 0, futures: 0 }
+              const previousFuturesQuoteVolume = previousQuoteVolumeRef.futures
+              
+              // Volume değişikliğini hesapla (24 saatlik toplam volume'daki artış)
+              // ÖNEMLİ: WebSocket ticker stream'i sadece 24 saatlik toplam volume'u gösterir
+              // Bu değişiklik çok büyük olabilir (çünkü geçmiş trade'ler 24 saat dışına çıkıyor)
+              // Bu yüzden sadece pozitif ve makul değişiklikleri kabul ediyoruz
+              const futuresVolumeDiff = currentFuturesQuoteVolume - previousFuturesQuoteVolume
+              
+              let updatedHourlyFuturesVolume = parseFloat(existingCoin.hourlyFuturesVolume || '0')
+              
+              // Sadece volume arttıysa VE değişiklik makul bir aralıktaysa saatlik hacme ekle
+              // Makul aralık: saatlik hacim, 24 saatlik hacmin maksimum %5'i kadar olabilir
+              // Eğer değişiklik çok büyükse, bu bir hesaplama hatası olabilir, ekleme
+              const maxReasonableChange = parseFloat(existingCoin.futuresQuoteVolume || '0') * 0.05
+              
+              if (futuresVolumeDiff > 0 && futuresVolumeDiff <= maxReasonableChange) {
+                const accumulator = hourlyVolumeAccumulatorRef.current.get(symbol) || { spot: 0, futures: 0 }
+                accumulator.futures += futuresVolumeDiff
+                hourlyVolumeAccumulatorRef.current.set(symbol, accumulator)
+                updatedHourlyFuturesVolume = accumulator.futures
+              } else if (futuresVolumeDiff < 0) {
+                // Volume azaldıysa (24 saatlik toplam volume'dan eski trade'ler çıktı), saatlik hacmi etkilemez
+                // Çünkü biz sadece sayfa açıldıktan sonraki yeni trade'leri takip ediyoruz
+              }
+              
+              // Önceki volume'u güncelle
+              previousQuoteVolumesRef.current.set(symbol, {
+                spot: previousQuoteVolumeRef.spot,
+                futures: currentFuturesQuoteVolume,
+              })
+              
+              // Update coin data, preserving spot data, hourly volumes and updating only futures volume
               const updatedCoin: Coin = {
                 ...existingCoin,
                 futuresVolume: data.v || data.volume || existingCoin.futuresVolume || '0',
                 futuresQuoteVolume: data.q || data.quoteVolume || existingCoin.futuresQuoteVolume || '0',
+                hourlySpotVolume: existingCoin.hourlySpotVolume || '0',
+                hourlyFuturesVolume: updatedHourlyFuturesVolume.toString(),
               }
               
               coinsMapRef.current.set(symbol, updatedCoin)
@@ -295,6 +477,14 @@ export default function CoinsPage() {
         case 'futuresVolume':
           aVal = parseFloat(a.futuresQuoteVolume || '0') || 0
           bVal = parseFloat(b.futuresQuoteVolume || '0') || 0
+          break
+        case 'hourlySpotVolume':
+          aVal = parseFloat(a.hourlySpotVolume || '0') || 0
+          bVal = parseFloat(b.hourlySpotVolume || '0') || 0
+          break
+        case 'hourlyFuturesVolume':
+          aVal = parseFloat(a.hourlyFuturesVolume || '0') || 0
+          bVal = parseFloat(b.hourlyFuturesVolume || '0') || 0
           break
         default:
           aVal = parseFloat(a.quoteVolume) || 0
@@ -357,6 +547,11 @@ export default function CoinsPage() {
         }
         futuresWsRef.current = null
       }
+      
+      // Saatlik hacim referanslarını temizle
+      hourlyVolumeStartTimeRef.current.clear()
+      hourlyVolumeAccumulatorRef.current.clear()
+      previousQuoteVolumesRef.current.clear()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -377,6 +572,7 @@ export default function CoinsPage() {
     const filtered = searchCoins(sorted, search)
     setCoins(filtered)
   }, [search, sortBy, sortOrder, sortCoins, searchCoins])
+
 
   const handleSort = (field: SortBy) => {
     const newSortBy = field
@@ -466,11 +662,63 @@ export default function CoinsPage() {
     }
   }
 
+  // Zaman formatını Türkiye formatına çevir (HH:mm)
+  const formatStartTime = (startTime: number | null) => {
+    if (!startTime) return null
+    
+    const startDate = new Date(startTime)
+    const startHours = startDate.getHours().toString().padStart(2, '0')
+    const startMinutes = startDate.getMinutes().toString().padStart(2, '0')
+    
+    return `${startHours}:${startMinutes}`
+  }
+
   return (
     <div className="w-full py-16">
       <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-16">
-        <h1 className="text-5xl font-bold mb-4 gradient-text">Piyasa Genel Bakış</h1>
-        <p className="text-muted-foreground text-lg">Binance'tan gerçek zamanlı kripto para fiyatları</p>
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h1 className="text-5xl font-bold mb-4 gradient-text">Saatlik Hacim Takibi</h1>
+            <p className="text-muted-foreground text-lg">Binance'tan gerçek zamanlı kripto para fiyatları ve saatlik hacim analizi</p>
+          </div>
+          
+          {/* Info Kutusu - Sağ Üst */}
+          {pageOpenTime && (
+            <Card className="glass-effect border-white/10 min-w-[280px]">
+              <CardContent className="pt-4">
+                <div className="flex items-start gap-2">
+                  <div className="flex-shrink-0 mt-0.5">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5 text-primary"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground mb-1">
+                      Saatlik Hacim Takibi
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatStartTime(pageOpenTime)} saatinden itibaren
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      hacimler güncel olarak eklenerek güncellenmektedir
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
 
       <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-10">
@@ -504,6 +752,8 @@ export default function CoinsPage() {
                     <col style={{ width: '180px' }} />
                     <col style={{ width: 'auto' }} />
                     <col style={{ width: '180px' }} />
+                    <col style={{ width: 'auto' }} />
+                    <col style={{ width: 'auto' }} />
                     <col style={{ width: 'auto' }} />
                     <col style={{ width: 'auto' }} />
                     <col style={{ width: '150px' }} />
@@ -663,6 +913,62 @@ export default function CoinsPage() {
                     textAlign: 'left', 
                     padding: '12px 16px', 
                     fontWeight: 600, 
+                    color: 'var(--muted-foreground)'
+                  }}>
+                    <button
+                      onClick={() => handleSort('hourlySpotVolume')}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        width: '100%',
+                        textAlign: 'left',
+                        background: 'transparent',
+                        border: 'none',
+                        padding: 0,
+                        margin: 0,
+                        cursor: 'pointer',
+                        color: 'inherit'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
+                      onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}
+                    >
+                      <span>Spot Saatlik Hacim</span>
+                      <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
+                    </button>
+                  </th>
+                  <th style={{ 
+                    textAlign: 'left', 
+                    padding: '12px 16px', 
+                    fontWeight: 600, 
+                    color: 'var(--muted-foreground)'
+                  }}>
+                    <button
+                      onClick={() => handleSort('hourlyFuturesVolume')}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        width: '100%',
+                        textAlign: 'left',
+                        background: 'transparent',
+                        border: 'none',
+                        padding: 0,
+                        margin: 0,
+                        cursor: 'pointer',
+                        color: 'inherit'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
+                      onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}
+                    >
+                      <span>Vadeli Saatlik Hacim</span>
+                      <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
+                    </button>
+                  </th>
+                  <th style={{ 
+                    textAlign: 'left', 
+                    padding: '12px 16px', 
+                    fontWeight: 600, 
                     color: 'var(--muted-foreground)',
                     width: '150px',
                     minWidth: '150px',
@@ -675,7 +981,7 @@ export default function CoinsPage() {
               <tbody>
                 {coins.length === 0 ? (
                   <tr>
-                    <td colSpan={5} style={{ textAlign: 'center', padding: '64px 16px', color: 'var(--muted-foreground)' }}>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '64px 16px', color: 'var(--muted-foreground)' }}>
                       Coin bulunamadı
                     </td>
                   </tr>
@@ -790,6 +1096,26 @@ export default function CoinsPage() {
                           fontSize: '14px'
                         }}>
                           ${parseFloat(coin.futuresQuoteVolume || '0').toLocaleString('tr-TR', {
+                            maximumFractionDigits: 0,
+                          })}
+                        </td>
+                        
+                        <td style={{ 
+                          padding: '12px 16px', 
+                          color: 'var(--muted-foreground)',
+                          fontSize: '14px'
+                        }}>
+                          ${parseFloat(coin.hourlySpotVolume || '0').toLocaleString('tr-TR', {
+                            maximumFractionDigits: 0,
+                          })}
+                        </td>
+                        
+                        <td style={{ 
+                          padding: '12px 16px', 
+                          color: 'var(--muted-foreground)',
+                          fontSize: '14px'
+                        }}>
+                          ${parseFloat(coin.hourlyFuturesVolume || '0').toLocaleString('tr-TR', {
                             maximumFractionDigits: 0,
                           })}
                         </td>

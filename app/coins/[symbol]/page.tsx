@@ -623,7 +623,7 @@ export default function CoinDetailPage() {
           day: 'numeric',
         })
       } else if (timeRangeValue === '7D') {
-        timeFormat = new Date(k.time).toLocaleString('en-US', {
+        timeFormat = new Date(k.time).toLocaleString('tr-TR', {
           month: 'short',
           day: 'numeric',
           hour: '2-digit',
@@ -714,7 +714,7 @@ export default function CoinDetailPage() {
             ) : flashAnimations.price === 'down' ? (
               <TrendingDown className="h-6 w-6" />
             ) : null}
-            ${parseFloat(coinData.price).toLocaleString('en-US', {
+            ${parseFloat(coinData.price).toLocaleString('tr-TR', {
               minimumFractionDigits: 2,
               maximumFractionDigits: 6,
             })}
@@ -761,7 +761,7 @@ export default function CoinDetailPage() {
                 flashAnimations.price === 'down' ? 'text-red-400' : 
                 ''
               }`}>
-                ${parseFloat(coinData.price).toLocaleString('en-US', {
+                ${parseFloat(coinData.price).toLocaleString('tr-TR', {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 6,
                 })}
@@ -787,7 +787,7 @@ export default function CoinDetailPage() {
                 flashAnimations.highPrice === 'down' ? 'text-red-400' : 
                 ''
               }`}>
-                ${parseFloat(coinData.highPrice).toLocaleString('en-US', {
+                ${parseFloat(coinData.highPrice).toLocaleString('tr-TR', {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 6,
                 })}
@@ -798,7 +798,7 @@ export default function CoinDetailPage() {
                 <TrendingDown className="h-4 w-4 text-red-400" />
                 24s En Düşük
               </span>
-              <span className="font-semibold">${parseFloat(coinData.lowPrice).toLocaleString('en-US', {
+              <span className="font-semibold">${parseFloat(coinData.lowPrice).toLocaleString('tr-TR', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 6,
               })}</span>
@@ -823,7 +823,7 @@ export default function CoinDetailPage() {
                 flashAnimations.spotVolume === 'down' ? 'text-red-400' : 
                 ''
               }`}>
-                ${parseFloat(coinData.quoteVolume || '0').toLocaleString('en-US', {
+                ${parseFloat(coinData.quoteVolume || '0').toLocaleString('tr-TR', {
                   maximumFractionDigits: 0,
                 })}
               </span>
@@ -848,7 +848,7 @@ export default function CoinDetailPage() {
                 flashAnimations.futuresVolume === 'down' ? 'text-red-400' : 
                 ''
               }`}>
-                ${parseFloat(coinData.futuresQuoteVolume || '0').toLocaleString('en-US', {
+                ${parseFloat(coinData.futuresQuoteVolume || '0').toLocaleString('tr-TR', {
                   maximumFractionDigits: 0,
                 })}
               </span>
@@ -858,7 +858,7 @@ export default function CoinDetailPage() {
                 <TrendingUp className="h-4 w-4" />
                 Açılış Fiyatı
               </span>
-              <span className="font-semibold">${parseFloat(coinData.openPrice).toLocaleString('en-US', {
+              <span className="font-semibold">${parseFloat(coinData.openPrice).toLocaleString('tr-TR', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 6,
               })}</span>
@@ -876,7 +876,7 @@ export default function CoinDetailPage() {
                 <TrendingUp className="h-4 w-4" />
                 Önceki Kapanış
               </span>
-              <span className="font-semibold">${parseFloat(coinData.prevClosePrice).toLocaleString('en-US', {
+              <span className="font-semibold">${parseFloat(coinData.prevClosePrice).toLocaleString('tr-TR', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 6,
               })}</span>
@@ -995,7 +995,7 @@ export default function CoinDetailPage() {
                     tick={{ fill: 'rgba(255, 255, 255, 0.5)', fontSize: 12 }}
                     axisLine={{ stroke: 'rgba(255, 255, 255, 0.1)' }}
                     domain={['dataMin - 0.01', 'dataMax + 0.01']}
-                    tickFormatter={(value) => `$${value.toFixed(2)}`}
+                    tickFormatter={(value) => `$${value.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   />
                   <YAxis 
                     yAxisId="volume"
@@ -1013,10 +1013,10 @@ export default function CoinDetailPage() {
                     }}
                     formatter={(value: any, name: string) => {
                       if (name === 'price') {
-                        return [`$${parseFloat(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`, 'Fiyat']
+                        return [`$${parseFloat(value).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`, 'Fiyat']
                       }
                       if (name === 'volume') {
-                        return [`${parseFloat(value).toLocaleString('en-US', { maximumFractionDigits: 2 })}`, 'Volume']
+                        return [`${parseFloat(value).toLocaleString('tr-TR', { maximumFractionDigits: 2 })}`, 'Volume']
                       }
                       return [value, name]
                     }}
@@ -1088,7 +1088,7 @@ export default function CoinDetailPage() {
                       tick={{ fill: 'rgba(255, 255, 255, 0.5)', fontSize: 12 }}
                       axisLine={{ stroke: 'rgba(255, 255, 255, 0.1)' }}
                       domain={['dataMin - 0.01', 'dataMax + 0.01']}
-                      tickFormatter={(value) => `$${value.toFixed(2)}`}
+                      tickFormatter={(value) => `$${value.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                     />
                     <YAxis 
                       yAxisId="volume"
@@ -1106,10 +1106,10 @@ export default function CoinDetailPage() {
                       }}
                       formatter={(value: any, name: string) => {
                         if (name === 'price') {
-                          return [`$${parseFloat(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`, 'Fiyat']
+                          return [`$${parseFloat(value).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`, 'Fiyat']
                         }
                         if (name === 'volume') {
-                          return [`${parseFloat(value).toLocaleString('en-US', { maximumFractionDigits: 2 })}`, 'Volume']
+                          return [`${parseFloat(value).toLocaleString('tr-TR', { maximumFractionDigits: 2 })}`, 'Volume']
                         }
                         return [value, name]
                       }}
@@ -1199,8 +1199,8 @@ export default function CoinDetailPage() {
                     tick={{ fill: 'rgba(255, 255, 255, 0.5)', fontSize: 12 }}
                     axisLine={{ stroke: 'rgba(255, 255, 255, 0.1)' }}
                     tickFormatter={(value) => {
-                      if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`
-                      if (value >= 1000) return `${(value / 1000).toFixed(1)}K`
+                      if (value >= 1000000) return `${(value / 1000000).toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M`
+                      if (value >= 1000) return `${(value / 1000).toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}K`
                       return value.toString()
                     }}
                   />
@@ -1212,7 +1212,7 @@ export default function CoinDetailPage() {
                       color: '#fff',
                     }}
                     formatter={(value: any) => [
-                      `${parseFloat(value).toLocaleString('en-US', { maximumFractionDigits: 2 })}`,
+                      `${parseFloat(value).toLocaleString('tr-TR', { maximumFractionDigits: 2 })}`,
                       'Hacim'
                     ]}
                     labelStyle={{ color: 'rgba(255, 255, 255, 0.7)' }}
@@ -1266,18 +1266,18 @@ export default function CoinDetailPage() {
                               })}
                             </td>
                             <td className="p-2 text-right font-semibold text-green-400">
-                              ${trade.price.toLocaleString('en-US', {
+                              ${trade.price.toLocaleString('tr-TR', {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 8,
                               })}
                             </td>
                             <td className="p-2 text-right text-muted-foreground">
-                              {trade.quantity.toLocaleString('en-US', {
+                              {trade.quantity.toLocaleString('tr-TR', {
                                 maximumFractionDigits: 8,
                               })}
                             </td>
                             <td className="p-2 text-right font-semibold text-green-300">
-                              ${trade.quoteAmount.toLocaleString('en-US', {
+                              ${trade.quoteAmount.toLocaleString('tr-TR', {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2,
                               })}
@@ -1326,18 +1326,18 @@ export default function CoinDetailPage() {
                               })}
                             </td>
                             <td className="p-2 text-right font-semibold text-red-400">
-                              ${trade.price.toLocaleString('en-US', {
+                              ${trade.price.toLocaleString('tr-TR', {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 8,
                               })}
                             </td>
                             <td className="p-2 text-right text-muted-foreground">
-                              {trade.quantity.toLocaleString('en-US', {
+                              {trade.quantity.toLocaleString('tr-TR', {
                                 maximumFractionDigits: 8,
                               })}
                             </td>
                             <td className="p-2 text-right font-semibold text-red-300">
-                              ${trade.quoteAmount.toLocaleString('en-US', {
+                              ${trade.quoteAmount.toLocaleString('tr-TR', {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2,
                               })}
