@@ -912,7 +912,8 @@ export default function HourlyVolumePage() {
                   <th style={{ 
                     textAlign: 'left', 
                     padding: '12px 16px', 
-                    fontWeight: 600, 
+                    fontWeight: 700,
+                    fontSize: '15px',
                     color: 'var(--muted-foreground)'
                   }}>
                     <button
@@ -928,7 +929,9 @@ export default function HourlyVolumePage() {
                         padding: 0,
                         margin: 0,
                         cursor: 'pointer',
-                        color: 'inherit'
+                        color: 'inherit',
+                        fontWeight: 'inherit',
+                        fontSize: 'inherit'
                       }}
                       onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
                       onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}
@@ -940,7 +943,8 @@ export default function HourlyVolumePage() {
                   <th style={{ 
                     textAlign: 'left', 
                     padding: '12px 16px', 
-                    fontWeight: 600, 
+                    fontWeight: 700,
+                    fontSize: '15px',
                     color: 'var(--muted-foreground)'
                   }}>
                     <button
@@ -956,7 +960,9 @@ export default function HourlyVolumePage() {
                         padding: 0,
                         margin: 0,
                         cursor: 'pointer',
-                        color: 'inherit'
+                        color: 'inherit',
+                        fontWeight: 'inherit',
+                        fontSize: 'inherit'
                       }}
                       onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
                       onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}
@@ -1101,23 +1107,41 @@ export default function HourlyVolumePage() {
                         </td>
                         
                         <td style={{ 
-                          padding: '12px 16px', 
-                          color: 'var(--muted-foreground)',
-                          fontSize: '14px'
+                          padding: '12px 16px',
+                          fontWeight: 700,
+                          fontSize: '16px',
+                          color: '#60a5fa'
                         }}>
-                          ${parseFloat(coin.hourlySpotVolume || '0').toLocaleString('tr-TR', {
-                            maximumFractionDigits: 0,
-                          })}
+                          <span style={{ 
+                            display: 'inline-block',
+                            padding: '4px 8px',
+                            borderRadius: '6px',
+                            background: 'rgba(96, 165, 250, 0.1)',
+                            border: '1px solid rgba(96, 165, 250, 0.2)'
+                          }}>
+                            ${parseFloat(coin.hourlySpotVolume || '0').toLocaleString('tr-TR', {
+                              maximumFractionDigits: 0,
+                            })}
+                          </span>
                         </td>
                         
                         <td style={{ 
-                          padding: '12px 16px', 
-                          color: 'var(--muted-foreground)',
-                          fontSize: '14px'
+                          padding: '12px 16px',
+                          fontWeight: 700,
+                          fontSize: '16px',
+                          color: '#a78bfa'
                         }}>
-                          ${parseFloat(coin.hourlyFuturesVolume || '0').toLocaleString('tr-TR', {
-                            maximumFractionDigits: 0,
-                          })}
+                          <span style={{ 
+                            display: 'inline-block',
+                            padding: '4px 8px',
+                            borderRadius: '6px',
+                            background: 'rgba(167, 139, 250, 0.1)',
+                            border: '1px solid rgba(167, 139, 250, 0.2)'
+                          }}>
+                            ${parseFloat(coin.hourlyFuturesVolume || '0').toLocaleString('tr-TR', {
+                              maximumFractionDigits: 0,
+                            })}
+                          </span>
                         </td>
                         
                         <td style={{ 
