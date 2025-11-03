@@ -5,7 +5,20 @@ import { useParams } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  BarChart, 
+  Bar,
+  AreaChart,
+  Area,
+  ComposedChart
+} from 'recharts'
 import { TrendingUp, TrendingDown, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
@@ -504,15 +517,49 @@ export default function CoinDetailPage() {
   const isPositive = change >= 0
 
   const formatKlineData = (klines: CoinData['klines']) => {
-    return klines.map((k) => ({
-      time: new Date(k.time).toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-      price: k.close,
-      volume: k.volume,
-    }))
+    return klines.map((k, index) => {
+      const isPositive = index === 0 ? true : k.close >= klines[index - 1].close
+      return {
+        time: new Date(k.time).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        timestamp: k.time,
+        price: k.close,
+        open: k.open,
+        high: k.high,
+        low: k.low,
+        close: k.close,
+        volume: k.volume,
+        isPositive: isPositive,
+      }
+    })
   }
+
+  const formatDailyKlineData = (klines: NonNullable<CoinData['premium']>['dailyChart']) => {
+    return klines.map((k, index) => {
+      const isPositive = index === 0 ? true : k.close >= klines[index - 1].close
+      return {
+        time: new Date(k.time).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+        }),
+        timestamp: k.time,
+        price: k.close,
+        open: k.open,
+        high: k.high,
+        low: k.low,
+        close: k.close,
+        volume: k.volume,
+        isPositive: isPositive,
+      }
+    })
+  }
+
+  const chartData = formatKlineData(coinData.klines)
+  const priceChange = chartData.length > 0 && chartData[0] ? 
+    ((chartData[chartData.length - 1].close - chartData[0].open) / chartData[0].open) * 100 : 0
+  const isChartPositive = priceChange >= 0
 
   return (
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -743,45 +790,189 @@ export default function CoinDetailPage() {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="hourly" className="mt-6">
-          <Card>
+          <Card className="bg-gradient-to-br from-background to-background/80 border-border/50">
             <CardHeader>
-              <CardTitle>Price Chart (24h)</CardTitle>
-              <CardDescription>Hourly price movements</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-2xl mb-1">Price Chart (24h)</CardTitle>
+                  <CardDescription>Hourly price movements with volume</CardDescription>
+                </div>
+                <div className="text-right">
+                  <div className={`text-2xl font-bold ${isChartPositive ? 'text-green-400' : 'text-red-400'}`}>
+                    {isChartPositive ? '+' : ''}{priceChange.toFixed(2)}%
+                  </div>
+                  <div className="text-sm text-muted-foreground">24h Change</div>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={formatKlineData(coinData.klines)}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="time" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="price" stroke="#8884d8" strokeWidth={2} />
-                </LineChart>
+              <ResponsiveContainer width="100%" height={500}>
+                <ComposedChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                  <defs>
+                    <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={isChartPositive ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)"} stopOpacity={1} />
+                      <stop offset="100%" stopColor={isChartPositive ? "rgba(34, 197, 94, 0)" : "rgba(239, 68, 68, 0)"} stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="volumeGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="rgba(139, 92, 246, 0.4)" stopOpacity={1} />
+                      <stop offset="100%" stopColor="rgba(139, 92, 246, 0)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid 
+                    strokeDasharray="3 3" 
+                    stroke="rgba(255, 255, 255, 0.05)" 
+                    vertical={false}
+                  />
+                  <XAxis 
+                    dataKey="time" 
+                    stroke="rgba(255, 255, 255, 0.3)"
+                    tick={{ fill: 'rgba(255, 255, 255, 0.5)', fontSize: 12 }}
+                    axisLine={{ stroke: 'rgba(255, 255, 255, 0.1)' }}
+                  />
+                  <YAxis 
+                    yAxisId="price"
+                    orientation="left"
+                    stroke="rgba(255, 255, 255, 0.3)"
+                    tick={{ fill: 'rgba(255, 255, 255, 0.5)', fontSize: 12 }}
+                    axisLine={{ stroke: 'rgba(255, 255, 255, 0.1)' }}
+                    domain={['dataMin - 0.01', 'dataMax + 0.01']}
+                    tickFormatter={(value) => `$${value.toFixed(2)}`}
+                  />
+                  <YAxis 
+                    yAxisId="volume"
+                    orientation="right"
+                    stroke="rgba(255, 255, 255, 0.3)"
+                    tick={{ fill: 'rgba(255, 255, 255, 0.5)', fontSize: 12 }}
+                    axisLine={{ stroke: 'rgba(255, 255, 255, 0.1)' }}
+                  />
+                  <Tooltip 
+                    contentStyle={{
+                      backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '8px',
+                      color: '#fff',
+                    }}
+                    formatter={(value: any, name: string) => {
+                      if (name === 'price') {
+                        return [`$${parseFloat(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`, 'Price']
+                      }
+                      if (name === 'volume') {
+                        return [`${parseFloat(value).toLocaleString('en-US', { maximumFractionDigits: 2 })}`, 'Volume']
+                      }
+                      return [value, name]
+                    }}
+                    labelStyle={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                  />
+                  <Area
+                    yAxisId="price"
+                    type="monotone"
+                    dataKey="price"
+                    stroke={isChartPositive ? "#22c55e" : "#ef4444"}
+                    strokeWidth={2.5}
+                    fill="url(#priceGradient)"
+                    fillOpacity={1}
+                    isAnimationActive={true}
+                    animationDuration={800}
+                  />
+                  <Bar
+                    yAxisId="volume"
+                    dataKey="volume"
+                    fill="url(#volumeGradient)"
+                    opacity={0.6}
+                    radius={[4, 4, 0, 0]}
+                  />
+                </ComposedChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
         </TabsContent>
         <TabsContent value="daily" className="mt-6">
           {isPremium && coinData.premium?.dailyChart ? (
-            <Card>
+            <Card className="bg-gradient-to-br from-background to-background/80 border-border/50">
               <CardHeader>
-                <CardTitle>Daily Chart (30 days)</CardTitle>
-                <CardDescription>Premium feature - Daily price movements</CardDescription>
+                <CardTitle className="text-2xl mb-1">Daily Chart (30 days)</CardTitle>
+                <CardDescription>Premium feature - Daily price movements with volume</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={400}>
-                  <LineChart
-                    data={coinData.premium.dailyChart.map((k) => ({
-                      time: new Date(k.time).toLocaleDateString('en-US'),
-                      price: k.close,
-                    }))}
+                <ResponsiveContainer width="100%" height={500}>
+                  <ComposedChart 
+                    data={formatDailyKlineData(coinData.premium.dailyChart)} 
+                    margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="time" />
-                    <YAxis />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="price" stroke="#8884d8" strokeWidth={2} />
-                  </LineChart>
+                    <defs>
+                      <linearGradient id="dailyPriceGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="rgba(139, 92, 246, 0.3)" stopOpacity={1} />
+                        <stop offset="100%" stopColor="rgba(139, 92, 246, 0)" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="dailyVolumeGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="rgba(139, 92, 246, 0.4)" stopOpacity={1} />
+                        <stop offset="100%" stopColor="rgba(139, 92, 246, 0)" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid 
+                      strokeDasharray="3 3" 
+                      stroke="rgba(255, 255, 255, 0.05)" 
+                      vertical={false}
+                    />
+                    <XAxis 
+                      dataKey="time" 
+                      stroke="rgba(255, 255, 255, 0.3)"
+                      tick={{ fill: 'rgba(255, 255, 255, 0.5)', fontSize: 12 }}
+                      axisLine={{ stroke: 'rgba(255, 255, 255, 0.1)' }}
+                    />
+                    <YAxis 
+                      yAxisId="price"
+                      orientation="left"
+                      stroke="rgba(255, 255, 255, 0.3)"
+                      tick={{ fill: 'rgba(255, 255, 255, 0.5)', fontSize: 12 }}
+                      axisLine={{ stroke: 'rgba(255, 255, 255, 0.1)' }}
+                      domain={['dataMin - 0.01', 'dataMax + 0.01']}
+                      tickFormatter={(value) => `$${value.toFixed(2)}`}
+                    />
+                    <YAxis 
+                      yAxisId="volume"
+                      orientation="right"
+                      stroke="rgba(255, 255, 255, 0.3)"
+                      tick={{ fill: 'rgba(255, 255, 255, 0.5)', fontSize: 12 }}
+                      axisLine={{ stroke: 'rgba(255, 255, 255, 0.1)' }}
+                    />
+                    <Tooltip 
+                      contentStyle={{
+                        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        borderRadius: '8px',
+                        color: '#fff',
+                      }}
+                      formatter={(value: any, name: string) => {
+                        if (name === 'price') {
+                          return [`$${parseFloat(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`, 'Price']
+                        }
+                        if (name === 'volume') {
+                          return [`${parseFloat(value).toLocaleString('en-US', { maximumFractionDigits: 2 })}`, 'Volume']
+                        }
+                        return [value, name]
+                      }}
+                      labelStyle={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                    />
+                    <Area
+                      yAxisId="price"
+                      type="monotone"
+                      dataKey="price"
+                      stroke="#8b5cf6"
+                      strokeWidth={2.5}
+                      fill="url(#dailyPriceGradient)"
+                      fillOpacity={1}
+                      isAnimationActive={true}
+                      animationDuration={800}
+                    />
+                    <Bar
+                      yAxisId="volume"
+                      dataKey="volume"
+                      fill="url(#dailyVolumeGradient)"
+                      opacity={0.6}
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </ComposedChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
@@ -802,19 +993,61 @@ export default function CoinDetailPage() {
         </TabsContent>
       </Tabs>
 
-          <Card className="mt-6">
+          <Card className="mt-6 bg-gradient-to-br from-background to-background/80 border-border/50">
             <CardHeader>
-              <CardTitle>Volume Chart</CardTitle>
-              <CardDescription>24h trading volume</CardDescription>
+              <CardTitle className="text-xl">24h Trading Volume</CardTitle>
+              <CardDescription>Hourly volume distribution</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={formatKlineData(coinData.klines)}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="time" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="volume" fill="#8884d8" />
+              <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                  <defs>
+                    <linearGradient id="volumeBarGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="rgba(139, 92, 246, 0.8)" stopOpacity={1} />
+                      <stop offset="100%" stopColor="rgba(139, 92, 246, 0.3)" stopOpacity={1} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid 
+                    strokeDasharray="3 3" 
+                    stroke="rgba(255, 255, 255, 0.05)" 
+                    vertical={false}
+                  />
+                  <XAxis 
+                    dataKey="time" 
+                    stroke="rgba(255, 255, 255, 0.3)"
+                    tick={{ fill: 'rgba(255, 255, 255, 0.5)', fontSize: 12 }}
+                    axisLine={{ stroke: 'rgba(255, 255, 255, 0.1)' }}
+                  />
+                  <YAxis 
+                    stroke="rgba(255, 255, 255, 0.3)"
+                    tick={{ fill: 'rgba(255, 255, 255, 0.5)', fontSize: 12 }}
+                    axisLine={{ stroke: 'rgba(255, 255, 255, 0.1)' }}
+                    tickFormatter={(value) => {
+                      if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`
+                      if (value >= 1000) return `${(value / 1000).toFixed(1)}K`
+                      return value.toString()
+                    }}
+                  />
+                  <Tooltip 
+                    contentStyle={{
+                      backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '8px',
+                      color: '#fff',
+                    }}
+                    formatter={(value: any) => [
+                      `${parseFloat(value).toLocaleString('en-US', { maximumFractionDigits: 2 })}`,
+                      'Volume'
+                    ]}
+                    labelStyle={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                  />
+                  <Bar 
+                    dataKey="volume" 
+                    fill="url(#volumeBarGradient)"
+                    radius={[8, 8, 0, 0]}
+                    isAnimationActive={true}
+                    animationDuration={800}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
