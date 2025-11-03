@@ -30,10 +30,10 @@ export interface BinanceAggTrade {
 
 export async function getAllSymbols(): Promise<string[]> {
   try {
-    const exchangeInfo = await binance.exchangeInfo()
+    const exchangeInfo = await (binance as any).exchangeInfo()
     return exchangeInfo.symbols
-      .filter((s) => s.status === 'TRADING' && s.quoteAsset === 'USDT')
-      .map((s) => s.symbol)
+      .filter((s: any) => s.status === 'TRADING' && s.quoteAsset === 'USDT')
+      .map((s: any) => s.symbol)
   } catch (error) {
     console.error('Error fetching symbols:', error)
     return []
@@ -42,23 +42,46 @@ export async function getAllSymbols(): Promise<string[]> {
 
 export async function getTicker(symbol: string): Promise<BinanceTicker | null> {
   try {
-    // Use REST API directly
-    const response = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`)
-    if (!response.ok) return null
+    // Fetch both spot and futures tickers in parallel
+    const [spotResponse, futuresResponse] = await Promise.all([
+      fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`),
+      fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${symbol}`),
+    ])
     
-    const ticker = await response.json()
+    if (!spotResponse.ok) {
+      console.error(`Binance API error for ${symbol}: ${spotResponse.status}`)
+      return null
+    }
+    
+    const spotTicker = await spotResponse.json()
+    let futuresTicker: any = null
+    
+    if (futuresResponse.ok) {
+      futuresTicker = await futuresResponse.json()
+    }
+    
+    // Get price from multiple possible fields (same as getAllTickers)
+    const price = spotTicker.lastPrice || spotTicker.price || spotTicker.closePrice || '0'
+    const priceNum = parseFloat(price)
+    
+    // Filter out coins with zero or invalid price
+    if (priceNum <= 0) {
+      return null
+    }
     
     return {
-      symbol: ticker.symbol,
-      price: ticker.lastPrice || '0',
-      priceChangePercent: ticker.priceChangePercent || '0',
-      volume: ticker.volume || '0',
-      quoteVolume: ticker.quoteVolume || '0',
-      highPrice: ticker.highPrice || '0',
-      lowPrice: ticker.lowPrice || '0',
-      openPrice: ticker.openPrice || '0',
-      prevClosePrice: ticker.prevClosePrice || '0',
-      count: ticker.count || 0,
+      symbol: spotTicker.symbol,
+      price: price,
+      priceChangePercent: spotTicker.priceChangePercent || '0',
+      volume: spotTicker.volume || '0',
+      quoteVolume: spotTicker.quoteVolume || '0',
+      futuresVolume: futuresTicker?.volume || '0',
+      futuresQuoteVolume: futuresTicker?.quoteVolume || '0',
+      highPrice: spotTicker.highPrice || '0',
+      lowPrice: spotTicker.lowPrice || '0',
+      openPrice: spotTicker.openPrice || '0',
+      prevClosePrice: spotTicker.prevClosePrice || '0',
+      count: spotTicker.count || 0,
     } as BinanceTicker
   } catch (error) {
     console.error(`Error fetching ticker for ${symbol}:`, error)

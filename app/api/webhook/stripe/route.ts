@@ -55,12 +55,12 @@ export async function POST(request: NextRequest) {
             stripeSubscriptionId: subscription.id,
             plan: 'premium',
             status: subscription.status,
-            currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+            currentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
           },
           update: {
             stripeSubscriptionId: subscription.id,
             status: subscription.status,
-            currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+            currentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
           },
         })
 
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
           where: { stripeSubscriptionId },
           data: {
             status: subscription.status,
-            currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+            currentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
           },
         })
 

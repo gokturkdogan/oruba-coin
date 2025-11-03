@@ -744,16 +744,22 @@ export default function CoinsPage() {
                           padding: '12px 16px',
                           width: '150px',
                           minWidth: '150px',
-                          maxWidth: '150px'
+                          maxWidth: '150px',
+                          position: 'relative',
+                          zIndex: 10
                         }}>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            asChild
-                            className="border-primary/30 hover:bg-primary/10 hover:border-primary/50 transition-all duration-200"
+                          <a
+                            href={`/coins/${coin.symbol}`}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              console.log('Link clicked, navigating to:', `/coins/${coin.symbol}`)
+                              window.location.href = `/coins/${coin.symbol}`
+                            }}
+                            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-primary/30 bg-background hover:bg-primary/10 hover:border-primary/50 h-9 px-4 py-2 relative z-10 cursor-pointer"
+                            style={{ position: 'relative', zIndex: 10 }}
                           >
-                            <Link href={`/coins/${coin.symbol}`}>View Details</Link>
-                          </Button>
+                            View Details
+                          </a>
                         </td>
                       </tr>
                     )

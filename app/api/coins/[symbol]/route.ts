@@ -30,11 +30,13 @@ export async function GET(
       priceChangePercent: ticker.priceChangePercent,
       volume: ticker.volume,
       quoteVolume: ticker.quoteVolume,
+      futuresVolume: ticker.futuresVolume || '0',
+      futuresQuoteVolume: ticker.futuresQuoteVolume || '0',
       highPrice: ticker.highPrice,
       lowPrice: ticker.lowPrice,
       openPrice: ticker.openPrice,
       prevClosePrice: ticker.prevClosePrice,
-      klines: klines.map((k) => ({
+      klines: klines.map((k: any) => ({
         time: k.openTime,
         open: parseFloat(k.open),
         high: parseFloat(k.high),
@@ -49,7 +51,7 @@ export async function GET(
       // Add additional indicators and data
       const dailyKlines = await getKlines(symbol.toUpperCase(), '1d', 30)
       response.premium = {
-        dailyChart: dailyKlines.map((k) => ({
+        dailyChart: dailyKlines.map((k: any) => ({
           time: k.openTime,
           open: parseFloat(k.open),
           high: parseFloat(k.high),
