@@ -93,32 +93,47 @@ export async function getAllTickers(): Promise<BinanceTicker[]> {
   try {
     // Fetch both spot and futures tickers in parallel with timeout
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 saniye timeout
+    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 saniye timeout (artırıldı)
     
-    const [spotResponse, futuresResponse] = await Promise.all([
+    const [spotResult, futuresResult] = await Promise.allSettled([
       fetch('https://api.binance.com/api/v3/ticker/24hr', {
         signal: controller.signal,
         headers: {
           'Accept': 'application/json',
         },
-      }).catch((error) => {
-        if (error.name === 'AbortError') {
-          console.error('Spot tickers fetch timeout')
-        }
-        throw error
       }),
       fetch('https://fapi.binance.com/fapi/v1/ticker/24hr', {
         signal: controller.signal,
         headers: {
           'Accept': 'application/json',
         },
-      }).catch(() => {
-        // Futures başarısız olursa devam et, sadece spot ile çalış
-        return null
       }),
     ])
     
     clearTimeout(timeoutId)
+    
+    // Handle spot response
+    let spotResponse: Response | null = null
+    if (spotResult.status === 'fulfilled') {
+      spotResponse = spotResult.value
+    } else {
+      if (spotResult.reason?.name === 'AbortError') {
+        console.error('Spot tickers fetch timeout')
+      } else {
+        console.error('Spot tickers fetch error:', spotResult.reason)
+      }
+    }
+    
+    // Handle futures response
+    let futuresResponse: Response | null = null
+    if (futuresResult.status === 'fulfilled') {
+      futuresResponse = futuresResult.value
+    } else {
+      // Futures başarısız olursa devam et, sadece spot ile çalış
+      if (futuresResult.reason?.name !== 'AbortError') {
+        console.error('Futures tickers fetch error:', futuresResult.reason)
+      }
+    }
     
     if (!spotResponse || !spotResponse.ok) {
       console.error('Failed to fetch spot tickers:', spotResponse?.status, spotResponse?.statusText)
