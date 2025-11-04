@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 import { prisma } from './prisma'
 
 const secret = process.env.JWT_SECRET || 'your-secret-key-change-in-production'
@@ -44,5 +45,10 @@ export async function getCurrentUser(token: string | null) {
 export function isPremium(user: { subscription: { status: string; currentPeriodEnd: Date } | null } | null): boolean {
   if (!user || !user.subscription) return false
   return user.subscription.status === 'active' && user.subscription.currentPeriodEnd > new Date()
+}
+
+// Generate verification token
+export function generateVerificationToken(): string {
+  return crypto.randomBytes(32).toString('hex')
 }
 

@@ -19,9 +19,14 @@ export async function POST(request: NextRequest) {
       include: { subscription: true },
     })
 
+    // Güvenlik: Kullanıcı yoksa veya şifre yanlışsa aynı mesajı döndür
+    // Bu sayede kullanıcı enumeration saldırıları önlenir
     if (!user) {
+      // Şifre doğrulaması yapmadan önce hata döndür, ama zamanlama farkını önlemek için
+      // dummy password hash ile doğrulama yapıyoruz
+      await verifyPassword(password, '$2a$10$dummyhashfordummyverification')
       return NextResponse.json(
-        { error: 'Invalid credentials' },
+        { error: 'E-posta adresi veya şifre hatalı' },
         { status: 401 }
       )
     }
@@ -30,8 +35,16 @@ export async function POST(request: NextRequest) {
     const isValid = await verifyPassword(password, user.passwordHash)
     if (!isValid) {
       return NextResponse.json(
-        { error: 'Invalid credentials' },
+        { error: 'E-posta adresi veya şifre hatalı' },
         { status: 401 }
+      )
+    }
+
+    // Check if email is verified
+    if (!user.isVerified) {
+      return NextResponse.json(
+        { error: 'Email adresiniz doğrulanmamış. Lütfen e-posta adresinize gönderilen doğrulama linkine tıklayın.' },
+        { status: 403 }
       )
     }
 
@@ -58,14 +71,23 @@ export async function POST(request: NextRequest) {
     return response
   } catch (error) {
     if (error instanceof z.ZodError) {
+      const errorMessages = error.issues.map(issue => {
+        if (issue.path.includes('email')) {
+          return 'Lütfen geçerli bir e-posta adresi girin'
+        }
+        if (issue.path.includes('password')) {
+          return 'Şifre gereklidir'
+        }
+        return issue.message
+      })
       return NextResponse.json(
-        { error: 'Invalid input', details: error.issues },
+        { error: errorMessages[0] || 'Lütfen geçerli bilgiler girin' },
         { status: 400 }
       )
     }
     console.error('Login error:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Bir hata oluştu. Lütfen daha sonra tekrar deneyin' },
       { status: 500 }
     )
   }

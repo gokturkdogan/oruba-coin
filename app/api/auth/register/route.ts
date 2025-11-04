@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { hashPassword, createToken } from '@/lib/auth'
+import { hashPassword, createToken, generateVerificationToken } from '@/lib/auth'
+import { sendVerificationEmail } from '@/lib/resend'
 import { z } from 'zod'
 
 const registerSchema = z.object({
@@ -21,51 +22,67 @@ export async function POST(request: NextRequest) {
 
     if (existingUser) {
       return NextResponse.json(
-        { error: 'User already exists' },
+        { error: 'Bu e-posta adresi zaten kullanılıyor. Lütfen farklı bir e-posta adresi deneyin veya giriş yapın' },
         { status: 400 }
       )
     }
 
-    // Create user
+    // Create user with verification token
     const passwordHash = await hashPassword(password)
+    const verificationToken = generateVerificationToken()
+    const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 saat
+    
     const user = await prisma.user.create({
       data: {
         email,
         passwordHash,
         name: name || null,
         isVerified: false,
+        verificationToken,
+        verificationTokenExpiry,
       },
     })
 
-    // Create token
-    const token = createToken({ userId: user.id, email: user.email })
+    // Send verification email
+    try {
+      await sendVerificationEmail(email, verificationToken, name || undefined)
+    } catch (emailError) {
+      console.error('Failed to send verification email:', emailError)
+      // Email gönderilemese bile kullanıcı oluşturuldu, sadece log'layalım
+    }
 
-    const response = NextResponse.json({
+    // Don't create session token - user must verify email first
+    return NextResponse.json({
+      message: 'Kayıt başarılı! Lütfen e-posta adresinize gönderilen doğrulama linkine tıklayın.',
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
+        isVerified: false,
       },
     })
-
-    response.cookies.set('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-    })
-
-    return response
   } catch (error) {
     if (error instanceof z.ZodError) {
+      const errorMessages = error.issues.map(issue => {
+        if (issue.path.includes('email')) {
+          return 'Lütfen geçerli bir e-posta adresi girin'
+        }
+        if (issue.path.includes('password')) {
+          if (issue.code === 'too_small') {
+            return 'Şifre en az 8 karakter olmalıdır'
+          }
+          return 'Şifre gereklidir'
+        }
+        return issue.message
+      })
       return NextResponse.json(
-        { error: 'Invalid input', details: error.issues },
+        { error: errorMessages[0] || 'Lütfen geçerli bilgiler girin' },
         { status: 400 }
       )
     }
     console.error('Registration error:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Bir hata oluştu. Lütfen daha sonra tekrar deneyin' },
       { status: 500 }
     )
   }

@@ -13,6 +13,10 @@ export interface BinanceTicker {
   quoteVolume: string
   futuresVolume?: string
   futuresQuoteVolume?: string
+  spotBuyVolume?: string
+  spotSellVolume?: string
+  futuresBuyVolume?: string
+  futuresSellVolume?: string
   highPrice: string
   lowPrice: string
   openPrice: string
@@ -169,6 +173,16 @@ export async function getAllTickers(): Promise<BinanceTicker[]> {
         if (priceNum > 0 && parseFloat(ticker.quoteVolume || '0') > 0) {
           const futuresData = futuresMap.get(ticker.symbol)
           
+          // Calculate spot buy/sell volumes
+          const spotQuoteVolume = parseFloat(ticker.quoteVolume || '0')
+          const spotBuyVolume = parseFloat(ticker.takerBuyQuoteVolume || '0')
+          const spotSellVolume = spotQuoteVolume - spotBuyVolume
+          
+          // Calculate futures buy/sell volumes
+          const futuresQuoteVolume = parseFloat(futuresData?.quoteVolume || '0')
+          const futuresBuyVolume = parseFloat(futuresData?.takerBuyQuoteVolume || '0')
+          const futuresSellVolume = futuresQuoteVolume - futuresBuyVolume
+          
           result.push({
             symbol: ticker.symbol,
             price: price,
@@ -177,6 +191,10 @@ export async function getAllTickers(): Promise<BinanceTicker[]> {
             quoteVolume: ticker.quoteVolume || '0',
             futuresVolume: futuresData?.volume || '0',
             futuresQuoteVolume: futuresData?.quoteVolume || '0',
+            spotBuyVolume: spotBuyVolume > 0 ? spotBuyVolume.toString() : '0',
+            spotSellVolume: spotSellVolume > 0 ? spotSellVolume.toString() : '0',
+            futuresBuyVolume: futuresBuyVolume > 0 ? futuresBuyVolume.toString() : '0',
+            futuresSellVolume: futuresSellVolume > 0 ? futuresSellVolume.toString() : '0',
             highPrice: ticker.highPrice || '0',
             lowPrice: ticker.lowPrice || '0',
             openPrice: ticker.openPrice || '0',

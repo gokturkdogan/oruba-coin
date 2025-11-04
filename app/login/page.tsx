@@ -31,15 +31,21 @@ export default function LoginPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        toast.error(data.error || 'Giriş başarısız')
+        // Email doğrulanmamışsa warning göster
+        if (res.status === 403 && data.error?.includes('doğrulanmamış')) {
+          toast.warning(data.error || 'Email adresiniz doğrulanmamış')
+        } else {
+          // API'den gelen anlamlı mesajı göster
+          toast.error(data.error || 'Giriş yapılırken bir hata oluştu')
+        }
         return
       }
 
-      toast.success('Giriş başarılı')
+      toast.success('Giriş başarılı! Hoş geldiniz')
       router.push('/coins')
       router.refresh()
     } catch (error) {
-      toast.error('Bir hata oluştu')
+      toast.error('Bağlantı hatası. Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin')
     } finally {
       setLoading(false)
     }
@@ -86,7 +92,7 @@ export default function LoginPage() {
           <CardFooter className="flex flex-col space-y-4">
             <Button 
               type="submit" 
-              className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/20" 
+              className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/20 mt-4 cursor-pointer" 
               disabled={loading}
             >
               {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}

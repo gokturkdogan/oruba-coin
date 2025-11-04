@@ -33,6 +33,10 @@ interface CoinData {
   quoteVolume: string
   futuresVolume?: string
   futuresQuoteVolume?: string
+  spotBuyVolume?: string
+  spotSellVolume?: string
+  futuresBuyVolume?: string
+  futuresSellVolume?: string
   highPrice: string
   lowPrice: string
   openPrice: string
@@ -92,6 +96,7 @@ export default function CoinDetailPage() {
   const wsRef = useRef<WebSocket | null>(null)
   const futuresWsRef = useRef<WebSocket | null>(null)
   const tradesWsRef = useRef<WebSocket | null>(null)
+  const futuresTradesWsRef = useRef<WebSocket | null>(null)
   const coinDataRef = useRef<CoinData | null>(null)
   const timeRangeTopRef = useRef<'1M' | '5M' | '15M' | '30M' | '1D' | '7D' | '30D' | '90D' | '1Y'>('1D')
   const timeRangeBottomRef = useRef<'1M' | '5M' | '15M' | '30M' | '1D' | '7D' | '30D' | '90D' | '1Y'>('1D')
@@ -102,6 +107,10 @@ export default function CoinDetailPage() {
     highPrice?: number
     lowPrice?: number
   }>({})
+  const spotBuyVolumeRef = useRef<number>(0)
+  const spotSellVolumeRef = useRef<number>(0)
+  const futuresBuyVolumeRef = useRef<number>(0)
+  const futuresSellVolumeRef = useRef<number>(0)
   const [flashAnimations, setFlashAnimations] = useState<Record<string, 'up' | 'down'>>({})
   const [buyTrades, setBuyTrades] = useState<Trade[]>([])
   const [sellTrades, setSellTrades] = useState<Trade[]>([])
@@ -396,6 +405,11 @@ export default function CoinDetailPage() {
           }
           console.log('Setting initial coin data...')
           setCoinData(data)
+          // Set initial buy/sell volumes
+          spotBuyVolumeRef.current = parseFloat(data.spotBuyVolume || '0')
+          spotSellVolumeRef.current = parseFloat(data.spotSellVolume || '0')
+          futuresBuyVolumeRef.current = parseFloat(data.futuresBuyVolume || '0')
+          futuresSellVolumeRef.current = parseFloat(data.futuresSellVolume || '0')
           // Set initial data for both charts
           setChartKlinesTop(data.klines || [])
           setChartFuturesKlinesTop(data.futuresKlines || [])
@@ -434,6 +448,10 @@ export default function CoinDetailPage() {
         tradesWsRef.current.close()
         tradesWsRef.current = null
       }
+      if (futuresTradesWsRef.current && futuresTradesWsRef.current.readyState === WebSocket.OPEN) {
+        futuresTradesWsRef.current.close()
+        futuresTradesWsRef.current = null
+      }
 
       // Spot WebSocket
       const spotStream = `${coinSymbol.toLowerCase()}@ticker`
@@ -443,9 +461,13 @@ export default function CoinDetailPage() {
       const futuresStream = `${coinSymbol.toLowerCase()}@ticker`
       const futuresWsUrl = `wss://fstream.binance.com/ws/${futuresStream}`
 
-      // Trades WebSocket
+      // Trades WebSocket (Spot)
       const tradesStream = `${coinSymbol.toLowerCase()}@trade`
       const tradesWsUrl = `wss://stream.binance.com:9443/ws/${tradesStream}`
+
+      // Futures Trades WebSocket
+      const futuresTradesStream = `${coinSymbol.toLowerCase()}@trade`
+      const futuresTradesWsUrl = `wss://fstream.binance.com/ws/${futuresTradesStream}`
 
       // Spot WebSocket
       try {
@@ -523,6 +545,30 @@ export default function CoinDetailPage() {
                 }
               }
               
+              // Update spot buy/sell volumes from ticker data
+              const newSpotBuyVolume = parseFloat(data.Q || data.takerBuyQuoteVolume || '0')
+              const newSpotQuoteVolume = parseFloat(data.q || data.quoteVolume || currentCoinData.quoteVolume || '0')
+              const newSpotSellVolume = newSpotQuoteVolume - newSpotBuyVolume
+
+              // Update buy/sell volumes maintaining ratio if total volume changed
+              if (newSpotQuoteVolume > 0 && previousValues.spotVolume !== undefined && previousValues.spotVolume > 0) {
+                const volumeRatio = newSpotQuoteVolume / previousValues.spotVolume
+                if (volumeRatio > 0.9 && volumeRatio < 1.1) {
+                  // Small change, maintain ratio
+                  const currentBuyRatio = spotBuyVolumeRef.current / (spotBuyVolumeRef.current + spotSellVolumeRef.current || 1)
+                  const currentSellRatio = spotSellVolumeRef.current / (spotBuyVolumeRef.current + spotSellVolumeRef.current || 1)
+                  spotBuyVolumeRef.current = newSpotQuoteVolume * currentBuyRatio
+                  spotSellVolumeRef.current = newSpotQuoteVolume * currentSellRatio
+                } else {
+                  // Significant change, use new values
+                  spotBuyVolumeRef.current = newSpotBuyVolume > 0 ? newSpotBuyVolume : spotBuyVolumeRef.current
+                  spotSellVolumeRef.current = newSpotSellVolume > 0 ? newSpotSellVolume : spotSellVolumeRef.current
+                }
+              } else if (newSpotBuyVolume > 0) {
+                spotBuyVolumeRef.current = newSpotBuyVolume
+                spotSellVolumeRef.current = newSpotSellVolume > 0 ? newSpotSellVolume : (newSpotQuoteVolume - newSpotBuyVolume)
+              }
+
               // Update coin data with Spot WebSocket data
               // Note: openPrice and prevClosePrice should NOT be updated from WebSocket
               // They represent fixed "previous day" values and should only come from initial API call
@@ -532,6 +578,8 @@ export default function CoinDetailPage() {
                 priceChangePercent: data.P || data.priceChangePercent || currentCoinData.priceChangePercent,
                 volume: data.v || data.volume || currentCoinData.volume,
                 quoteVolume: data.q || data.quoteVolume || currentCoinData.quoteVolume,
+                spotBuyVolume: spotBuyVolumeRef.current.toString(),
+                spotSellVolume: spotSellVolumeRef.current.toString(),
                 highPrice: data.h || data.highPrice || currentCoinData.highPrice,
                 lowPrice: data.l || data.lowPrice || currentCoinData.lowPrice,
                 // Preserve original openPrice and prevClosePrice - do not update from WebSocket
@@ -540,6 +588,8 @@ export default function CoinDetailPage() {
                 // Preserve futures data
                 futuresVolume: currentCoinData.futuresVolume,
                 futuresQuoteVolume: currentCoinData.futuresQuoteVolume,
+                futuresBuyVolume: currentCoinData.futuresBuyVolume,
+                futuresSellVolume: currentCoinData.futuresSellVolume,
               }
               
               // Update previous values
@@ -644,11 +694,37 @@ export default function CoinDetailPage() {
                 }
               }
               
+              // Update futures buy/sell volumes from ticker data
+              const newFuturesBuyVolume = parseFloat(data.Q || data.takerBuyQuoteVolume || '0')
+              const newFuturesQuoteVolume = parseFloat(data.q || data.quoteVolume || currentCoinData.futuresQuoteVolume || '0')
+              const newFuturesSellVolume = newFuturesQuoteVolume - newFuturesBuyVolume
+
+              // Update buy/sell volumes maintaining ratio if total volume changed
+              if (newFuturesQuoteVolume > 0 && previousValues.futuresVolume !== undefined && previousValues.futuresVolume > 0) {
+                const volumeRatio = newFuturesQuoteVolume / previousValues.futuresVolume
+                if (volumeRatio > 0.9 && volumeRatio < 1.1) {
+                  // Small change, maintain ratio
+                  const currentBuyRatio = futuresBuyVolumeRef.current / (futuresBuyVolumeRef.current + futuresSellVolumeRef.current || 1)
+                  const currentSellRatio = futuresSellVolumeRef.current / (futuresBuyVolumeRef.current + futuresSellVolumeRef.current || 1)
+                  futuresBuyVolumeRef.current = newFuturesQuoteVolume * currentBuyRatio
+                  futuresSellVolumeRef.current = newFuturesQuoteVolume * currentSellRatio
+                } else {
+                  // Significant change, use new values
+                  futuresBuyVolumeRef.current = newFuturesBuyVolume > 0 ? newFuturesBuyVolume : futuresBuyVolumeRef.current
+                  futuresSellVolumeRef.current = newFuturesSellVolume > 0 ? newFuturesSellVolume : futuresSellVolumeRef.current
+                }
+              } else if (newFuturesBuyVolume > 0) {
+                futuresBuyVolumeRef.current = newFuturesBuyVolume
+                futuresSellVolumeRef.current = newFuturesSellVolume > 0 ? newFuturesSellVolume : (newFuturesQuoteVolume - newFuturesBuyVolume)
+              }
+
               // Update coin data with Futures WebSocket data
               const updatedCoinData: CoinData = {
                 ...currentCoinData,
                 futuresVolume: data.v || data.volume || currentCoinData.futuresVolume || '0',
                 futuresQuoteVolume: data.q || data.quoteVolume || currentCoinData.futuresQuoteVolume || '0',
+                futuresBuyVolume: futuresBuyVolumeRef.current.toString(),
+                futuresSellVolume: futuresSellVolumeRef.current.toString(),
               }
               
               // Update previous values
@@ -703,6 +779,24 @@ export default function CoinDetailPage() {
                   // m: false means seller is market maker (buy order)
                   const isBuy = !data.m
                   
+                  // Update spot buy/sell volumes based on trade
+                  if (isBuy) {
+                    spotBuyVolumeRef.current += quoteAmount
+                  } else {
+                    spotSellVolumeRef.current += quoteAmount
+                  }
+                  
+                  // Update coinData with new volumes
+                  if (coinDataRef.current) {
+                    const updatedCoinData: CoinData = {
+                      ...coinDataRef.current,
+                      spotBuyVolume: spotBuyVolumeRef.current.toString(),
+                      spotSellVolume: spotSellVolumeRef.current.toString(),
+                    }
+                    coinDataRef.current = updatedCoinData
+                    setCoinData(updatedCoinData)
+                  }
+                  
                   // Use trade ID from Binance if available, otherwise generate a unique ID
                   const tradeId = data.t || `${tradeTime}-${Math.random().toString(36).substring(2, 9)}`
                   
@@ -751,6 +845,68 @@ export default function CoinDetailPage() {
       } catch (error) {
         console.error('Failed to create Trades WebSocket:', error)
       }
+
+      // Futures Trades WebSocket
+      try {
+        const futuresTradesWs = new WebSocket(futuresTradesWsUrl)
+
+        futuresTradesWs.onopen = () => {
+          console.log('Futures Trades WebSocket connected for', coinSymbol)
+        }
+
+        futuresTradesWs.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data)
+            
+            if (data && data.e === 'trade') {
+              const price = parseFloat(data.p || '0')
+              const quantity = parseFloat(data.q || '0')
+              const quoteAmount = price * quantity
+              const tradeTime = data.T || data.E || Date.now()
+              // m: true means buyer is market maker (sell order)
+              // m: false means seller is market maker (buy order)
+              const isBuy = !data.m
+              
+              // Update futures buy/sell volumes based on trade
+              if (isBuy) {
+                futuresBuyVolumeRef.current += quoteAmount
+              } else {
+                futuresSellVolumeRef.current += quoteAmount
+              }
+              
+              // Update coinData with new volumes
+              if (coinDataRef.current) {
+                const updatedCoinData: CoinData = {
+                  ...coinDataRef.current,
+                  futuresBuyVolume: futuresBuyVolumeRef.current.toString(),
+                  futuresSellVolume: futuresSellVolumeRef.current.toString(),
+                }
+                coinDataRef.current = updatedCoinData
+                setCoinData(updatedCoinData)
+              }
+            }
+          } catch (error) {
+            console.error('Error parsing Futures Trades WebSocket message:', error)
+          }
+        }
+
+        futuresTradesWs.onerror = (error) => {
+          console.error('Futures Trades WebSocket error:', error)
+        }
+
+        futuresTradesWs.onclose = () => {
+          console.log('Futures Trades WebSocket disconnected, reconnecting...')
+          setTimeout(() => {
+            if (coinDataRef.current) {
+              connectWebSocket(coinSymbol)
+            }
+          }, 3000)
+        }
+
+        futuresTradesWsRef.current = futuresTradesWs
+      } catch (error) {
+        console.error('Failed to create Futures Trades WebSocket:', error)
+      }
     }
 
     fetchInitialData()
@@ -798,6 +954,20 @@ export default function CoinDetailPage() {
               console.error('Error closing trades WebSocket:', error)
             }
             tradesWsRef.current = null
+          }
+          if (futuresTradesWsRef.current) {
+            try {
+              futuresTradesWsRef.current.onmessage = null
+              futuresTradesWsRef.current.onerror = null
+              futuresTradesWsRef.current.onclose = null
+              futuresTradesWsRef.current.onopen = null
+              if (futuresTradesWsRef.current.readyState === WebSocket.OPEN || futuresTradesWsRef.current.readyState === WebSocket.CONNECTING) {
+                futuresTradesWsRef.current.close()
+              }
+            } catch (error) {
+              console.error('Error closing futures trades WebSocket:', error)
+            }
+            futuresTradesWsRef.current = null
           }
         }
   }, [symbol])
@@ -1027,7 +1197,7 @@ export default function CoinDetailPage() {
 
             {/* 24 Saatlik Spot Hacim */}
             <div className="flex flex-col gap-2 p-4 rounded-lg bg-gradient-to-br from-blue-500/10 to-blue-500/5 border border-blue-500/20">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">24s Spot Hacim</span>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">24 Saatlik Spot Hacim</span>
               <span className={`text-xl font-bold text-blue-400 ${
                 flashAnimations.spotVolume === 'up' ? 'animate-pulse' : ''
               }`}>
@@ -1035,11 +1205,29 @@ export default function CoinDetailPage() {
                   maximumFractionDigits: 0,
                 })}
               </span>
+              <div className="flex flex-col gap-1 mt-1 pt-2 border-t border-blue-500/20">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-green-400/80">Alış:</span>
+                  <span className="text-green-400 font-semibold">
+                    ${parseFloat(coinData.spotBuyVolume || '0').toLocaleString('tr-TR', {
+                      maximumFractionDigits: 0,
+                    })}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-red-400/80">Satış:</span>
+                  <span className="text-red-400 font-semibold">
+                    ${parseFloat(coinData.spotSellVolume || '0').toLocaleString('tr-TR', {
+                      maximumFractionDigits: 0,
+                    })}
+                  </span>
+                </div>
+              </div>
             </div>
 
             {/* 24 Saatlik Vadeli Hacim */}
             <div className="flex flex-col gap-2 p-4 rounded-lg bg-gradient-to-br from-purple-500/10 to-purple-500/5 border border-purple-500/20">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">24s Vadeli Hacim</span>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">24 Saatlik Vadeli Hacim</span>
               <span className={`text-xl font-bold text-purple-400 ${
                 flashAnimations.futuresVolume === 'up' ? 'animate-pulse' : ''
               }`}>
@@ -1047,6 +1235,24 @@ export default function CoinDetailPage() {
                   maximumFractionDigits: 0,
                 })}
               </span>
+              <div className="flex flex-col gap-1 mt-1 pt-2 border-t border-purple-500/20">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-green-400/80">Alış:</span>
+                  <span className="text-green-400 font-semibold">
+                    ${parseFloat(coinData.futuresBuyVolume || '0').toLocaleString('tr-TR', {
+                      maximumFractionDigits: 0,
+                    })}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-red-400/80">Satış:</span>
+                  <span className="text-red-400 font-semibold">
+                    ${parseFloat(coinData.futuresSellVolume || '0').toLocaleString('tr-TR', {
+                      maximumFractionDigits: 0,
+                    })}
+                  </span>
+                </div>
+              </div>
             </div>
 
             {/* 24 Saatlik Dolar Cinsinden Değişim */}

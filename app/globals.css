@@ -271,4 +271,52 @@
       .animate-flash-red {
         animation: flash-red 1.5s ease-in-out;
       }
-    }
+
+  /* Toast Styles - Modern Glass Effect */
+  [data-sonner-toast] {
+    background: rgba(18, 18, 18, 0.9) !important;
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+
+  [data-sonner-toast][data-type="success"] {
+    background: rgba(34, 197, 94, 0.1) !important;
+    border-color: rgba(34, 197, 94, 0.3) !important;
+    color: rgb(34, 197, 94);
+  }
+
+  [data-sonner-toast][data-type="success"] [data-icon] {
+    color: rgb(34, 197, 94) !important;
+  }
+
+  [data-sonner-toast][data-type="warning"] {
+    background: rgba(249, 115, 22, 0.1) !important;
+    border-color: rgba(249, 115, 22, 0.3) !important;
+    color: rgb(249, 115, 22);
+  }
+
+  [data-sonner-toast][data-type="warning"] [data-icon] {
+    color: rgb(249, 115, 22) !important;
+  }
+
+  [data-sonner-toast][data-type="error"] {
+    background: rgba(239, 68, 68, 0.1) !important;
+    border-color: rgba(239, 68, 68, 0.3) !important;
+    color: rgb(239, 68, 68);
+  }
+
+  [data-sonner-toast][data-type="error"] [data-icon] {
+    color: rgb(239, 68, 68) !important;
+  }
+
+  [data-sonner-toast][data-type="info"] {
+    background: rgba(59, 130, 246, 0.1) !important;
+    border-color: rgba(59, 130, 246, 0.3) !important;
+    color: rgb(59, 130, 246);
+  }
+
+  [data-sonner-toast][data-type="info"] [data-icon] {
+    color: rgb(59, 130, 246) !important;
+  }
+}

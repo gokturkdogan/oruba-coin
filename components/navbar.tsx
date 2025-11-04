@@ -166,9 +166,12 @@ export function Navbar() {
                   )}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback>
+                      <Button 
+                        variant="ghost" 
+                        className="relative h-10 w-10 rounded-full cursor-pointer hover:bg-primary/10 transition-all duration-200 border-2 border-primary/30 hover:border-primary/60 hover:shadow-lg hover:shadow-primary/20"
+                      >
+                        <Avatar className="h-10 w-10 ring-2 ring-primary/20 hover:ring-primary/40 transition-all">
+                          <AvatarFallback className="bg-gradient-to-br from-primary/80 to-primary/60 text-white font-semibold text-sm">
                             {user.name?.[0] || user.email[0].toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
@@ -191,32 +194,18 @@ export function Navbar() {
                           e.preventDefault()
                           window.location.href = '/profile'
                         }}
+                        className="cursor-pointer"
                       >
                         Profil
                       </DropdownMenuItem>
-                      {!user.isPremium && (
-                        <>
-                          <DropdownMenuItem 
-                            onClick={(e) => {
-                              e.preventDefault()
-                              window.location.href = '/premium'
-                            }}
-                          >
-                            Premium Programı
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={(e) => {
-                              e.preventDefault()
-                              window.location.href = '/checkout'
-                            }}
-                          >
-                            Premium'a Yükselt
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={handleLogout}>
-                        Çıkış Yap
+                      <DropdownMenuItem 
+                        onClick={(e) => {
+                          e.preventDefault()
+                          window.location.href = '/watchlist'
+                        }}
+                        className="cursor-pointer"
+                      >
+                        Takip Listem
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

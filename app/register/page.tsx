@@ -32,15 +32,16 @@ export default function RegisterPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        toast.error(data.error || 'Kayıt başarısız')
+        // API'den gelen anlamlı mesajı göster
+        toast.error(data.error || 'Kayıt olurken bir hata oluştu')
         return
       }
 
-      toast.success('Kayıt başarılı')
-      router.push('/coins')
+      toast.success('Kayıt başarılı! E-posta adresinize gönderilen doğrulama linkine tıklayarak hesabınızı aktifleştirin')
+      router.push('/login')
       router.refresh()
     } catch (error) {
-      toast.error('Bir hata oluştu')
+      toast.error('Bağlantı hatası. Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin')
     } finally {
       setLoading(false)
     }
@@ -100,7 +101,7 @@ export default function RegisterPage() {
           <CardFooter className="flex flex-col space-y-4">
             <Button 
               type="submit" 
-              className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/20" 
+              className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/20 mt-4 cursor-pointer" 
               disabled={loading}
             >
               {loading ? 'Kayıt yapılıyor...' : 'Hesap Oluştur'}

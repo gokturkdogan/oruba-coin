@@ -15,16 +15,19 @@ datasource db {
 }
 
 model User {
-  id            String         @id @default(uuid())
-  email         String         @unique
-  passwordHash  String         @map("password_hash")
-  name          String?
-  isVerified    Boolean        @default(false) @map("is_verified")
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
+  id                        String         @id @default(uuid())
+  email                     String         @unique
+  passwordHash              String         @map("password_hash")
+  name                      String?
+  isVerified                Boolean        @default(false) @map("is_verified")
+  verificationToken         String?        @map("verification_token")
+  verificationTokenExpiry   DateTime?      @map("verification_token_expiry")
+  createdAt                 DateTime       @default(now()) @map("created_at")
+  updatedAt                 DateTime       @updatedAt @map("updated_at")
   
-  subscription  Subscription?
-  events        UserEvent[]
+  subscription              Subscription?
+  events                    UserEvent[]
+  watchlist                 Watchlist[]
   
   @@map("users")
 }
@@ -88,4 +91,18 @@ model UserEvent {
   @@index([userId, createdAt])
   @@index([eventType, createdAt])
   @@map("user_events")
+}
+
+model Watchlist {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  symbol    String
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, symbol])
+  @@index([userId])
+  @@index([symbol])
+  @@map("watchlist")
 }

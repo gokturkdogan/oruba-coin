@@ -25,6 +25,31 @@ export async function GET(
       )
     }
 
+    // Fetch ticker with buy/sell volume data
+    const [spotTickerRes, futuresTickerRes] = await Promise.allSettled([
+      fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol.toUpperCase()}`),
+      fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${symbol.toUpperCase()}`),
+    ])
+
+    const spotTickerData = spotTickerRes.status === 'fulfilled' && spotTickerRes.value.ok
+      ? await spotTickerRes.value.json()
+      : null
+    const futuresTickerData = futuresTickerRes.status === 'fulfilled' && futuresTickerRes.value.ok
+      ? await futuresTickerRes.value.json()
+      : null
+
+    // For 1-hour data, we'll calculate from klines (last 1 hour)
+    // But for initial response, use 24h ticker data
+    // Calculate spot buy/sell volumes from 24h ticker
+    const spotQuoteVolume = parseFloat(spotTickerData?.quoteVolume || ticker.quoteVolume || '0')
+    const spotBuyVolume24h = parseFloat(spotTickerData?.takerBuyQuoteVolume || '0')
+    const spotSellVolume24h = spotQuoteVolume - spotBuyVolume24h
+
+    // Calculate futures buy/sell volumes from 24h ticker
+    const futuresQuoteVolume = parseFloat(futuresTickerData?.quoteVolume || ticker.futuresQuoteVolume || '0')
+    const futuresBuyVolume24h = parseFloat(futuresTickerData?.takerBuyQuoteVolume || '0')
+    const futuresSellVolume24h = futuresQuoteVolume - futuresBuyVolume24h
+
     // Determine interval and limit based on time range
     let interval = '1h'
     let limit = 24
@@ -129,6 +154,10 @@ export async function GET(
       quoteVolume: ticker.quoteVolume,
       futuresVolume: ticker.futuresVolume || '0',
       futuresQuoteVolume: ticker.futuresQuoteVolume || '0',
+      spotBuyVolume: spotBuyVolume24h > 0 ? spotBuyVolume24h.toString() : '0',
+      spotSellVolume: spotSellVolume24h > 0 ? spotSellVolume24h.toString() : '0',
+      futuresBuyVolume: futuresBuyVolume24h > 0 ? futuresBuyVolume24h.toString() : '0',
+      futuresSellVolume: futuresSellVolume24h > 0 ? futuresSellVolume24h.toString() : '0',
       highPrice: ticker.highPrice,
       lowPrice: ticker.lowPrice,
       openPrice: ticker.openPrice,
@@ -151,6 +180,15 @@ export async function GET(
           sellVolume: sellVolume > 0 ? sellVolume : 0, // Satış hacmi
         }
       }),
+      // Calculate 1-hour buy/sell volumes from klines (sum of last hour)
+      spotBuyVolume1h: klines.reduce((sum: number, k: any) => {
+        return sum + parseFloat(k.takerBuyQuoteVolume || '0')
+      }, 0).toString(),
+      spotSellVolume1h: klines.reduce((sum: number, k: any) => {
+        const quoteVolume = parseFloat(k.quoteVolume || '0')
+        const buyVolume = parseFloat(k.takerBuyQuoteVolume || '0')
+        return sum + (quoteVolume - buyVolume)
+      }, 0).toString(),
       futuresKlines: futuresKlines.map((k: any) => {
         const quoteVolume = parseFloat(k.quoteVolume || '0')
         const buyVolume = parseFloat(k.takerBuyQuoteVolume || '0')
@@ -166,6 +204,15 @@ export async function GET(
           sellVolume: sellVolume > 0 ? sellVolume : 0, // Satış hacmi
         }
       }),
+      // Calculate 1-hour futures buy/sell volumes from futures klines
+      futuresBuyVolume1h: futuresKlines.reduce((sum: number, k: any) => {
+        return sum + parseFloat(k.takerBuyQuoteVolume || '0')
+      }, 0).toString(),
+      futuresSellVolume1h: futuresKlines.reduce((sum: number, k: any) => {
+        const quoteVolume = parseFloat(k.quoteVolume || '0')
+        const buyVolume = parseFloat(k.takerBuyQuoteVolume || '0')
+        return sum + (quoteVolume - buyVolume)
+      }, 0).toString(),
     }
 
     // Premium features
