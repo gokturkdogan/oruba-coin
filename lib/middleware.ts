@@ -22,3 +22,11 @@ export async function requirePremium(request: NextRequest) {
   return user
 }
 
+export async function requireAdmin(request: NextRequest) {
+  const user = await requireAuth(request)
+  if (!user.isAdmin) {
+    throw new Error('Admin access required')
+  }
+  return user
+}
+

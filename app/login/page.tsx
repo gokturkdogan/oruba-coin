@@ -42,7 +42,12 @@ export default function LoginPage() {
       }
 
       toast.success('Giriş başarılı! Hoş geldiniz')
-      router.push('/coins')
+      // Admin ise admin paneline, değilse coins sayfasına yönlendir
+      if (data.user?.isAdmin) {
+        router.push('/admin')
+      } else {
+        router.push('/coins')
+      }
       router.refresh()
     } catch (error) {
       toast.error('Bağlantı hatası. Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin')

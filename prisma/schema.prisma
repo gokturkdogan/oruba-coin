@@ -20,6 +20,7 @@ model User {
   passwordHash              String         @map("password_hash")
   name                      String?
   isVerified                Boolean        @default(false) @map("is_verified")
+  isAdmin                   Boolean        @default(false) @map("is_admin")
   verificationToken         String?        @map("verification_token")
   verificationTokenExpiry   DateTime?      @map("verification_token_expiry")
   createdAt                 DateTime       @default(now()) @map("created_at")

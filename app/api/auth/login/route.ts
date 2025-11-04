@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
         id: user.id,
         email: user.email,
         name: user.name,
+        isAdmin: user.isAdmin,
         isPremium: user.subscription?.status === 'active' && 
                    user.subscription.currentPeriodEnd > new Date(),
       },

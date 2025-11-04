@@ -16,13 +16,14 @@ import { Badge } from '@/components/ui/badge'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import { Menu, X } from 'lucide-react'
+import { Menu, X, Shield, LogOut, ShieldCheck } from 'lucide-react'
 
 interface User {
   id: string
   email: string
   name?: string
   isPremium: boolean
+  isAdmin?: boolean
 }
 
 export function Navbar() {
@@ -31,6 +32,7 @@ export function Navbar() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const isAdminPage = pathname?.startsWith('/admin')
 
   useEffect(() => {
     fetch('/api/user/profile')
@@ -42,6 +44,7 @@ export function Navbar() {
             email: data.user.email,
             name: data.user.name,
             isPremium: data.user.isPremium,
+            isAdmin: data.user.isAdmin,
           })
         }
       })
@@ -60,6 +63,46 @@ export function Navbar() {
     } catch (error) {
       toast.error('Çıkış yapılamadı')
     }
+  }
+
+  // Admin panel için sadeleştirilmiş navbar
+  if (isAdminPage) {
+    return (
+      <nav className="border-b border-white/10 glass-effect-dark sticky top-0 z-50">
+        <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center justify-between">
+            <div className="flex items-center">
+              <a 
+                href="/" 
+                onClick={(e) => {
+                  e.preventDefault()
+                  window.location.href = '/'
+                }}
+                className="flex items-center space-x-2 group cursor-pointer"
+              >
+                <span className="font-bold text-xl gradient-text">Oruba Coin</span>
+                <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">₿</span>
+              </a>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-primary" />
+                <span className="font-bold text-lg gradient-text">Admin</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLogout}
+                className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Çıkış
+              </Button>
+            </div>
+          </div>
+        </div>
+      </nav>
+    )
   }
 
   return (
@@ -207,6 +250,32 @@ export function Navbar() {
                       >
                         Takip Listem
                       </DropdownMenuItem>
+                      {user.isAdmin && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            onClick={(e) => {
+                              e.preventDefault()
+                              window.location.href = '/admin'
+                            }}
+                            className="cursor-pointer"
+                          >
+                            <Shield className="mr-2 h-4 w-4" />
+                            Admin Paneli
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        onClick={(e) => {
+                          e.preventDefault()
+                          handleLogout()
+                        }}
+                        className="cursor-pointer text-red-400 focus:text-red-400"
+                      >
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Çıkış Yap
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </>
@@ -303,6 +372,42 @@ export function Navbar() {
                 >
                   Profil
                 </a>
+                <a
+                  href="/watchlist"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    setMobileMenuOpen(false)
+                    window.location.href = '/watchlist'
+                  }}
+                  className="block px-4 py-2 rounded-lg text-foreground/70 hover:bg-white/5 transition-all cursor-pointer"
+                >
+                  Takip Listem
+                </a>
+                {user.isAdmin && (
+                  <a
+                    href="/admin"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setMobileMenuOpen(false)
+                      window.location.href = '/admin'
+                    }}
+                    className="block px-4 py-2 rounded-lg text-foreground/70 hover:bg-white/5 transition-all cursor-pointer flex items-center gap-2"
+                  >
+                    <Shield className="h-4 w-4" />
+                    Admin Paneli
+                  </a>
+                )}
+                <button
+                  onClick={(e) => {
+                    e.preventDefault()
+                    setMobileMenuOpen(false)
+                    handleLogout()
+                  }}
+                  className="w-full text-left block px-4 py-2 rounded-lg text-red-400 hover:bg-red-500/10 transition-all cursor-pointer flex items-center gap-2"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Çıkış Yap
+                </button>
                 {!user.isPremium && (
                   <>
                     <a

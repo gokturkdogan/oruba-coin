@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
         email: user.email,
         name: user.name,
         isVerified: user.isVerified,
+        isAdmin: user.isAdmin,
         isPremium: user.subscription?.status === 'active' && 
                    user.subscription.currentPeriodEnd > new Date(),
         subscription: user.subscription ? {
