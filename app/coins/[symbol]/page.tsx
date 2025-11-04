@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
   LineChart, 
   Line, 
@@ -94,8 +93,8 @@ export default function CoinDetailPage() {
   const futuresWsRef = useRef<WebSocket | null>(null)
   const tradesWsRef = useRef<WebSocket | null>(null)
   const coinDataRef = useRef<CoinData | null>(null)
-  const timeRangeTopRef = useRef<'1D' | '7D' | '30D' | '90D' | '1Y'>('1D')
-  const timeRangeBottomRef = useRef<'1D' | '7D' | '30D' | '90D' | '1Y'>('1D')
+  const timeRangeTopRef = useRef<'1M' | '5M' | '15M' | '30M' | '1D' | '7D' | '30D' | '90D' | '1Y'>('1D')
+  const timeRangeBottomRef = useRef<'1M' | '5M' | '15M' | '30M' | '1D' | '7D' | '30D' | '90D' | '1Y'>('1D')
   const previousValuesRef = useRef<{
     price?: number
     spotVolume?: number
@@ -107,9 +106,9 @@ export default function CoinDetailPage() {
   const [buyTrades, setBuyTrades] = useState<Trade[]>([])
   const [sellTrades, setSellTrades] = useState<Trade[]>([])
   // Üst grafik (Fiyat Grafiği) için zaman aralığı
-  const [timeRangeTop, setTimeRangeTop] = useState<'1D' | '7D' | '30D' | '90D' | '1Y'>('1D')
+  const [timeRangeTop, setTimeRangeTop] = useState<'1M' | '5M' | '15M' | '30M' | '1D' | '7D' | '30D' | '90D' | '1Y'>('1D')
   // Alt grafik (Hacim Grafiği) için zaman aralığı
-  const [timeRangeBottom, setTimeRangeBottom] = useState<'1D' | '7D' | '30D' | '90D' | '1Y'>('1D')
+  const [timeRangeBottom, setTimeRangeBottom] = useState<'1M' | '5M' | '15M' | '30M' | '1D' | '7D' | '30D' | '90D' | '1Y'>('1D')
   const [chartLoadingTop, setChartLoadingTop] = useState(false)
   const [chartLoadingBottom, setChartLoadingBottom] = useState(false)
   const [chartKlinesTop, setChartKlinesTop] = useState<CoinData['klines']>([])
@@ -159,6 +158,7 @@ export default function CoinDetailPage() {
         setChartFuturesKlinesTop(coinData.futuresKlines)
       }
     }
+    // For minute ranges, data will be fetched via API in the separate useEffect
   }, [timeRangeTop, coinData])
 
   // Initialize or reset chartKlinesBottom when timeRangeBottom is 1D
@@ -169,11 +169,45 @@ export default function CoinDetailPage() {
         setChartFuturesKlinesBottom(coinData.futuresKlines)
       }
     }
+    // For minute ranges, data will be fetched via API in the separate useEffect
   }, [timeRangeBottom, coinData])
 
-  // Fetch chart data for top chart only when timeRangeTop changes and it's NOT 1D
+  // Fetch chart data for top chart only when timeRangeTop changes and it's NOT 1D or minute ranges
   useEffect(() => {
-    if (!symbol || timeRangeTop === '1D') {
+    if (!symbol || timeRangeTop === '1D' || timeRangeTop === '1M' || timeRangeTop === '5M' || timeRangeTop === '15M' || timeRangeTop === '30M') {
+      // For minute ranges, we'll fetch in a separate effect
+      if (timeRangeTop !== '1D' && (timeRangeTop === '1M' || timeRangeTop === '5M' || timeRangeTop === '15M' || timeRangeTop === '30M')) {
+        // Fetch minute data
+        let isMounted = true
+        const fetchChartData = async () => {
+          setChartLoadingTop(true)
+          try {
+            const controller = new AbortController()
+            const timeoutId = setTimeout(() => controller.abort(), 30000)
+            const res = await fetch(`/api/coins/${symbol}?range=${timeRangeTop}`, { signal: controller.signal })
+            clearTimeout(timeoutId)
+            if (!isMounted) return
+            if (res.ok) {
+              const data = await res.json()
+              setChartKlinesTop(data.klines || [])
+              setChartFuturesKlinesTop(data.futuresKlines || [])
+            } else {
+              console.error('Failed to fetch chart data')
+            }
+          } catch (error: any) {
+            if (!isMounted) return
+            if (error.name !== 'AbortError') {
+              console.error('Error fetching chart data:', error)
+            }
+          } finally {
+            if (isMounted) {
+              setChartLoadingTop(false)
+            }
+          }
+        }
+        fetchChartData()
+        return () => { isMounted = false }
+      }
       return
     }
 
@@ -226,9 +260,42 @@ export default function CoinDetailPage() {
     }
   }, [timeRangeTop, symbol]) // Only fetch when timeRangeTop or symbol changes
 
-  // Fetch chart data for bottom chart only when timeRangeBottom changes and it's NOT 1D
+  // Fetch chart data for bottom chart only when timeRangeBottom changes and it's NOT 1D or minute ranges
   useEffect(() => {
-    if (!symbol || timeRangeBottom === '1D') {
+    if (!symbol || timeRangeBottom === '1D' || timeRangeBottom === '1M' || timeRangeBottom === '5M' || timeRangeBottom === '15M' || timeRangeBottom === '30M') {
+      // For minute ranges, we'll fetch in a separate effect
+      if (timeRangeBottom !== '1D' && (timeRangeBottom === '1M' || timeRangeBottom === '5M' || timeRangeBottom === '15M' || timeRangeBottom === '30M')) {
+        // Fetch minute data
+        let isMounted = true
+        const fetchChartData = async () => {
+          setChartLoadingBottom(true)
+          try {
+            const controller = new AbortController()
+            const timeoutId = setTimeout(() => controller.abort(), 30000)
+            const res = await fetch(`/api/coins/${symbol}?range=${timeRangeBottom}`, { signal: controller.signal })
+            clearTimeout(timeoutId)
+            if (!isMounted) return
+            if (res.ok) {
+              const data = await res.json()
+              setChartKlinesBottom(data.klines || [])
+              setChartFuturesKlinesBottom(data.futuresKlines || [])
+            } else {
+              console.error('Failed to fetch chart data')
+            }
+          } catch (error: any) {
+            if (!isMounted) return
+            if (error.name !== 'AbortError') {
+              console.error('Error fetching chart data:', error)
+            }
+          } finally {
+            if (isMounted) {
+              setChartLoadingBottom(false)
+            }
+          }
+        }
+        fetchChartData()
+        return () => { isMounted = false }
+      }
       return
     }
 
@@ -485,8 +552,8 @@ export default function CoinDetailPage() {
               
               setCoinData(updatedCoinData)
               
-              // For 1D time range, update chartKlinesTop and chartKlinesBottom with latest data from WebSocket
-              if (timeRangeTopRef.current === '1D') {
+              // For 1D or minute time ranges, update chartKlinesTop and chartKlinesBottom with latest data from WebSocket
+              if (timeRangeTopRef.current === '1D' || timeRangeTopRef.current === '1M' || timeRangeTopRef.current === '5M' || timeRangeTopRef.current === '15M' || timeRangeTopRef.current === '30M') {
                 setChartKlinesTop(prev => {
                   if (prev.length === 0) return prev
                   const updated = [...prev]
@@ -502,7 +569,7 @@ export default function CoinDetailPage() {
                 })
               }
               
-              if (timeRangeBottomRef.current === '1D') {
+              if (timeRangeBottomRef.current === '1D' || timeRangeBottomRef.current === '1M' || timeRangeBottomRef.current === '5M' || timeRangeBottomRef.current === '15M' || timeRangeBottomRef.current === '30M') {
                 setChartKlinesBottom(prev => {
                   if (prev.length === 0) return prev
                   const updated = [...prev]
@@ -636,8 +703,11 @@ export default function CoinDetailPage() {
                   // m: false means seller is market maker (buy order)
                   const isBuy = !data.m
                   
+                  // Use trade ID from Binance if available, otherwise generate a unique ID
+                  const tradeId = data.t || `${tradeTime}-${Math.random().toString(36).substring(2, 9)}`
+                  
                   const trade: Trade = {
-                    id: data.t || Date.now() + Math.random(), // Add random to ensure uniqueness
+                    id: tradeId,
                     price: price,
                     quantity: quantity,
                     quoteAmount: quoteAmount,
@@ -802,6 +872,13 @@ export default function CoinDetailPage() {
           hour: '2-digit',
           minute: '2-digit',
         })
+      } else if (timeRangeValue === '1M' || timeRangeValue === '5M' || timeRangeValue === '15M' || timeRangeValue === '30M') {
+        // Minute ranges - show hour:minute:second
+        timeFormat = new Date(k.time).toLocaleTimeString('tr-TR', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        })
       } else {
         // 1D
         timeFormat = new Date(k.time).toLocaleTimeString('en-US', {
@@ -865,7 +942,10 @@ export default function CoinDetailPage() {
   const memoizedChartDataTop = chartDataTop
   const memoizedChartDataBottom = chartDataBottom
 
-  const timeRangeOptions: Array<{ label: string; value: '1D' | '7D' | '30D' | '90D' | '1Y' }> = [
+  const timeRangeOptions: Array<{ label: string; value: '1M' | '5M' | '15M' | '30M' | '1D' | '7D' | '30D' | '90D' | '1Y' }> = [
+    { label: '5 Dakika', value: '5M' },
+    { label: '15 Dakika', value: '15M' },
+    { label: '30 Dakika', value: '30M' },
     { label: '24 Saat', value: '1D' },
     { label: '7 Gün', value: '7D' },
     { label: '30 Gün', value: '30D' },
@@ -983,21 +1063,15 @@ export default function CoinDetailPage() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="hourly" className="w-full">
-        <TabsList>
-          <TabsTrigger value="hourly">24s Grafik</TabsTrigger>
-          <TabsTrigger value="daily" disabled={!isPremium}>
-            {!isPremium && <Lock className="h-3 w-3 ml-1" />}
-            Günlük Grafik (Premium)
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="hourly" className="mt-6">
           <Card className="bg-gradient-to-br from-background to-background/80 border-border/50">
             <CardHeader>
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
                   <CardTitle className="text-2xl mb-1">Fiyat Grafiği</CardTitle>
                   <CardDescription>
+                    {timeRangeTop === '5M' && 'Son 5 dakika fiyat hareketleri'}
+                    {timeRangeTop === '15M' && 'Son 15 dakika fiyat hareketleri'}
+                    {timeRangeTop === '30M' && 'Son 30 dakika fiyat hareketleri'}
                     {timeRangeTop === '1D' && '24 saatlik fiyat hareketleri'}
                     {timeRangeTop === '7D' && '7 günlük fiyat hareketleri'}
                     {timeRangeTop === '30D' && '30 günlük fiyat hareketleri'}
@@ -1188,7 +1262,7 @@ export default function CoinDetailPage() {
                       fill="url(#volumeGradient)"
                       opacity={0.7}
                       radius={[4, 4, 0, 0]}
-                      isAnimationActive={timeRangeTop !== '1D'} // Disable animation for real-time updates
+                      isAnimationActive={timeRangeTop !== '1D' && timeRangeTop !== '1M' && timeRangeTop !== '5M' && timeRangeTop !== '15M' && timeRangeTop !== '30M'} // Disable animation for real-time updates
                       name="Spot Hacim"
                     />
                   )}
@@ -1199,7 +1273,7 @@ export default function CoinDetailPage() {
                       fill="url(#futuresVolumeGradient)"
                       opacity={0.7}
                       radius={[4, 4, 0, 0]}
-                      isAnimationActive={timeRangeTop !== '1D'} // Disable animation for real-time updates
+                      isAnimationActive={timeRangeTop !== '1D' && timeRangeTop !== '1M' && timeRangeTop !== '5M' && timeRangeTop !== '15M' && timeRangeTop !== '30M'} // Disable animation for real-time updates
                       name="Vadeli Hacim"
                     />
                   )}
@@ -1208,151 +1282,16 @@ export default function CoinDetailPage() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-        <TabsContent value="daily" className="mt-6">
-          {isPremium && coinData.premium?.dailyChart ? (
-            <Card className="bg-gradient-to-br from-background to-background/80 border-border/50">
-              <CardHeader>
-                <CardTitle className="text-2xl mb-1">Günlük Grafik (30 gün)</CardTitle>
-                <CardDescription>Premium özellik - Hacimle günlük fiyat hareketleri</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={500}>
-                  <ComposedChart 
-                    data={formatDailyKlineData(coinData.premium.dailyChart)} 
-                    margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
-                  >
-                    <defs>
-                      <linearGradient id="dailyPriceGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="rgba(139, 92, 246, 0.3)" stopOpacity={1} />
-                        <stop offset="100%" stopColor="rgba(139, 92, 246, 0)" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="dailyVolumeGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="rgba(139, 92, 246, 0.4)" stopOpacity={1} />
-                        <stop offset="100%" stopColor="rgba(139, 92, 246, 0)" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid 
-                      strokeDasharray="3 3" 
-                      stroke="rgba(255, 255, 255, 0.05)" 
-                      vertical={false}
-                    />
-                    <XAxis 
-                      dataKey="time" 
-                      stroke="rgba(255, 255, 255, 0.3)"
-                      tick={{ fill: 'rgba(255, 255, 255, 0.5)', fontSize: 12 }}
-                      axisLine={{ stroke: 'rgba(255, 255, 255, 0.1)' }}
-                    />
-                    <YAxis 
-                      yAxisId="price"
-                      orientation="left"
-                      stroke="rgba(255, 255, 255, 0.3)"
-                      tick={{ fill: 'rgba(255, 255, 255, 0.5)', fontSize: 12 }}
-                      axisLine={{ stroke: 'rgba(255, 255, 255, 0.1)' }}
-                      domain={['dataMin - 0.01', 'dataMax + 0.01']}
-                      tickFormatter={(value) => `$${value.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                    />
-                    <YAxis 
-                      yAxisId="volume"
-                      orientation="right"
-                      stroke="rgba(255, 255, 255, 0.3)"
-                      tick={{ fill: 'rgba(255, 255, 255, 0.5)', fontSize: 12 }}
-                      axisLine={{ stroke: 'rgba(255, 255, 255, 0.1)' }}
-                    />
-                    <Tooltip 
-                      contentStyle={{
-                        backgroundColor: 'rgba(0, 0, 0, 0.9)',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        borderRadius: '8px',
-                        color: '#fff',
-                      }}
-                      content={({ active, payload, label }: any) => {
-                        if (!active || !payload || !payload.length) return null
-                        
-                        const formatVolume = (val: number) => {
-                          if (!val || isNaN(val)) return '0'
-                          const parts = val.toFixed(2).split('.')
-                          const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-                          const decimalPart = parts[1]
-                          return decimalPart === '00' ? integerPart : `${integerPart},${decimalPart}`
-                        }
-                        
-                        return (
-                          <div className="rounded-lg border border-white/10 bg-black/90 p-3 shadow-lg">
-                            <p className="mb-2 text-sm text-white/70">{label}</p>
-                            {payload.map((entry: any, index: number) => {
-                              const dataKey = entry.dataKey || entry.name
-                              let formattedValue = String(entry.value || 0)
-                              let labelName = entry.name || dataKey
-                              let valueColor = 'text-white'
-                              
-                              if (dataKey === 'price') {
-                                formattedValue = `$${formatNumberTR(entry.value, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`
-                                labelName = 'Fiyat'
-                                valueColor = 'text-white'
-                              } else if (dataKey === 'volume') {
-                                formattedValue = `$${formatVolume(entry.value)}`
-                                labelName = 'Volume'
-                                valueColor = 'text-purple-400'
-                              }
-                              
-                              return (
-                                <div key={index} className="flex items-center justify-between gap-4 text-sm">
-                                  <span className="text-white/70">{labelName}:</span>
-                                  <span className={`font-semibold ${valueColor}`}>{formattedValue}</span>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        )
-                      }}
-                      labelStyle={{ color: 'rgba(255, 255, 255, 0.7)' }}
-                    />
-                    <Area
-                      yAxisId="price"
-                      type="monotone"
-                      dataKey="price"
-                      stroke="#8b5cf6"
-                      strokeWidth={2.5}
-                      fill="url(#dailyPriceGradient)"
-                      fillOpacity={1}
-                      isAnimationActive={true}
-                      animationDuration={800}
-                    />
-                    <Bar
-                      yAxisId="volume"
-                      dataKey="volume"
-                      fill="url(#dailyVolumeGradient)"
-                      opacity={0.6}
-                      radius={[4, 4, 0, 0]}
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Lock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-xl font-semibold mb-2">Premium Özellik</h3>
-                <p className="text-muted-foreground mb-4">
-                  Günlük grafikler ve gelişmiş göstergelere erişmek için Premium'a yükseltin
-                </p>
-                <Button asChild>
-                  <Link href="/checkout">Premium'a Yükselt</Link>
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-      </Tabs>
 
-          <Card className="mt-6 bg-gradient-to-br from-background to-background/80 border-border/50">
+      <Card className="mt-6 bg-gradient-to-br from-background to-background/80 border-border/50">
             <CardHeader>
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
                   <CardTitle className="text-xl">İşlem Hacmi</CardTitle>
                   <CardDescription>
+                    {timeRangeBottom === '5M' && 'Son 5 dakika hacim dağılımı'}
+                    {timeRangeBottom === '15M' && 'Son 15 dakika hacim dağılımı'}
+                    {timeRangeBottom === '30M' && 'Son 30 dakika hacim dağılımı'}
                     {timeRangeBottom === '1D' && '24 saatlik hacim dağılımı'}
                     {timeRangeBottom === '7D' && '7 günlük hacim dağılımı'}
                     {timeRangeBottom === '30D' && '30 günlük hacim dağılımı'}
@@ -1600,7 +1539,7 @@ export default function CoinDetailPage() {
                           stackId="spot"
                           fill="url(#spotBuyVolumeGradient)"
                           radius={[0, 0, 0, 0]}
-                          isAnimationActive={timeRangeBottom !== '1D'}
+                          isAnimationActive={timeRangeBottom !== '1D' && timeRangeBottom !== '1M' && timeRangeBottom !== '5M' && timeRangeBottom !== '15M' && timeRangeBottom !== '30M'}
                           animationDuration={800}
                           name="Spot Alış"
                         />
@@ -1611,7 +1550,7 @@ export default function CoinDetailPage() {
                           stackId="spot"
                           fill="url(#spotSellVolumeGradient)"
                           radius={showBuyVolume ? [0, 0, 0, 0] : [8, 8, 0, 0]}
-                          isAnimationActive={timeRangeBottom !== '1D'}
+                          isAnimationActive={timeRangeBottom !== '1D' && timeRangeBottom !== '1M' && timeRangeBottom !== '5M' && timeRangeBottom !== '15M' && timeRangeBottom !== '30M'}
                           animationDuration={800}
                           name="Spot Satış"
                         />
@@ -1626,7 +1565,7 @@ export default function CoinDetailPage() {
                           stackId="futures"
                           fill="url(#futuresBuyVolumeGradient)"
                           radius={[0, 0, 0, 0]}
-                          isAnimationActive={timeRangeBottom !== '1D'}
+                          isAnimationActive={timeRangeBottom !== '1D' && timeRangeBottom !== '1M' && timeRangeBottom !== '5M' && timeRangeBottom !== '15M' && timeRangeBottom !== '30M'}
                           animationDuration={800}
                           name="Vadeli Alış"
                         />
@@ -1637,7 +1576,7 @@ export default function CoinDetailPage() {
                           stackId="futures"
                           fill="url(#futuresSellVolumeGradient)"
                           radius={showBuyVolume ? [0, 0, 0, 0] : [8, 8, 0, 0]}
-                          isAnimationActive={timeRangeBottom !== '1D'}
+                          isAnimationActive={timeRangeBottom !== '1D' && timeRangeBottom !== '1M' && timeRangeBottom !== '5M' && timeRangeBottom !== '15M' && timeRangeBottom !== '30M'}
                           animationDuration={800}
                           name="Vadeli Satış"
                         />

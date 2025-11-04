@@ -30,6 +30,22 @@ export async function GET(
     let limit = 24
     
     switch (timeRange) {
+      case '1M':
+        interval = '1m'
+        limit = 5 // Son 5 dakika için 1 dakikalık mumlar (5 data point)
+        break
+      case '5M':
+        interval = '1m'
+        limit = 5 // Son 5 dakika için 1 dakikalık mumlar (5 data point)
+        break
+      case '15M':
+        interval = '1m'
+        limit = 15 // Son 15 dakika için 1 dakikalık mumlar (15 data point)
+        break
+      case '30M':
+        interval = '1m'
+        limit = 30 // Son 30 dakika için 1 dakikalık mumlar (30 data point)
+        break
       case '1D':
         interval = '1h'
         limit = 24 // 24 hours
