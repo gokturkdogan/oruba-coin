@@ -28,6 +28,7 @@ model User {
   subscription              Subscription?
   events                    UserEvent[]
   watchlist                 Watchlist[]
+  priceAlerts               PriceAlert[]
   
   @@map("users")
 }
@@ -105,4 +106,23 @@ model Watchlist {
   @@index([userId])
   @@index([symbol])
   @@map("watchlist")
+}
+
+model PriceAlert {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  symbol    String
+  targetPrice Float   @map("target_price")
+  type      String   // "above" or "below"
+  isActive  Boolean  @default(true) @map("is_active")
+  triggeredAt DateTime? @map("triggered_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([symbol, isActive])
+  @@index([isActive, triggeredAt])
+  @@map("price_alerts")
 }

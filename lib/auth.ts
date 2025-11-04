@@ -52,3 +52,21 @@ export function generateVerificationToken(): string {
   return crypto.randomBytes(32).toString('hex')
 }
 
+// Get user ID from token (for API routes)
+export async function getUserIdFromToken(request: Request): Promise<string | null> {
+  const cookieHeader = request.headers.get('cookie')
+  if (!cookieHeader) return null
+
+  const cookies = cookieHeader.split(';').reduce((acc, cookie) => {
+    const [key, value] = cookie.trim().split('=')
+    acc[key] = value
+    return acc
+  }, {} as Record<string, string>)
+
+  const token = cookies.token
+  if (!token) return null
+
+  const payload = verifyToken(token)
+  return payload?.userId || null
+}
+

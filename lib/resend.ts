@@ -11,21 +11,43 @@ export interface EmailOptions {
 
 export async function sendEmail(options: EmailOptions) {
   try {
+    // Check if RESEND_API_KEY is set
+    if (!process.env.RESEND_API_KEY) {
+      console.error('RESEND_API_KEY is not set in environment variables')
+      throw new Error('RESEND_API_KEY is not configured')
+    }
+
+    const fromEmail = options.from || process.env.EMAIL_FROM || 'Oruba Coin <noreply@oruba-coin.com>'
+    
+    console.log('[Resend] Sending email:', {
+      to: options.to,
+      subject: options.subject,
+      from: fromEmail,
+      hasHtml: !!options.html,
+      htmlLength: options.html?.length || 0
+    })
+
     const { data, error } = await resend.emails.send({
-      from: options.from || 'Oruba Coin <noreply@oruba-coin.com>',
+      from: fromEmail,
       to: Array.isArray(options.to) ? options.to : [options.to],
       subject: options.subject,
       html: options.html,
     })
 
     if (error) {
-      console.error('Resend error:', error)
-      throw new Error(`Failed to send email: ${error.message}`)
+      console.error('[Resend] Error response:', error)
+      throw new Error(`Failed to send email: ${error.message || JSON.stringify(error)}`)
     }
 
+    console.log('[Resend] Email sent successfully:', data)
     return data
-  } catch (error) {
-    console.error('Email send error:', error)
+  } catch (error: any) {
+    console.error('[Resend] Email send error:', {
+      message: error?.message,
+      stack: error?.stack,
+      name: error?.name,
+      error: error
+    })
     throw error
   }
 }
@@ -700,6 +722,201 @@ export async function sendVerificationEmail(email: string, verificationToken: st
               <div class="social-links">
                 <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}">Web Sitesi</a>
                 <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/premium">Premium</a>
+              </div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+  })
+}
+
+// Helper function for sending price alert emails
+export async function sendPriceAlertEmail(
+  email: string,
+  name: string | null | undefined,
+  symbol: string,
+  targetPrice: number,
+  currentPrice: number,
+  type: 'above' | 'below'
+) {
+  const priceDirection = type === 'above' ? 'yukarı' : 'aşağı'
+  const emoji = type === 'above' ? '📈' : '📉'
+  const priceChange = type === 'above' 
+    ? ((currentPrice - targetPrice) / targetPrice * 100).toFixed(2)
+    : ((targetPrice - currentPrice) / targetPrice * 100).toFixed(2)
+
+  return sendEmail({
+    to: email,
+    subject: `${emoji} ${symbol} Fiyat Alarmı - Hedef Fiyata Ulaşıldı!`,
+    html: `
+      <!DOCTYPE html>
+      <html lang="tr">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              padding: 20px;
+              line-height: 1.6;
+            }
+            .email-container {
+              max-width: 600px;
+              margin: 0 auto;
+              background: #ffffff;
+              border-radius: 16px;
+              overflow: hidden;
+              box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            }
+            .header {
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              padding: 40px 30px;
+              text-align: center;
+              color: white;
+            }
+            .logo {
+              font-size: 28px;
+              font-weight: bold;
+              margin-bottom: 10px;
+            }
+            .header h1 {
+              font-size: 24px;
+              font-weight: 600;
+              margin: 0;
+            }
+            .content {
+              padding: 40px 30px;
+              color: #333;
+            }
+            .alert-box {
+              background: linear-gradient(135deg, ${type === 'above' ? '#10b981' : '#ef4444'}15 0%, ${type === 'above' ? '#059669' : '#dc2626'}10 100%);
+              border: 2px solid ${type === 'above' ? '#10b981' : '#ef4444'};
+              border-radius: 12px;
+              padding: 25px;
+              margin: 25px 0;
+              text-align: center;
+            }
+            .alert-box h2 {
+              font-size: 32px;
+              color: ${type === 'above' ? '#10b981' : '#ef4444'};
+              margin-bottom: 15px;
+              font-weight: 700;
+            }
+            .price-info {
+              display: flex;
+              justify-content: space-around;
+              margin: 25px 0;
+              flex-wrap: wrap;
+            }
+            .price-item {
+              flex: 1;
+              min-width: 150px;
+              padding: 15px;
+              background: #f8f9fa;
+              border-radius: 8px;
+              margin: 5px;
+            }
+            .price-item-label {
+              font-size: 12px;
+              color: #666;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              margin-bottom: 5px;
+            }
+            .price-item-value {
+              font-size: 20px;
+              font-weight: 700;
+              color: #333;
+            }
+            .current-price {
+              color: ${type === 'above' ? '#10b981' : '#ef4444'};
+            }
+            .button {
+              display: inline-block;
+              padding: 14px 30px;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+              text-decoration: none;
+              border-radius: 8px;
+              font-weight: 600;
+              margin: 20px 0;
+              transition: transform 0.2s;
+            }
+            .button:hover {
+              transform: translateY(-2px);
+            }
+            .footer {
+              background: #f8f9fa;
+              padding: 25px 30px;
+              text-align: center;
+              color: #666;
+              font-size: 14px;
+            }
+            .social-links {
+              margin-top: 15px;
+            }
+            .social-links a {
+              color: #667eea;
+              text-decoration: none;
+              margin: 0 10px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="email-container">
+            <div class="header">
+              <div class="logo">🚀 Oruba Coin</div>
+              <h1>Fiyat Alarmı</h1>
+            </div>
+            <div class="content">
+              <p class="greeting">Merhaba ${name || 'Değerli Kullanıcı'}, 👋</p>
+              <p style="margin-top: 20px;">Takip ettiğiniz <strong>${symbol}</strong> coin'inin fiyatı, belirlediğiniz hedef fiyata ulaştı!</p>
+              
+              <div class="alert-box">
+                <h2>${emoji} ${symbol}</h2>
+                <p style="font-size: 18px; color: #666; margin-top: 10px;">
+                  Fiyat ${priceDirection} yönünde hedef fiyata ulaştı
+                </p>
+              </div>
+
+              <div class="price-info">
+                <div class="price-item">
+                  <div class="price-item-label">Hedef Fiyat</div>
+                  <div class="price-item-value">$${targetPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}</div>
+                </div>
+                <div class="price-item">
+                  <div class="price-item-label">Güncel Fiyat</div>
+                  <div class="price-item-value current-price">$${currentPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 8 })}</div>
+                </div>
+                <div class="price-item">
+                  <div class="price-item-label">Fark</div>
+                  <div class="price-item-value current-price">%${priceChange}</div>
+                </div>
+              </div>
+
+              <div style="text-align: center; margin-top: 30px;">
+                <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/coins/${symbol}" class="button">
+                  Detaylı Görüntüle →
+                </a>
+              </div>
+
+              <p style="margin-top: 30px; color: #666; font-size: 14px;">
+                Bu alarm otomatik olarak tetiklendi. Yeni bir alarm oluşturmak için watchlist sayfanızdan alarm ayarlarınızı güncelleyebilirsiniz.
+              </p>
+            </div>
+            <div class="footer">
+              <p><strong>Oruba Coin</strong> - Gerçek Zamanlı Kripto Para Analiz Platformu</p>
+              <p>Bu e-posta otomatik olarak gönderilmiştir. Lütfen yanıtlamayın.</p>
+              <div class="social-links">
+                <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}">Web Sitesi</a>
+                <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/watchlist">Takip Listem</a>
               </div>
             </div>
           </div>
