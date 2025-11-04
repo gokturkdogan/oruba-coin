@@ -62,7 +62,11 @@ export async function GET() {
               ])
               
               let spotHourlyVolume = 0
+              let spotHourlyBuyVolume = 0
+              let spotHourlySellVolume = 0
               let futuresHourlyVolume = 0
+              let futuresHourlyBuyVolume = 0
+              let futuresHourlySellVolume = 0
               
               if (spotResponse && spotResponse.ok) {
                 const spotData = await spotResponse.json()
@@ -70,16 +74,21 @@ export async function GET() {
                   const openTime = kline[0]
                   const closeTime = kline[6]
                   const quoteVolume = parseFloat(kline[7] || '0')
+                  const takerBuyQuoteVolume = parseFloat(kline[10] || '0')
+                  const buyVolume = takerBuyQuoteVolume
+                  const sellVolume = quoteVolume - buyVolume
                   
                   if (closeTime >= oneHourAgo) {
-                    if (openTime >= oneHourAgo) {
-                      spotHourlyVolume += quoteVolume
-                    } else {
+                    let proportion = 1
+                    if (openTime < oneHourAgo) {
                       const totalDuration = closeTime - openTime
                       const relevantDuration = closeTime - oneHourAgo
-                      const proportion = relevantDuration / totalDuration
-                      spotHourlyVolume += quoteVolume * proportion
+                      proportion = relevantDuration / totalDuration
                     }
+                    
+                    spotHourlyVolume += quoteVolume * proportion
+                    spotHourlyBuyVolume += buyVolume * proportion
+                    spotHourlySellVolume += sellVolume * proportion
                   }
                 }
               }
@@ -90,16 +99,21 @@ export async function GET() {
                   const openTime = kline[0]
                   const closeTime = kline[6]
                   const quoteVolume = parseFloat(kline[7] || '0')
+                  const takerBuyQuoteVolume = parseFloat(kline[10] || '0')
+                  const buyVolume = takerBuyQuoteVolume
+                  const sellVolume = quoteVolume - buyVolume
                   
                   if (closeTime >= oneHourAgo) {
-                    if (openTime >= oneHourAgo) {
-                      futuresHourlyVolume += quoteVolume
-                    } else {
+                    let proportion = 1
+                    if (openTime < oneHourAgo) {
                       const totalDuration = closeTime - openTime
                       const relevantDuration = closeTime - oneHourAgo
-                      const proportion = relevantDuration / totalDuration
-                      futuresHourlyVolume += quoteVolume * proportion
+                      proportion = relevantDuration / totalDuration
                     }
+                    
+                    futuresHourlyVolume += quoteVolume * proportion
+                    futuresHourlyBuyVolume += buyVolume * proportion
+                    futuresHourlySellVolume += sellVolume * proportion
                   }
                 }
               }
@@ -107,13 +121,21 @@ export async function GET() {
               return {
                 symbol,
                 hourlySpotVolume: spotHourlyVolume.toFixed(2),
+                hourlySpotBuyVolume: spotHourlyBuyVolume.toFixed(2),
+                hourlySpotSellVolume: spotHourlySellVolume.toFixed(2),
                 hourlyFuturesVolume: futuresHourlyVolume.toFixed(2),
+                hourlyFuturesBuyVolume: futuresHourlyBuyVolume.toFixed(2),
+                hourlyFuturesSellVolume: futuresHourlySellVolume.toFixed(2),
               }
             } catch (error) {
               return {
                 symbol,
                 hourlySpotVolume: '0',
+                hourlySpotBuyVolume: '0',
+                hourlySpotSellVolume: '0',
                 hourlyFuturesVolume: '0',
+                hourlyFuturesBuyVolume: '0',
+                hourlyFuturesSellVolume: '0',
               }
             }
           })
@@ -125,14 +147,22 @@ export async function GET() {
             return {
               ...ticker,
               hourlySpotVolume: hourlyData?.hourlySpotVolume || '0',
+              hourlySpotBuyVolume: hourlyData?.hourlySpotBuyVolume || '0',
+              hourlySpotSellVolume: hourlyData?.hourlySpotSellVolume || '0',
               hourlyFuturesVolume: hourlyData?.hourlyFuturesVolume || '0',
+              hourlyFuturesBuyVolume: hourlyData?.hourlyFuturesBuyVolume || '0',
+              hourlyFuturesSellVolume: hourlyData?.hourlyFuturesSellVolume || '0',
             }
           })
           
           const remainingCoins = usdtTickers.slice(100).map((ticker: any) => ({
             ...ticker,
             hourlySpotVolume: '0',
+            hourlySpotBuyVolume: '0',
+            hourlySpotSellVolume: '0',
             hourlyFuturesVolume: '0',
+            hourlyFuturesBuyVolume: '0',
+            hourlyFuturesSellVolume: '0',
           }))
           
           return NextResponse.json({
@@ -170,7 +200,11 @@ export async function GET() {
         ])
         
         let spotHourlyVolume = 0
+        let spotHourlyBuyVolume = 0
+        let spotHourlySellVolume = 0
         let futuresHourlyVolume = 0
+        let futuresHourlyBuyVolume = 0
+        let futuresHourlySellVolume = 0
         
         if (spotResponse.ok) {
           const spotData = await spotResponse.json()
@@ -179,20 +213,24 @@ export async function GET() {
             const openTime = kline[0] // Mum çubuğunun açılış zamanı
             const closeTime = kline[6] // Mum çubuğunun kapanış zamanı
             const quoteVolume = parseFloat(kline[7] || '0')
+            const takerBuyQuoteVolume = parseFloat(kline[10] || '0') // USDT cinsinden alış hacmi
+            const buyVolume = takerBuyQuoteVolume
+            const sellVolume = quoteVolume - buyVolume // Toplam - Alış = Satış
             
             // Eğer bu mum çubuğu son 1 saat içindeyse, hacmini ekle
             if (closeTime >= oneHourAgo) {
+              let proportion = 1
               // Mum çubuğu tamamen son 1 saat içindeyse, tamamını ekle
-              if (openTime >= oneHourAgo) {
-                spotHourlyVolume += quoteVolume
-              } else {
+              if (openTime < oneHourAgo) {
                 // Mum çubuğu kısmen son 1 saat içindeyse, orantılı olarak ekle
-                // Örnek: 2:55'te açtıysak, 1:00-2:00 mum çubuğunun sadece 1:55-2:00 arası kısmı
                 const totalDuration = closeTime - openTime
                 const relevantDuration = closeTime - oneHourAgo
-                const proportion = relevantDuration / totalDuration
-                spotHourlyVolume += quoteVolume * proportion
+                proportion = relevantDuration / totalDuration
               }
+              
+              spotHourlyVolume += quoteVolume * proportion
+              spotHourlyBuyVolume += buyVolume * proportion
+              spotHourlySellVolume += sellVolume * proportion
             }
           }
         }
@@ -203,28 +241,41 @@ export async function GET() {
             const openTime = kline[0]
             const closeTime = kline[6]
             const quoteVolume = parseFloat(kline[7] || '0')
+            const takerBuyQuoteVolume = parseFloat(kline[10] || '0') // USDT cinsinden alış hacmi
+            const buyVolume = takerBuyQuoteVolume
+            const sellVolume = quoteVolume - buyVolume // Toplam - Alış = Satış
             
             if (closeTime >= oneHourAgo) {
-              if (openTime >= oneHourAgo) {
-                futuresHourlyVolume += quoteVolume
-              } else {
+              let proportion = 1
+              if (openTime < oneHourAgo) {
                 const totalDuration = closeTime - openTime
                 const relevantDuration = closeTime - oneHourAgo
-                const proportion = relevantDuration / totalDuration
-                futuresHourlyVolume += quoteVolume * proportion
+                proportion = relevantDuration / totalDuration
               }
+              
+              futuresHourlyVolume += quoteVolume * proportion
+              futuresHourlyBuyVolume += buyVolume * proportion
+              futuresHourlySellVolume += sellVolume * proportion
             }
           }
         }
         
         // String'e çevir
         const spotHourlyVolumeStr = spotHourlyVolume.toFixed(2)
+        const spotHourlyBuyVolumeStr = spotHourlyBuyVolume.toFixed(2)
+        const spotHourlySellVolumeStr = spotHourlySellVolume.toFixed(2)
         const futuresHourlyVolumeStr = futuresHourlyVolume.toFixed(2)
+        const futuresHourlyBuyVolumeStr = futuresHourlyBuyVolume.toFixed(2)
+        const futuresHourlySellVolumeStr = futuresHourlySellVolume.toFixed(2)
         
         return {
           symbol,
           hourlySpotVolume: spotHourlyVolumeStr,
+          hourlySpotBuyVolume: spotHourlyBuyVolumeStr,
+          hourlySpotSellVolume: spotHourlySellVolumeStr,
           hourlyFuturesVolume: futuresHourlyVolumeStr,
+          hourlyFuturesBuyVolume: futuresHourlyBuyVolumeStr,
+          hourlyFuturesSellVolume: futuresHourlySellVolumeStr,
         }
       } catch (error) {
         console.error(`Error fetching hourly volume for ${symbol}:`, error)
@@ -245,7 +296,11 @@ export async function GET() {
       return {
         ...ticker,
         hourlySpotVolume: hourlyData?.hourlySpotVolume || '0',
+        hourlySpotBuyVolume: hourlyData?.hourlySpotBuyVolume || '0',
+        hourlySpotSellVolume: hourlyData?.hourlySpotSellVolume || '0',
         hourlyFuturesVolume: hourlyData?.hourlyFuturesVolume || '0',
+        hourlyFuturesBuyVolume: hourlyData?.hourlyFuturesBuyVolume || '0',
+        hourlyFuturesSellVolume: hourlyData?.hourlyFuturesSellVolume || '0',
       }
     })
     
@@ -253,7 +308,11 @@ export async function GET() {
     const remainingCoins = tickers.slice(100).map((ticker) => ({
       ...ticker,
       hourlySpotVolume: '0',
+      hourlySpotBuyVolume: '0',
+      hourlySpotSellVolume: '0',
       hourlyFuturesVolume: '0',
+      hourlyFuturesBuyVolume: '0',
+      hourlyFuturesSellVolume: '0',
     }))
     
     return NextResponse.json({

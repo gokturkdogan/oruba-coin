@@ -26,7 +26,11 @@ interface Coin {
   futuresVolume?: string
   futuresQuoteVolume?: string
   hourlySpotVolume?: string
+  hourlySpotBuyVolume?: string
+  hourlySpotSellVolume?: string
   hourlyFuturesVolume?: string
+  hourlyFuturesBuyVolume?: string
+  hourlyFuturesSellVolume?: string
 }
 
 type SortBy = 'symbol' | 'price' | 'change' | 'volume' | 'futuresVolume' | 'hourlySpotVolume' | 'hourlyFuturesVolume'
@@ -281,6 +285,22 @@ export default function HourlyVolumePage() {
                 futures: previousQuoteVolumeRef.futures,
               })
 
+              // Buy/sell volume oranlarını koru (mevcut oranları kullan)
+              const currentBuyVolume = parseFloat(existingCoin.hourlySpotBuyVolume || '0')
+              const currentSellVolume = parseFloat(existingCoin.hourlySpotSellVolume || '0')
+              const currentTotalVolume = parseFloat(existingCoin.hourlySpotVolume || '0')
+              
+              let updatedBuyVolume = currentBuyVolume
+              let updatedSellVolume = currentSellVolume
+              
+              // Eğer volume değiştiyse, oranları koruyarak güncelle
+              if (currentTotalVolume > 0 && updatedHourlySpotVolume !== currentTotalVolume) {
+                const buyRatio = currentBuyVolume / currentTotalVolume
+                const sellRatio = currentSellVolume / currentTotalVolume
+                updatedBuyVolume = updatedHourlySpotVolume * buyRatio
+                updatedSellVolume = updatedHourlySpotVolume * sellRatio
+              }
+              
               // Update coin data, preserving futures data and hourly volumes
               const updatedCoin: Coin = {
                 symbol,
@@ -291,7 +311,11 @@ export default function HourlyVolumePage() {
                 futuresVolume: existingCoin.futuresVolume,
                 futuresQuoteVolume: existingCoin.futuresQuoteVolume,
                 hourlySpotVolume: updatedHourlySpotVolume.toString(),
+                hourlySpotBuyVolume: updatedBuyVolume.toFixed(2),
+                hourlySpotSellVolume: updatedSellVolume.toFixed(2),
                 hourlyFuturesVolume: existingCoin.hourlyFuturesVolume || '0',
+                hourlyFuturesBuyVolume: existingCoin.hourlyFuturesBuyVolume || '0',
+                hourlyFuturesSellVolume: existingCoin.hourlyFuturesSellVolume || '0',
               }
               
               // Check if price changed and trigger flash animation
@@ -411,13 +435,33 @@ export default function HourlyVolumePage() {
                 futures: currentFuturesQuoteVolume,
               })
               
+              // Buy/sell volume oranlarını koru (mevcut oranları kullan)
+              const currentFuturesBuyVolume = parseFloat(existingCoin.hourlyFuturesBuyVolume || '0')
+              const currentFuturesSellVolume = parseFloat(existingCoin.hourlyFuturesSellVolume || '0')
+              const currentFuturesTotalVolume = parseFloat(existingCoin.hourlyFuturesVolume || '0')
+              
+              let updatedFuturesBuyVolume = currentFuturesBuyVolume
+              let updatedFuturesSellVolume = currentFuturesSellVolume
+              
+              // Eğer volume değiştiyse, oranları koruyarak güncelle
+              if (currentFuturesTotalVolume > 0 && updatedHourlyFuturesVolume !== currentFuturesTotalVolume) {
+                const buyRatio = currentFuturesBuyVolume / currentFuturesTotalVolume
+                const sellRatio = currentFuturesSellVolume / currentFuturesTotalVolume
+                updatedFuturesBuyVolume = updatedHourlyFuturesVolume * buyRatio
+                updatedFuturesSellVolume = updatedHourlyFuturesVolume * sellRatio
+              }
+              
               // Update coin data, preserving spot data, hourly volumes and updating only futures volume
               const updatedCoin: Coin = {
                 ...existingCoin,
                 futuresVolume: data.v || data.volume || existingCoin.futuresVolume || '0',
                 futuresQuoteVolume: data.q || data.quoteVolume || existingCoin.futuresQuoteVolume || '0',
                 hourlySpotVolume: existingCoin.hourlySpotVolume || '0',
+                hourlySpotBuyVolume: existingCoin.hourlySpotBuyVolume || '0',
+                hourlySpotSellVolume: existingCoin.hourlySpotSellVolume || '0',
                 hourlyFuturesVolume: updatedHourlyFuturesVolume.toString(),
+                hourlyFuturesBuyVolume: updatedFuturesBuyVolume.toFixed(2),
+                hourlyFuturesSellVolume: updatedFuturesSellVolume.toFixed(2),
               }
               
               coinsMapRef.current.set(symbol, updatedCoin)
@@ -674,23 +718,23 @@ export default function HourlyVolumePage() {
   }
 
   return (
-    <div className="w-full py-16">
-      <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-16">
-        <div className="flex justify-between items-start mb-4">
+    <div className="w-full py-6">
+      <div className="container max-w-[95%] mx-auto px-3 mb-6">
+        <div className="flex justify-between items-start mb-3">
           <div>
-            <h1 className="text-5xl font-bold mb-4 gradient-text">Saatlik Hacim Takibi</h1>
-            <p className="text-muted-foreground text-lg">Binance'tan gerçek zamanlı kripto para fiyatları ve saatlik hacim analizi</p>
+            <h1 className="text-3xl font-bold mb-2 gradient-text">Saatlik Hacim Takibi</h1>
+            <p className="text-muted-foreground text-sm">Binance'tan gerçek zamanlı kripto para fiyatları ve saatlik hacim analizi</p>
           </div>
           
           {/* Info Kutusu - Sağ Üst */}
           {pageOpenTime && (
-            <Card className="glass-effect border-white/10 min-w-[280px]">
-              <CardContent className="pt-4">
+            <Card className="glass-effect border-white/10 min-w-[240px]">
+              <CardContent className="pt-3 pb-3">
                 <div className="flex items-start gap-2">
                   <div className="flex-shrink-0 mt-0.5">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5 text-primary"
+                      className="h-4 w-4 text-primary"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -704,13 +748,13 @@ export default function HourlyVolumePage() {
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-foreground mb-1">
+                    <p className="text-xs font-semibold text-foreground mb-1">
                       Saatlik Hacim Takibi
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {formatStartTime(pageOpenTime)} saatinden itibaren
                     </p>
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       hacimler güncel olarak eklenerek güncellenmektedir
                     </p>
                   </div>
@@ -721,13 +765,13 @@ export default function HourlyVolumePage() {
         </div>
       </div>
 
-      <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-10">
+      <div className="container max-w-[95%] mx-auto px-3 mb-4">
         <Card className="glass-effect border-white/10">
-          <CardHeader>
-            <CardTitle className="text-xl">Ara ve Filtrele</CardTitle>
-            <CardDescription>Coinleri bulun ve farklı metriklerle sıralayın</CardDescription>
+          <CardHeader className="pb-3 pt-3">
+            <CardTitle className="text-lg">Ara ve Filtrele</CardTitle>
+            <CardDescription className="text-xs">Coinleri bulun ve farklı metriklerle sıralayın</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-0 pb-3">
             <Input
               placeholder="Coin ara (örn: BTC, ETH, BNB)..."
               value={search}
@@ -739,35 +783,35 @@ export default function HourlyVolumePage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-muted-foreground">
+        <div className="text-center py-12 text-muted-foreground">
           <div className="animate-pulse text-lg">Piyasa verileri yükleniyor...</div>
         </div>
       ) : (
-      <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
-        <div className="glass-effect border border-white/10 rounded-xl overflow-hidden bg-card shadow-xl">
-          <div className="overflow-x-auto">
+      <div className="container max-w-[95%] mx-auto px-3 pb-6">
+        <div className="glass-effect border border-white/10 rounded-xl overflow-hidden bg-card shadow-xl w-full">
+          <div className="overflow-x-auto w-full">
             {/* Custom Table - Pixel Perfect */}
                 <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                   <colgroup>
-                    <col style={{ width: '180px' }} />
-                    <col style={{ width: 'auto' }} />
-                    <col style={{ width: '180px' }} />
-                    <col style={{ width: 'auto' }} />
-                    <col style={{ width: 'auto' }} />
-                    <col style={{ width: 'auto' }} />
-                    <col style={{ width: 'auto' }} />
-                    <col style={{ width: '150px' }} />
+                    <col style={{ width: '8%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '8%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '10%' }} />
                   </colgroup>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', backgroundColor: 'rgba(255, 255, 255, 0.05)' }}>
                   <th style={{ 
                     textAlign: 'left', 
-                    padding: '12px 16px', 
-                    fontWeight: 600, 
-                    color: 'var(--muted-foreground)',
-                    width: '180px',
-                    minWidth: '180px',
-                    maxWidth: '180px'
+                    padding: '8px 12px', 
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    color: 'var(--muted-foreground)'
                   }}>
                     <button
                       onClick={() => handleSort('symbol')}
@@ -796,8 +840,9 @@ export default function HourlyVolumePage() {
                   </th>
                   <th style={{ 
                     textAlign: 'left', 
-                    padding: '12px 16px', 
-                    fontWeight: 600, 
+                    padding: '8px 12px', 
+                    fontWeight: 600,
+                    fontSize: '13px',
                     color: 'var(--muted-foreground)'
                   }}>
                     <button
@@ -805,7 +850,7 @@ export default function HourlyVolumePage() {
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '8px',
+                        gap: '6px',
                         width: '100%',
                         textAlign: 'left',
                         background: 'transparent',
@@ -813,23 +858,22 @@ export default function HourlyVolumePage() {
                         padding: 0,
                         margin: 0,
                         cursor: 'pointer',
-                        color: 'inherit'
+                        color: 'inherit',
+                        fontSize: '13px'
                       }}
                       onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
                       onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}
                     >
                       <span>Fiyat</span>
-                      <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
+                      <ArrowUpDown style={{ width: '14px', height: '14px', flexShrink: 0, marginLeft: 'auto' }} />
                     </button>
                   </th>
                   <th style={{ 
                     textAlign: 'left', 
-                    padding: '12px 16px', 
+                    padding: '8px 12px', 
                     fontWeight: 600, 
-                    color: 'var(--muted-foreground)',
-                    width: '180px',
-                    minWidth: '180px',
-                    maxWidth: '180px'
+                    fontSize: '13px',
+                    color: 'var(--muted-foreground)'
                   }}>
                     <button
                       onClick={() => handleSort('change')}
@@ -855,8 +899,9 @@ export default function HourlyVolumePage() {
                   </th>
                   <th style={{ 
                     textAlign: 'left', 
-                    padding: '12px 16px', 
-                    fontWeight: 600, 
+                    padding: '8px 12px', 
+                    fontWeight: 600,
+                    fontSize: '13px',
                     color: 'var(--muted-foreground)'
                   }}>
                     <button
@@ -864,7 +909,7 @@ export default function HourlyVolumePage() {
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '8px',
+                        gap: '6px',
                         width: '100%',
                         textAlign: 'left',
                         background: 'transparent',
@@ -872,19 +917,21 @@ export default function HourlyVolumePage() {
                         padding: 0,
                         margin: 0,
                         cursor: 'pointer',
-                        color: 'inherit'
+                        color: 'inherit',
+                        fontSize: '13px'
                       }}
                       onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
                       onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}
                     >
                       <span>Spot Hacim</span>
-                      <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
+                      <ArrowUpDown style={{ width: '14px', height: '14px', flexShrink: 0, marginLeft: 'auto' }} />
                     </button>
                   </th>
                   <th style={{ 
                     textAlign: 'left', 
-                    padding: '12px 16px', 
-                    fontWeight: 600, 
+                    padding: '8px 12px', 
+                    fontWeight: 600,
+                    fontSize: '13px',
                     color: 'var(--muted-foreground)'
                   }}>
                     <button
@@ -892,7 +939,7 @@ export default function HourlyVolumePage() {
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '8px',
+                        gap: '6px',
                         width: '100%',
                         textAlign: 'left',
                         background: 'transparent',
@@ -900,20 +947,21 @@ export default function HourlyVolumePage() {
                         padding: 0,
                         margin: 0,
                         cursor: 'pointer',
-                        color: 'inherit'
+                        color: 'inherit',
+                        fontSize: '13px'
                       }}
                       onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
                       onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}
                     >
                       <span>Vadeli Hacim</span>
-                      <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
+                      <ArrowUpDown style={{ width: '14px', height: '14px', flexShrink: 0, marginLeft: 'auto' }} />
                     </button>
                   </th>
                   <th style={{ 
                     textAlign: 'left', 
-                    padding: '12px 16px', 
+                    padding: '8px 12px', 
                     fontWeight: 700,
-                    fontSize: '15px',
+                    fontSize: '13px',
                     color: 'var(--muted-foreground)'
                   }}>
                     <button
@@ -921,7 +969,7 @@ export default function HourlyVolumePage() {
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '8px',
+                        gap: '6px',
                         width: '100%',
                         textAlign: 'left',
                         background: 'transparent',
@@ -931,20 +979,20 @@ export default function HourlyVolumePage() {
                         cursor: 'pointer',
                         color: 'inherit',
                         fontWeight: 'inherit',
-                        fontSize: 'inherit'
+                        fontSize: '13px'
                       }}
                       onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
                       onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}
                     >
-                      <span>Spot Saatlik Hacim</span>
-                      <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
+                      <span>Spot Saatlik</span>
+                      <ArrowUpDown style={{ width: '14px', height: '14px', flexShrink: 0, marginLeft: 'auto' }} />
                     </button>
                   </th>
                   <th style={{ 
                     textAlign: 'left', 
-                    padding: '12px 16px', 
+                    padding: '8px 12px', 
                     fontWeight: 700,
-                    fontSize: '15px',
+                    fontSize: '13px',
                     color: 'var(--muted-foreground)'
                   }}>
                     <button
@@ -952,7 +1000,7 @@ export default function HourlyVolumePage() {
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '8px',
+                        gap: '6px',
                         width: '100%',
                         textAlign: 'left',
                         background: 'transparent',
@@ -962,23 +1010,39 @@ export default function HourlyVolumePage() {
                         cursor: 'pointer',
                         color: 'inherit',
                         fontWeight: 'inherit',
-                        fontSize: 'inherit'
+                        fontSize: '13px'
                       }}
                       onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
                       onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}
                     >
-                      <span>Vadeli Saatlik Hacim</span>
-                      <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
+                      <span>Vadeli Saatlik</span>
+                      <ArrowUpDown style={{ width: '14px', height: '14px', flexShrink: 0, marginLeft: 'auto' }} />
                     </button>
                   </th>
                   <th style={{ 
                     textAlign: 'left', 
-                    padding: '12px 16px', 
+                    padding: '8px 12px', 
                     fontWeight: 600, 
-                    color: 'var(--muted-foreground)',
-                    width: '150px',
-                    minWidth: '150px',
-                    maxWidth: '150px'
+                    fontSize: '12px',
+                    color: 'var(--muted-foreground)'
+                  }}>
+                    Spot A/S
+                  </th>
+                  <th style={{ 
+                    textAlign: 'left', 
+                    padding: '8px 12px', 
+                    fontWeight: 600, 
+                    fontSize: '12px',
+                    color: 'var(--muted-foreground)'
+                  }}>
+                    Vadeli A/S
+                  </th>
+                  <th style={{ 
+                    textAlign: 'left', 
+                    padding: '8px 12px', 
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    color: 'var(--muted-foreground)'
                   }}>
                     İşlemler
                   </th>
@@ -987,7 +1051,7 @@ export default function HourlyVolumePage() {
               <tbody>
                 {coins.length === 0 ? (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: '64px 16px', color: 'var(--muted-foreground)' }}>
+                    <td colSpan={11} style={{ textAlign: 'center', padding: '64px 16px', color: 'var(--muted-foreground)' }}>
                       Coin bulunamadı
                     </td>
                   </tr>
@@ -1026,12 +1090,9 @@ export default function HourlyVolumePage() {
                         }}
                       >
                         <td style={{ 
-                          padding: '12px 16px', 
+                          padding: '8px 12px', 
                           fontWeight: 700, 
-                          fontSize: '18px',
-                          width: '180px',
-                          minWidth: '180px',
-                          maxWidth: '180px'
+                          fontSize: '15px'
                         }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span style={{ width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -1045,26 +1106,23 @@ export default function HourlyVolumePage() {
                           </div>
                         </td>
                         
-                        <td style={{ padding: '12px 16px', fontWeight: 500 }}>
-                          <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md transition-all duration-300 ${
+                        <td style={{ padding: '8px 12px', fontWeight: 500 }}>
+                          <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md transition-all duration-300 text-sm ${
                             isPositive 
                               ? 'text-green-400 bg-green-500/10 group-hover:bg-green-500/20 group-hover:shadow-lg group-hover:shadow-green-500/30' 
                               : 'text-red-400 bg-red-500/10 group-hover:bg-red-500/20 group-hover:shadow-lg group-hover:shadow-red-500/30'
                           }`}>
                             {isPositive ? (
-                              <TrendingUp className="h-3.5 w-3.5 flex-shrink-0" />
+                              <TrendingUp className="h-3 w-3 flex-shrink-0" />
                             ) : (
-                              <TrendingDown className="h-3.5 w-3.5 flex-shrink-0" />
+                              <TrendingDown className="h-3 w-3 flex-shrink-0" />
                             )}
                             <span className="font-semibold">${formatPrice(coin.price)}</span>
                           </div>
                         </td>
                         
                         <td style={{ 
-                          padding: '12px 16px',
-                          width: '180px',
-                          minWidth: '180px',
-                          maxWidth: '180px'
+                          padding: '8px 12px'
                         }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Badge
@@ -1087,9 +1145,9 @@ export default function HourlyVolumePage() {
                         </td>
                         
                         <td style={{ 
-                          padding: '12px 16px', 
+                          padding: '8px 12px', 
                           color: 'var(--muted-foreground)',
-                          fontSize: '14px'
+                          fontSize: '12px'
                         }}>
                           ${parseFloat(coin.quoteVolume || '0').toLocaleString('tr-TR', {
                             maximumFractionDigits: 0,
@@ -1097,9 +1155,9 @@ export default function HourlyVolumePage() {
                         </td>
                         
                         <td style={{ 
-                          padding: '12px 16px', 
+                          padding: '8px 12px', 
                           color: 'var(--muted-foreground)',
-                          fontSize: '14px'
+                          fontSize: '12px'
                         }}>
                           ${parseFloat(coin.futuresQuoteVolume || '0').toLocaleString('tr-TR', {
                             maximumFractionDigits: 0,
@@ -1107,15 +1165,15 @@ export default function HourlyVolumePage() {
                         </td>
                         
                         <td style={{ 
-                          padding: '12px 16px',
+                          padding: '8px 12px',
                           fontWeight: 700,
-                          fontSize: '16px',
+                          fontSize: '13px',
                           color: '#60a5fa'
                         }}>
                           <span style={{ 
                             display: 'inline-block',
-                            padding: '4px 8px',
-                            borderRadius: '6px',
+                            padding: '3px 6px',
+                            borderRadius: '4px',
                             background: 'rgba(96, 165, 250, 0.1)',
                             border: '1px solid rgba(96, 165, 250, 0.2)'
                           }}>
@@ -1126,15 +1184,15 @@ export default function HourlyVolumePage() {
                         </td>
                         
                         <td style={{ 
-                          padding: '12px 16px',
+                          padding: '8px 12px',
                           fontWeight: 700,
-                          fontSize: '16px',
+                          fontSize: '13px',
                           color: '#a78bfa'
                         }}>
                           <span style={{ 
                             display: 'inline-block',
-                            padding: '4px 8px',
-                            borderRadius: '6px',
+                            padding: '3px 6px',
+                            borderRadius: '4px',
                             background: 'rgba(167, 139, 250, 0.1)',
                             border: '1px solid rgba(167, 139, 250, 0.2)'
                           }}>
@@ -1145,10 +1203,45 @@ export default function HourlyVolumePage() {
                         </td>
                         
                         <td style={{ 
-                          padding: '12px 16px',
-                          width: '150px',
-                          minWidth: '150px',
-                          maxWidth: '150px',
+                          padding: '8px 12px',
+                          fontSize: '11px',
+                          color: 'var(--muted-foreground)'
+                        }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <div style={{ color: '#22c55e', fontWeight: 600 }}>
+                              A: ${parseFloat(coin.hourlySpotBuyVolume || '0').toLocaleString('tr-TR', {
+                                maximumFractionDigits: 0,
+                              })}
+                            </div>
+                            <div style={{ color: '#ef4444', fontWeight: 600 }}>
+                              S: ${parseFloat(coin.hourlySpotSellVolume || '0').toLocaleString('tr-TR', {
+                                maximumFractionDigits: 0,
+                              })}
+                            </div>
+                          </div>
+                        </td>
+                        
+                        <td style={{ 
+                          padding: '8px 12px',
+                          fontSize: '11px',
+                          color: 'var(--muted-foreground)'
+                        }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <div style={{ color: '#22c55e', fontWeight: 600 }}>
+                              A: ${parseFloat(coin.hourlyFuturesBuyVolume || '0').toLocaleString('tr-TR', {
+                                maximumFractionDigits: 0,
+                              })}
+                            </div>
+                            <div style={{ color: '#ef4444', fontWeight: 600 }}>
+                              S: ${parseFloat(coin.hourlyFuturesSellVolume || '0').toLocaleString('tr-TR', {
+                                maximumFractionDigits: 0,
+                              })}
+                            </div>
+                          </div>
+                        </td>
+                        
+                        <td style={{ 
+                          padding: '8px 12px',
                           position: 'relative',
                           zIndex: 10
                         }}>
@@ -1166,7 +1259,7 @@ export default function HourlyVolumePage() {
                                 futuresWsRef.current = null
                               }
                             }}
-                            className="inline-flex items-center justify-center text-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-primary/30 bg-background hover:bg-primary/10 hover:border-primary/50 h-9 px-4 py-2 relative z-10 cursor-pointer w-full"
+                            className="inline-flex items-center justify-center text-center rounded-md text-xs font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-primary/30 bg-background hover:bg-primary/10 hover:border-primary/50 h-7 px-2 py-1 relative z-10 cursor-pointer w-full"
                             style={{ position: 'relative', zIndex: 10 }}
                           >
                             Detay
