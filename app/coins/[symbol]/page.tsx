@@ -138,8 +138,11 @@ export default function CoinDetailPage() {
   // Keep ref in sync with state
   useEffect(() => {
     coinDataRef.current = coinData
-    // Store initial values
-    if (coinData) {
+  }, [coinData])
+  
+  // Store initial values only once when coinData is first loaded
+  useEffect(() => {
+    if (coinData && !previousValuesRef.current.price) {
       previousValuesRef.current = {
         price: parseFloat(coinData.price || '0'),
         spotVolume: parseFloat(coinData.quoteVolume || '0'),
@@ -786,7 +789,8 @@ export default function CoinDetailPage() {
                     spotSellVolumeRef.current += quoteAmount
                   }
                   
-                  // Update coinData with new volumes
+                  // Update coinData with new volumes - only update ref, don't trigger state update on every trade
+                  // State will be updated via ticker WebSocket which is less frequent
                   if (coinDataRef.current) {
                     const updatedCoinData: CoinData = {
                       ...coinDataRef.current,
@@ -794,7 +798,8 @@ export default function CoinDetailPage() {
                       spotSellVolume: spotSellVolumeRef.current.toString(),
                     }
                     coinDataRef.current = updatedCoinData
-                    setCoinData(updatedCoinData)
+                    // Don't call setCoinData here - it's too frequent and causes infinite loop
+                    // The ticker WebSocket will update the state periodically
                   }
                   
                   // Use trade ID from Binance if available, otherwise generate a unique ID
@@ -874,7 +879,8 @@ export default function CoinDetailPage() {
                 futuresSellVolumeRef.current += quoteAmount
               }
               
-              // Update coinData with new volumes
+              // Update coinData with new volumes - only update ref, don't trigger state update on every trade
+              // State will be updated via ticker WebSocket which is less frequent
               if (coinDataRef.current) {
                 const updatedCoinData: CoinData = {
                   ...coinDataRef.current,
@@ -882,7 +888,8 @@ export default function CoinDetailPage() {
                   futuresSellVolume: futuresSellVolumeRef.current.toString(),
                 }
                 coinDataRef.current = updatedCoinData
-                setCoinData(updatedCoinData)
+                // Don't call setCoinData here - it's too frequent and causes infinite loop
+                // The ticker WebSocket will update the state periodically
               }
             }
           } catch (error) {
@@ -1205,24 +1212,6 @@ export default function CoinDetailPage() {
                   maximumFractionDigits: 0,
                 })}
               </span>
-              <div className="flex flex-col gap-1 mt-1 pt-2 border-t border-blue-500/20">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-green-400/80">Alış:</span>
-                  <span className="text-green-400 font-semibold">
-                    ${parseFloat(coinData.spotBuyVolume || '0').toLocaleString('tr-TR', {
-                      maximumFractionDigits: 0,
-                    })}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-red-400/80">Satış:</span>
-                  <span className="text-red-400 font-semibold">
-                    ${parseFloat(coinData.spotSellVolume || '0').toLocaleString('tr-TR', {
-                      maximumFractionDigits: 0,
-                    })}
-                  </span>
-                </div>
-              </div>
             </div>
 
             {/* 24 Saatlik Vadeli Hacim */}
@@ -1235,24 +1224,6 @@ export default function CoinDetailPage() {
                   maximumFractionDigits: 0,
                 })}
               </span>
-              <div className="flex flex-col gap-1 mt-1 pt-2 border-t border-purple-500/20">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-green-400/80">Alış:</span>
-                  <span className="text-green-400 font-semibold">
-                    ${parseFloat(coinData.futuresBuyVolume || '0').toLocaleString('tr-TR', {
-                      maximumFractionDigits: 0,
-                    })}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-red-400/80">Satış:</span>
-                  <span className="text-red-400 font-semibold">
-                    ${parseFloat(coinData.futuresSellVolume || '0').toLocaleString('tr-TR', {
-                      maximumFractionDigits: 0,
-                    })}
-                  </span>
-                </div>
-              </div>
             </div>
 
             {/* 24 Saatlik Dolar Cinsinden Değişim */}
