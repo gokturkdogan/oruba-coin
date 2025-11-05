@@ -245,21 +245,6 @@ export function Navbar() {
               )}
             </a>
             <a
-              href="/hourly-volume"
-              onClick={(e) => {
-                e.preventDefault()
-                window.location.href = '/hourly-volume'
-              }}
-              className={`transition-all duration-200 hover:text-primary relative cursor-pointer ${
-                pathname === '/hourly-volume' ? 'text-primary font-semibold' : 'text-foreground/70'
-              }`}
-            >
-              Saatlik Hacim Takibi
-              {pathname === '/hourly-volume' && (
-                <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-gradient-to-r from-primary to-primary/50 rounded-full" />
-              )}
-            </a>
-            <a
               href="/spot-coins"
               onClick={(e) => {
                 e.preventDefault()
@@ -350,11 +335,11 @@ export function Navbar() {
                       <DropdownMenuItem 
                         onClick={(e) => {
                           e.preventDefault()
-                          window.location.href = '/watchlist'
+                          window.location.href = '/spot-watchlist'
                         }}
                         className="cursor-pointer"
                       >
-                        Takip Listem
+                        Spot Takip Listesi
                       </DropdownMenuItem>
                       {user.isAdmin && (
                         <>
@@ -453,19 +438,6 @@ export function Navbar() {
               Premium Programı
             </a>
             <a
-              href="/hourly-volume"
-              onClick={(e) => {
-                e.preventDefault()
-                setMobileMenuOpen(false)
-                window.location.href = '/hourly-volume'
-              }}
-              className={`block px-4 py-2 rounded-lg transition-all cursor-pointer ${
-                pathname === '/hourly-volume' ? 'text-primary bg-primary/10' : 'text-foreground/70 hover:bg-white/5'
-              }`}
-            >
-              Saatlik Hacim Takibi
-            </a>
-            <a
               href="/spot-coins"
               onClick={(e) => {
                 e.preventDefault()
@@ -505,15 +477,15 @@ export function Navbar() {
                   Profil
                 </a>
                 <a
-                  href="/watchlist"
+                  href="/spot-watchlist"
                   onClick={(e) => {
                     e.preventDefault()
                     setMobileMenuOpen(false)
-                    window.location.href = '/watchlist'
+                    window.location.href = '/spot-watchlist'
                   }}
                   className="block px-4 py-2 rounded-lg text-foreground/70 hover:bg-white/5 transition-all cursor-pointer"
                 >
-                  Takip Listem
+                  Spot Takip Listesi
                 </a>
                 {user.isAdmin && (
                   <a

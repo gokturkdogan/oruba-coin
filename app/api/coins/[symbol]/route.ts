@@ -42,9 +42,9 @@ export async function GET(
     // But for initial response, use 24h ticker data
     // Calculate spot buy/sell volumes from 24h ticker
     const spotQuoteVolume = parseFloat(spotTickerData?.quoteVolume || ticker.quoteVolume || '0')
-    const spotBuyVolume24h = parseFloat(spotTickerData?.takerBuyQuoteVolume || '0')
+    let spotBuyVolume24h = parseFloat(spotTickerData?.takerBuyQuoteVolume || '0')
     // Use takerSellQuoteVolume if available, otherwise calculate from difference
-    const spotSellVolume24h = spotTickerData?.takerSellQuoteVolume 
+    let spotSellVolume24h = spotTickerData?.takerSellQuoteVolume 
       ? parseFloat(spotTickerData.takerSellQuoteVolume)
       : spotQuoteVolume - spotBuyVolume24h
     
@@ -126,6 +126,47 @@ export async function GET(
     
     const klines = klinesResult.status === 'fulfilled' ? klinesResult.value : []
     const futuresKlines = futuresKlinesResult.status === 'fulfilled' ? futuresKlinesResult.value : []
+    
+    // If spotBuyVolume24h is 0 or very small compared to quoteVolume, try to calculate from klines
+    // This handles cases where Binance API doesn't return takerBuyQuoteVolume
+    if ((spotBuyVolume24h === 0 || (spotQuoteVolume > 0 && spotBuyVolume24h < spotQuoteVolume * 0.01)) && klines.length > 0) {
+      // For 24h volume, we need to fetch 24h klines explicitly
+      // But first, try to use existing klines if they cover 24h period
+      const now = Date.now()
+      const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000)
+      
+      // Filter klines from last 24 hours
+      const last24hKlines = klines.filter((k: any) => k.openTime >= twentyFourHoursAgo)
+      
+      if (last24hKlines.length > 0) {
+        const calculatedBuy = last24hKlines.reduce((sum: number, k: any) => {
+          return sum + parseFloat(k.takerBuyQuoteVolume || '0')
+        }, 0)
+        
+        const calculatedSell = last24hKlines.reduce((sum: number, k: any) => {
+          const quoteVol = parseFloat(k.quoteVolume || '0')
+          const buyVol = parseFloat(k.takerBuyQuoteVolume || '0')
+          return sum + (quoteVol - buyVol)
+        }, 0)
+        
+        // Only use klines calculation if it gives meaningful results
+        if (calculatedBuy > 0 || calculatedSell > 0) {
+          spotBuyVolume24h = calculatedBuy
+          spotSellVolume24h = calculatedSell
+        }
+      } else if (interval === '1h' && limit >= 24) {
+        // If we have 24 hourly klines, use all of them (they should cover 24h)
+        spotBuyVolume24h = klines.reduce((sum: number, k: any) => {
+          return sum + parseFloat(k.takerBuyQuoteVolume || '0')
+        }, 0)
+        
+        spotSellVolume24h = klines.reduce((sum: number, k: any) => {
+          const quoteVol = parseFloat(k.quoteVolume || '0')
+          const buyVol = parseFloat(k.takerBuyQuoteVolume || '0')
+          return sum + (quoteVol - buyVol)
+        }, 0)
+      }
+    }
 
     // Calculate trade statistics
     let tradeCount = ticker.count || 0

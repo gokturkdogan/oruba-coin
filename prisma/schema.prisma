@@ -31,7 +31,8 @@ model User {
   
   subscription              Subscription?
   events                    UserEvent[]
-  watchlist                 Watchlist[]
+  spotWatchlist             SpotWatchlist[]
+  futuresWatchlist          FuturesWatchlist[]
   priceAlerts               PriceAlert[]
   pendingPayments           PendingPayment[]
   
@@ -99,7 +100,7 @@ model UserEvent {
   @@map("user_events")
 }
 
-model Watchlist {
+model SpotWatchlist {
   id        String   @id @default(uuid())
   userId    String   @map("user_id")
   symbol    String
@@ -110,7 +111,21 @@ model Watchlist {
   @@unique([userId, symbol])
   @@index([userId])
   @@index([symbol])
-  @@map("watchlist")
+  @@map("spot_watchlist")
+}
+
+model FuturesWatchlist {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  symbol    String
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, symbol])
+  @@index([userId])
+  @@index([symbol])
+  @@map("futures_watchlist")
 }
 
 model PriceAlert {

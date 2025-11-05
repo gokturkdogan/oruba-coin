@@ -6,7 +6,8 @@ import Link from 'next/link'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { TrendingUp, TrendingDown, ArrowUpDown } from 'lucide-react'
+import { TrendingUp, TrendingDown, ArrowUpDown, Star, StarOff } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface SpotCoin {
   symbol: string
@@ -24,6 +25,95 @@ type SortOrder = 'asc' | 'desc'
 
 export default function SpotCoinsPage() {
   const router = useRouter()
+  
+  // Fetch watchlist and premium status
+  const fetchWatchlist = async () => {
+    try {
+      const res = await fetch('/api/watchlist/spot')
+      if (res.ok) {
+        const data = await res.json()
+        setWatchlist(new Set(data.watchlist || []))
+        setIsAuthenticated(true)
+      } else {
+        setIsAuthenticated(false)
+      }
+    } catch (error) {
+      setIsAuthenticated(false)
+    }
+    
+    // Also check premium status
+    try {
+      const res = await fetch('/api/user/profile')
+      if (res.ok) {
+        const data = await res.json()
+        setIsPremium(data.user?.isPremium || false)
+      }
+    } catch (error) {
+      setIsPremium(false)
+    }
+  }
+
+  // Toggle watchlist
+  const toggleWatchlist = async (symbol: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    
+    if (!isAuthenticated) {
+      toast.warning('Takip listesi için giriş yapmanız gerekiyor')
+      router.push('/login')
+      return
+    }
+
+    const isInWatchlist = watchlist.has(symbol)
+
+    // Check premium status for adding to watchlist (removing is allowed for everyone)
+    if (!isInWatchlist && !isPremium) {
+      toast.warning('Takip listesine ekleme özelliği premium üyelerimize özeldir')
+      return
+    }
+    
+    try {
+      if (isInWatchlist) {
+        // Remove from watchlist
+        const res = await fetch(`/api/watchlist/spot?symbol=${symbol}`, {
+          method: 'DELETE',
+        })
+        
+        if (res.ok) {
+          setWatchlist((prev) => {
+            const newSet = new Set(prev)
+            newSet.delete(symbol)
+            return newSet
+          })
+          toast.success(`${symbol} spot takip listesinden çıkarıldı`)
+        } else {
+          toast.error('Bir hata oluştu')
+        }
+      } else {
+        // Check if watchlist is full (10 coins limit)
+        if (watchlist.size >= 10) {
+          toast.warning('Spot takip listenizde maksimum 10 coin bulunabilir. Lütfen önce bir coin çıkarın.')
+          return
+        }
+
+        // Add to watchlist
+        const res = await fetch('/api/watchlist/spot', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol }),
+        })
+        
+        if (res.ok) {
+          setWatchlist((prev) => new Set([...prev, symbol]))
+          toast.success(`${symbol} spot takip listesine eklendi`)
+        } else {
+          const data = await res.json()
+          toast.error(data.error || 'Bir hata oluştu')
+        }
+      }
+    } catch (error) {
+      toast.error('Bir hata oluştu')
+    }
+  }
   const [coins, setCoins] = useState<SpotCoin[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -36,6 +126,9 @@ export default function SpotCoinsPage() {
   const hourlyVolumeStartTimeRef = useRef<Map<string, number>>(new Map()) // Her coin için saatlik hacim başlangıç zamanı
   const [flashAnimations, setFlashAnimations] = useState<Record<string, 'up' | 'down'>>({})
   const [pageOpenTime, setPageOpenTime] = useState<number | null>(null) // Sayfa açıldığı zaman (info kutusu için)
+  const [watchlist, setWatchlist] = useState<Set<string>>(new Set())
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isPremium, setIsPremium] = useState(false)
   const sortByRef = useRef<SortBy>(sortBy)
   const sortOrderRef = useRef<SortOrder>(sortOrder)
   const searchRef = useRef<string>(search)
@@ -475,6 +568,7 @@ export default function SpotCoinsPage() {
 
   useEffect(() => {
     fetchCoins()
+    fetchWatchlist()
     
     // Cleanup function - WebSocket'leri kapat
     return () => {
@@ -690,6 +784,38 @@ export default function SpotCoinsPage() {
             />
           </CardContent>
         </Card>
+        
+        {/* Bilgilendirme Kartı */}
+        <Card className="glass-effect border-primary/20 bg-primary/5 mt-4">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 mt-0.5">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 text-primary"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-foreground mb-1">
+                  Takip Listesi Hakkında
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Spot listesinden takip listesine eklediğiniz tüm coinler spot takip listenize eklenecektir.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {loading ? (
@@ -708,6 +834,9 @@ export default function SpotCoinsPage() {
                 <col className="md:w-[180px] w-[140px]" />
                 <col className="md:w-auto w-[130px]" />
                 <col className="md:w-auto w-[130px]" />
+                <col className="md:w-auto w-[130px]" />
+                <col className="md:w-auto w-[130px]" />
+                <col className="md:w-[80px] w-[60px]" />
               </colgroup>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', backgroundColor: 'rgba(255, 255, 255, 0.05)' }}>
@@ -870,12 +999,20 @@ export default function SpotCoinsPage() {
                   }}>
                     <span>Saatlik Satış</span>
                   </th>
+                  <th className="md:w-[80px] md:min-w-[80px] w-[60px] min-w-[60px]" style={{ 
+                    textAlign: 'center', 
+                    padding: '8px 12px',
+                    fontWeight: 600, 
+                    color: 'var(--muted-foreground)'
+                  }}>
+                    <span>Takip</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {coins.length === 0 ? (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', padding: '32px', color: 'var(--muted-foreground)' }}>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '32px', color: 'var(--muted-foreground)' }}>
                       {search ? 'Arama sonucu bulunamadı' : 'Coin bulunamadı'}
                     </td>
                   </tr>
@@ -1006,6 +1143,43 @@ export default function SpotCoinsPage() {
                           <span className="hidden md:inline">${parseFloat(coin.hourlySpotSellVolume || '0').toLocaleString('tr-TR', {
                             maximumFractionDigits: 0,
                           })}</span>
+                        </td>
+                        <td className="md:w-[80px] md:min-w-[80px] w-[60px] min-w-[60px]" style={{ 
+                          textAlign: 'center', 
+                          padding: '8px 12px'
+                        }}>
+                          {isAuthenticated ? (
+                            <button
+                              onClick={(e) => toggleWatchlist(coin.symbol, e)}
+                              style={{
+                                padding: '4px',
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                margin: '0 auto',
+                                color: watchlist.has(coin.symbol) ? '#fbbf24' : 'var(--muted-foreground)',
+                                transition: 'color 0.2s',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.color = '#fbbf24'
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.color = watchlist.has(coin.symbol) ? '#fbbf24' : 'var(--muted-foreground)'
+                              }}
+                              title={watchlist.has(coin.symbol) ? 'Spot takip listesinden çıkar' : 'Spot takip listesine ekle'}
+                            >
+                              {watchlist.has(coin.symbol) ? (
+                                <Star style={{ width: '18px', height: '18px', fill: '#fbbf24' }} />
+                              ) : (
+                                <StarOff style={{ width: '18px', height: '18px' }} />
+                              )}
+                            </button>
+                          ) : (
+                            <span style={{ color: 'var(--muted-foreground)', fontSize: '12px' }}>-</span>
+                          )}
                         </td>
                       </tr>
                     )

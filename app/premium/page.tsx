@@ -165,21 +165,6 @@ export default function PremiumPage() {
               </CardDescription>
             </CardHeader>
           </Card>
-
-          <Card className="glass-effect border-white/10 hover:border-primary/30 transition-all duration-300 hover:shadow-xl hover:shadow-primary/10 group overflow-hidden relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-            <div className="absolute -top-10 -left-10 w-32 h-32 bg-primary/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700" />
-            
-            <CardHeader className="relative z-10">
-              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300">
-                <TrendingUp className="h-7 w-7 text-primary" />
-              </div>
-              <CardTitle className="text-2xl mb-2">Saatlik Hacim Takibi</CardTitle>
-              <CardDescription className="text-base">
-                Saat bazında hacim analizi ile piyasa trendlerini daha iyi anlayın. Zaman dilimlerine göre hacim dağılımını görüntüleyin.
-              </CardDescription>
-            </CardHeader>
-          </Card>
         </div>
       </section>
 
@@ -274,15 +259,6 @@ export default function PremiumPage() {
                   </tr>
                   <tr className="border-b border-white/10">
                     <td className="p-4 font-medium">Trade Takibi</td>
-                    <td className="p-4 text-center">
-                      <span className="text-muted-foreground">-</span>
-                    </td>
-                    <td className="p-4 text-center bg-primary/5">
-                      <Check className="h-5 w-5 text-green-400 mx-auto" />
-                    </td>
-                  </tr>
-                  <tr className="border-b border-white/10">
-                    <td className="p-4 font-medium">Saatlik Hacim Takibi</td>
                     <td className="p-4 text-center">
                       <span className="text-muted-foreground">-</span>
                     </td>
