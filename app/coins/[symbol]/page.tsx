@@ -603,7 +603,10 @@ export default function CoinDetailPage() {
               // Update spot buy/sell volumes from ticker data
               const newSpotBuyVolume = parseFloat(data.Q || data.takerBuyQuoteVolume || '0')
               const newSpotQuoteVolume = parseFloat(data.q || data.quoteVolume || currentCoinData.quoteVolume || '0')
-              const newSpotSellVolume = newSpotQuoteVolume - newSpotBuyVolume
+              // Use takerSellQuoteVolume if available, otherwise calculate from difference
+              const newSpotSellVolume = data.takerSellQuoteVolume 
+                ? parseFloat(data.takerSellQuoteVolume)
+                : newSpotQuoteVolume - newSpotBuyVolume
 
               // Update buy/sell volumes maintaining ratio if total volume changed
               if (newSpotQuoteVolume > 0 && previousValues.spotVolume !== undefined && previousValues.spotVolume > 0) {
@@ -752,7 +755,10 @@ export default function CoinDetailPage() {
               // Update futures buy/sell volumes from ticker data
               const newFuturesBuyVolume = parseFloat(data.Q || data.takerBuyQuoteVolume || '0')
               const newFuturesQuoteVolume = parseFloat(data.q || data.quoteVolume || currentCoinData.futuresQuoteVolume || '0')
-              const newFuturesSellVolume = newFuturesQuoteVolume - newFuturesBuyVolume
+              // Use takerSellQuoteVolume if available, otherwise calculate from difference
+              const newFuturesSellVolume = data.takerSellQuoteVolume
+                ? parseFloat(data.takerSellQuoteVolume)
+                : newFuturesQuoteVolume - newFuturesBuyVolume
 
               // Update buy/sell volumes maintaining ratio if total volume changed
               if (newFuturesQuoteVolume > 0 && previousValues.futuresVolume !== undefined && previousValues.futuresVolume > 0) {

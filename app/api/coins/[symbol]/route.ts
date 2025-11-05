@@ -43,12 +43,32 @@ export async function GET(
     // Calculate spot buy/sell volumes from 24h ticker
     const spotQuoteVolume = parseFloat(spotTickerData?.quoteVolume || ticker.quoteVolume || '0')
     const spotBuyVolume24h = parseFloat(spotTickerData?.takerBuyQuoteVolume || '0')
-    const spotSellVolume24h = spotQuoteVolume - spotBuyVolume24h
+    // Use takerSellQuoteVolume if available, otherwise calculate from difference
+    const spotSellVolume24h = spotTickerData?.takerSellQuoteVolume 
+      ? parseFloat(spotTickerData.takerSellQuoteVolume)
+      : spotQuoteVolume - spotBuyVolume24h
+    
+    // Debug: Log volume data to verify accuracy
+    if (spotQuoteVolume > 1000) {
+      const buyPercent = spotQuoteVolume > 0 ? (spotBuyVolume24h / spotQuoteVolume) * 100 : 0
+      const sellPercent = spotQuoteVolume > 0 ? (spotSellVolume24h / spotQuoteVolume) * 100 : 0
+      console.log(`[${symbol}] Spot 24h volumes: Total=${spotQuoteVolume.toFixed(2)}, Buy=${spotBuyVolume24h.toFixed(2)} (${buyPercent.toFixed(1)}%), Sell=${spotSellVolume24h.toFixed(2)} (${sellPercent.toFixed(1)}%)`)
+    }
 
     // Calculate futures buy/sell volumes from 24h ticker
     const futuresQuoteVolume = parseFloat(futuresTickerData?.quoteVolume || ticker.futuresQuoteVolume || '0')
     const futuresBuyVolume24h = parseFloat(futuresTickerData?.takerBuyQuoteVolume || '0')
-    const futuresSellVolume24h = futuresQuoteVolume - futuresBuyVolume24h
+    // Use takerSellQuoteVolume if available, otherwise calculate from difference
+    const futuresSellVolume24h = futuresTickerData?.takerSellQuoteVolume
+      ? parseFloat(futuresTickerData.takerSellQuoteVolume)
+      : futuresQuoteVolume - futuresBuyVolume24h
+    
+    // Debug: Log futures volume data
+    if (futuresQuoteVolume > 1000) {
+      const buyPercent = futuresQuoteVolume > 0 ? (futuresBuyVolume24h / futuresQuoteVolume) * 100 : 0
+      const sellPercent = futuresQuoteVolume > 0 ? (futuresSellVolume24h / futuresQuoteVolume) * 100 : 0
+      console.log(`[${symbol}] Futures 24h volumes: Total=${futuresQuoteVolume.toFixed(2)}, Buy=${futuresBuyVolume24h.toFixed(2)} (${buyPercent.toFixed(1)}%), Sell=${futuresSellVolume24h.toFixed(2)} (${sellPercent.toFixed(1)}%)`)
+    }
 
     // Determine interval and limit based on time range
     let interval = '1h'
@@ -168,7 +188,20 @@ export async function GET(
       klines: klines.map((k: any) => {
         const quoteVolume = parseFloat(k.quoteVolume || '0')
         const buyVolume = parseFloat(k.takerBuyQuoteVolume || '0')
-        const sellVolume = quoteVolume - buyVolume // Toplam - Alış = Satış
+        // Calculate sell volume: quoteVolume should be sum of buy + sell
+        // But if buyVolume is close to quoteVolume, it might indicate data issue
+        const sellVolume = quoteVolume - buyVolume
+        
+        // Validate: buyVolume + sellVolume should be approximately equal to quoteVolume
+        // If difference is too large, log for debugging
+        const total = buyVolume + sellVolume
+        const difference = Math.abs(quoteVolume - total)
+        const percentDiff = quoteVolume > 0 ? (difference / quoteVolume) * 100 : 0
+        
+        if (percentDiff > 5 && quoteVolume > 1000) { // More than 5% difference and meaningful volume
+          console.warn(`[${symbol}] Volume mismatch in kline: quoteVolume=${quoteVolume}, buy=${buyVolume}, sell=${sellVolume}, total=${total}, diff=${percentDiff.toFixed(2)}%`)
+        }
+        
         return {
           time: k.openTime,
           open: parseFloat(k.open),
@@ -193,6 +226,16 @@ export async function GET(
         const quoteVolume = parseFloat(k.quoteVolume || '0')
         const buyVolume = parseFloat(k.takerBuyQuoteVolume || '0')
         const sellVolume = quoteVolume - buyVolume
+        
+        // Validate: buyVolume + sellVolume should be approximately equal to quoteVolume
+        const total = buyVolume + sellVolume
+        const difference = Math.abs(quoteVolume - total)
+        const percentDiff = quoteVolume > 0 ? (difference / quoteVolume) * 100 : 0
+        
+        if (percentDiff > 5 && quoteVolume > 1000) { // More than 5% difference and meaningful volume
+          console.warn(`[${symbol}] Futures volume mismatch in kline: quoteVolume=${quoteVolume}, buy=${buyVolume}, sell=${sellVolume}, total=${total}, diff=${percentDiff.toFixed(2)}%`)
+        }
+        
         return {
           time: k.openTime,
           open: parseFloat(k.open),
