@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -135,6 +135,31 @@ export default function CoinDetailPage() {
   const [showFuturesVolumeBottom, setShowFuturesVolumeBottom] = useState(true)
   const [showBuyVolume, setShowBuyVolume] = useState(true)
   const [showSellVolume, setShowSellVolume] = useState(true)
+
+  // Calculate total volumes for the selected time range - must be before useEffect hooks
+  const totalVolumes = useMemo(() => {
+    if (chartKlinesBottom.length === 0) {
+      return {
+        spotBuy: 0,
+        spotSell: 0,
+        futuresBuy: 0,
+        futuresSell: 0,
+      }
+    }
+    
+    // Calculate totals from raw klines data
+    const spotBuy = chartKlinesBottom.reduce((sum, k) => sum + (k.buyVolume || 0), 0)
+    const spotSell = chartKlinesBottom.reduce((sum, k) => sum + (k.sellVolume || 0), 0)
+    const futuresBuy = chartFuturesKlinesBottom.reduce((sum, k) => sum + (k.buyVolume || 0), 0)
+    const futuresSell = chartFuturesKlinesBottom.reduce((sum, k) => sum + (k.sellVolume || 0), 0)
+    
+    return {
+      spotBuy,
+      spotSell,
+      futuresBuy,
+      futuresSell,
+    }
+  }, [chartKlinesBottom, chartFuturesKlinesBottom])
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -1667,6 +1692,38 @@ export default function CoinDetailPage() {
                   </Label>
                 </div>
               </div>
+              
+              {/* Toplam Hacim Bilgileri */}
+              {chartKlinesBottom.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-border/50">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-background/50 p-3 rounded-lg border border-border/30">
+                      <div className="text-xs text-muted-foreground mb-1">Spot Toplam Alış</div>
+                      <div className="text-sm font-semibold text-green-400">
+                        ${formatNumberTR(totalVolumes.spotBuy)}
+                      </div>
+                    </div>
+                    <div className="bg-background/50 p-3 rounded-lg border border-border/30">
+                      <div className="text-xs text-muted-foreground mb-1">Spot Toplam Satış</div>
+                      <div className="text-sm font-semibold text-red-400">
+                        ${formatNumberTR(totalVolumes.spotSell)}
+                      </div>
+                    </div>
+                    <div className="bg-background/50 p-3 rounded-lg border border-border/30">
+                      <div className="text-xs text-muted-foreground mb-1">Vadeli Toplam Alış</div>
+                      <div className="text-sm font-semibold text-green-300">
+                        ${formatNumberTR(totalVolumes.futuresBuy)}
+                      </div>
+                    </div>
+                    <div className="bg-background/50 p-3 rounded-lg border border-border/30">
+                      <div className="text-xs text-muted-foreground mb-1">Vadeli Toplam Satış</div>
+                      <div className="text-sm font-semibold text-red-300">
+                        ${formatNumberTR(totalVolumes.futuresSell)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardHeader>
             <CardContent>
               {chartLoadingBottom ? (
