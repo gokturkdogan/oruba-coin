@@ -43,13 +43,14 @@ export default function HourlyVolumePage() {
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<SortBy>('volume')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
-  const wsRef = useRef<WebSocket | null>(null)
-  const futuresWsRef = useRef<WebSocket | null>(null)
-  const tradesWsRef = useRef<WebSocket | null>(null)
+  const wsRef = useRef<WebSocket | null>(null) // Spot ticker WebSocket
+  const futuresWsRef = useRef<WebSocket | null>(null) // Futures ticker WebSocket
+  const spotTradesWsRef = useRef<WebSocket | null>(null) // Spot trade WebSocket
+  const futuresTradesWsRef = useRef<WebSocket | null>(null) // Futures trade WebSocket
   const coinsMapRef = useRef<Map<string, Coin>>(new Map())
   const previousPricesRef = useRef<Map<string, number>>(new Map())
   const hourlyVolumeStartTimeRef = useRef<Map<string, number>>(new Map()) // Her coin için mevcut saatin başlangıç zamanı
-  const hourlyVolumeAccumulatorRef = useRef<Map<string, { spot: number, futures: number }>>(new Map()) // Saatlik hacim toplayıcıları
+  const hourlyVolumeAccumulatorRef = useRef<Map<string, { spot: number, spotBuy: number, spotSell: number, futures: number, futuresBuy: number, futuresSell: number }>>(new Map()) // Saatlik hacim toplayıcıları (alış/satış ayrımı ile)
   const previousQuoteVolumesRef = useRef<Map<string, { spot: number, futures: number }>>(new Map()) // Önceki 24 saatlik toplam volume'lar (sadece değişiklik hesaplamak için)
   const [flashAnimations, setFlashAnimations] = useState<Record<string, 'up' | 'down'>>({})
   const [pageOpenTime, setPageOpenTime] = useState<number | null>(null) // Sayfa açıldığı zaman
@@ -156,6 +157,7 @@ export default function HourlyVolumePage() {
       // Böylece 1:55-2:55 arası hacmi gösterip, sonra 2:55'ten itibaren gelen trade'leri ekleyeceğiz
       const currentTime = Date.now()
       const oneHourAgo = currentTime - (60 * 60 * 1000) // Tam 1 saat önce
+      const pageOpenTime = currentTime // Sayfa açıldığı zaman
       
       // Sayfa açıldığı zamanı kaydet (info kutusu için)
       setPageOpenTime(oneHourAgo)
@@ -164,16 +166,23 @@ export default function HourlyVolumePage() {
         coinsMapRef.current.set(coin.symbol, coin)
         previousPricesRef.current.set(coin.symbol, parseFloat(coin.price))
         
-        // Her coin için saatlik hacim başlangıç zamanını ve toplayıcıları ayarla
+        // Her coin için saatlik hacim başlangıç zamanını kaydet
         // İlk yüklemede gelen hourlySpotVolume ve hourlyFuturesVolume, tam 1 saat öncesinden şu ana kadar olan hacim
         // Örnek: 2:55'te açtıysak, 1:55-2:55 arası hacim gösterilir
-        // Şimdi 2:55'ten itibaren gelen trade'leri ekleyeceğiz
+        // Şimdi 2:55'ten itibaren gelen trade'leri direkt alış/satış olarak ekleyeceğiz
         hourlyVolumeStartTimeRef.current.set(coin.symbol, oneHourAgo)
+        
+        // İlk yüklemeden gelen alış/satış hacimlerini kaydet (sayfa açıldıktan sonra gelen trade'ler bunlara eklenecek)
         hourlyVolumeAccumulatorRef.current.set(coin.symbol, {
-          spot: parseFloat(coin.hourlySpotVolume || '0'), // İlk yüklemeden gelen 1 saatlik hacim
+          spot: parseFloat(coin.hourlySpotVolume || '0'),
+          spotBuy: parseFloat(coin.hourlySpotBuyVolume || '0'),
+          spotSell: parseFloat(coin.hourlySpotSellVolume || '0'),
           futures: parseFloat(coin.hourlyFuturesVolume || '0'),
+          futuresBuy: parseFloat(coin.hourlyFuturesBuyVolume || '0'),
+          futuresSell: parseFloat(coin.hourlyFuturesSellVolume || '0'),
         })
-        // İlk 24 saatlik toplam volume'ları kaydet (sadece değişiklik hesaplamak için)
+        
+        // İlk 24 saatlik toplam volume'ları kaydet (sadece fiyat ve 24 saatlik volume güncellemesi için)
         previousQuoteVolumesRef.current.set(coin.symbol, {
           spot: parseFloat(coin.quoteVolume || '0'),
           futures: parseFloat(coin.futuresQuoteVolume || '0'),
@@ -212,14 +221,30 @@ export default function HourlyVolumePage() {
     // Binance allows up to 200 streams in a single connection
     // We'll subscribe to top 200 symbols (Binance limit)
     const limitedSymbols = symbols.slice(0, 200).map((s) => s.toUpperCase())
-    const streams = limitedSymbols
+    
+    // Ticker streams (sadece fiyat ve 24 saatlik volume için)
+    const tickerStreams = limitedSymbols
       .map((s) => `${s.toLowerCase()}@ticker`)
       .join('/')
+    
+    // Trade streams (her trade'i alış/satış olarak takip edecek)
+    const spotTradeStreams = limitedSymbols
+      .map((s) => `${s.toLowerCase()}@trade`)
+      .join('/')
+    
+    // Futures trade streams (aggTrade stream kullanıyoruz)
+    const futuresTradeStreams = limitedSymbols
+      .map((s) => `${s.toLowerCase()}@aggTrade`)
+      .join('/')
 
-    // Spot WebSocket
-    const spotWsUrl = `wss://stream.binance.com:9443/stream?streams=${streams}`
-    // Futures WebSocket
-    const futuresWsUrl = `wss://fstream.binance.com/stream?streams=${streams}`
+    // Spot Ticker WebSocket (sadece fiyat ve 24 saatlik volume)
+    const spotTickerWsUrl = `wss://stream.binance.com:9443/stream?streams=${tickerStreams}`
+    // Futures Ticker WebSocket (sadece fiyat ve 24 saatlik volume)
+    const futuresTickerWsUrl = `wss://fstream.binance.com/stream?streams=${tickerStreams}`
+    // Spot Trade WebSocket (her trade'i alış/satış olarak takip edecek)
+    const spotTradeWsUrl = `wss://stream.binance.com:9443/stream?streams=${spotTradeStreams}`
+    // Futures Trade WebSocket (her trade'i alış/satış olarak takip edecek)
+    const futuresTradeWsUrl = `wss://fstream.binance.com/stream?streams=${futuresTradeStreams}`
 
     // Helper function to update coins and trigger re-render (throttled for performance)
     const updateCoinsDisplay = () => {
@@ -256,9 +281,9 @@ export default function HourlyVolumePage() {
       lastUpdateTimeRef.current = now
     }
 
-    // Spot WebSocket
+    // Spot Ticker WebSocket (sadece fiyat ve 24 saatlik volume)
     try {
-      const spotWs = new WebSocket(spotWsUrl)
+      const spotWs = new WebSocket(spotTickerWsUrl)
 
       spotWs.onopen = () => {
         console.log('Spot WebSocket connected')
@@ -281,58 +306,23 @@ export default function HourlyVolumePage() {
               const previousPrice = previousPricesRef.current.get(symbol)
               const currentPrice = parseFloat(data.c || data.lastPrice || '0')
               
-              // Saatlik hacim güncellemesi - Sadece yeni trade'leri ekle
-              // Zaman aralığı sabit kalacak (sayfa açıldığı andan 1 saat öncesi)
-              const currentQuoteVolume = parseFloat(data.q || data.quoteVolume || '0')
-              const previousQuoteVolumeRef = previousQuoteVolumesRef.current.get(symbol) || { spot: 0, futures: 0 }
-              const previousQuoteVolume = previousQuoteVolumeRef.spot
+              // Ticker WebSocket sadece fiyat ve 24 saatlik volume güncellemesi yapar
+              // Saatlik hacim güncellemeleri trade WebSocket'lerinden gelecek
               
-              // Volume değişikliğini hesapla (24 saatlik toplam volume'daki artış)
-              // ÖNEMLİ: WebSocket ticker stream'i sadece 24 saatlik toplam volume'u gösterir
-              // Bu değişiklik çok büyük olabilir (çünkü geçmiş trade'ler 24 saat dışına çıkıyor)
-              // Bu yüzden sadece pozitif ve makul değişiklikleri kabul ediyoruz
-              const volumeDiff = currentQuoteVolume - previousQuoteVolume
-              
-              let updatedHourlySpotVolume = parseFloat(existingCoin.hourlySpotVolume || '0')
-              
-              // Sadece volume arttıysa VE değişiklik makul bir aralıktaysa saatlik hacme ekle
-              // Makul aralık: saatlik hacim, 24 saatlik hacmin maksimum %5'i kadar olabilir
-              // Eğer değişiklik çok büyükse, bu bir hesaplama hatası olabilir, ekleme
-              const maxReasonableChange = parseFloat(existingCoin.quoteVolume || '0') * 0.05
-              
-              if (volumeDiff > 0 && volumeDiff <= maxReasonableChange) {
-                const accumulator = hourlyVolumeAccumulatorRef.current.get(symbol) || { spot: 0, futures: 0 }
-                accumulator.spot += volumeDiff
-                hourlyVolumeAccumulatorRef.current.set(symbol, accumulator)
-                updatedHourlySpotVolume = accumulator.spot
-              } else if (volumeDiff < 0) {
-                // Volume azaldıysa (24 saatlik toplam volume'dan eski trade'ler çıktı), saatlik hacmi etkilemez
-                // Çünkü biz sadece sayfa açıldıktan sonraki yeni trade'leri takip ediyoruz
-              }
-              
-              // Önceki volume'u güncelle
+              // 24 saatlik volume'u güncelle
               previousQuoteVolumesRef.current.set(symbol, {
-                spot: currentQuoteVolume,
-                futures: previousQuoteVolumeRef.futures,
+                spot: parseFloat(data.q || data.quoteVolume || '0'),
+                futures: previousQuoteVolumesRef.current.get(symbol)?.futures || 0,
               })
-
-              // Buy/sell volume oranlarını koru (mevcut oranları kullan)
-              const currentBuyVolume = parseFloat(existingCoin.hourlySpotBuyVolume || '0')
-              const currentSellVolume = parseFloat(existingCoin.hourlySpotSellVolume || '0')
-              const currentTotalVolume = parseFloat(existingCoin.hourlySpotVolume || '0')
               
-              let updatedBuyVolume = currentBuyVolume
-              let updatedSellVolume = currentSellVolume
-              
-              // Eğer volume değiştiyse, oranları koruyarak güncelle
-              if (currentTotalVolume > 0 && updatedHourlySpotVolume !== currentTotalVolume) {
-                const buyRatio = currentBuyVolume / currentTotalVolume
-                const sellRatio = currentSellVolume / currentTotalVolume
-                updatedBuyVolume = updatedHourlySpotVolume * buyRatio
-                updatedSellVolume = updatedHourlySpotVolume * sellRatio
+              // Saatlik hacimler trade WebSocket'lerinden güncellenecek, buradan accumulator'dan al
+              const accumulator = hourlyVolumeAccumulatorRef.current.get(symbol) || {
+                spot: 0, spotBuy: 0, spotSell: 0,
+                futures: 0, futuresBuy: 0, futuresSell: 0
               }
               
-              // Update coin data, preserving futures data and hourly volumes
+              // Update coin data - sadece fiyat, priceChangePercent ve 24 saatlik volume
+              // Saatlik hacimler trade WebSocket'lerinden güncellenecek
               const updatedCoin: Coin = {
                 symbol,
                 price: data.c || data.lastPrice || '0',
@@ -341,12 +331,12 @@ export default function HourlyVolumePage() {
                 quoteVolume: data.q || data.quoteVolume || '0',
                 futuresVolume: existingCoin.futuresVolume,
                 futuresQuoteVolume: existingCoin.futuresQuoteVolume,
-                hourlySpotVolume: updatedHourlySpotVolume.toString(),
-                hourlySpotBuyVolume: updatedBuyVolume.toFixed(2),
-                hourlySpotSellVolume: updatedSellVolume.toFixed(2),
-                hourlyFuturesVolume: existingCoin.hourlyFuturesVolume || '0',
-                hourlyFuturesBuyVolume: existingCoin.hourlyFuturesBuyVolume || '0',
-                hourlyFuturesSellVolume: existingCoin.hourlyFuturesSellVolume || '0',
+                hourlySpotVolume: accumulator.spot.toFixed(2),
+                hourlySpotBuyVolume: accumulator.spotBuy.toFixed(2),
+                hourlySpotSellVolume: accumulator.spotSell.toFixed(2),
+                hourlyFuturesVolume: accumulator.futures.toFixed(2),
+                hourlyFuturesBuyVolume: accumulator.futuresBuy.toFixed(2),
+                hourlyFuturesSellVolume: accumulator.futuresSell.toFixed(2),
               }
               
               // Check if price changed and trigger flash animation (optimized with debounce)
@@ -430,9 +420,9 @@ export default function HourlyVolumePage() {
       console.error('Failed to create Spot WebSocket:', error)
     }
 
-    // Futures WebSocket
+    // Futures Ticker WebSocket (sadece fiyat ve 24 saatlik volume)
     try {
-      const futuresWs = new WebSocket(futuresWsUrl)
+      const futuresWs = new WebSocket(futuresTickerWsUrl)
 
       futuresWs.onopen = () => {
         console.log('Futures WebSocket connected')
@@ -453,68 +443,33 @@ export default function HourlyVolumePage() {
             if (isMountedRef.current && coinsMapRef.current.has(symbol)) {
               const existingCoin = coinsMapRef.current.get(symbol)!
               
-              // Saatlik futures hacim güncellemesi - Sadece yeni trade'leri ekle
-              // Zaman aralığı sabit kalacak (sayfa açıldığı andan 1 saat öncesi)
-              const currentFuturesQuoteVolume = parseFloat(data.q || data.quoteVolume || '0')
-              const previousQuoteVolumeRef = previousQuoteVolumesRef.current.get(symbol) || { spot: 0, futures: 0 }
-              const previousFuturesQuoteVolume = previousQuoteVolumeRef.futures
+              // Ticker WebSocket sadece fiyat ve 24 saatlik volume güncellemesi yapar
+              // Saatlik hacim güncellemeleri trade WebSocket'lerinden gelecek
               
-              // Volume değişikliğini hesapla (24 saatlik toplam volume'daki artış)
-              // ÖNEMLİ: WebSocket ticker stream'i sadece 24 saatlik toplam volume'u gösterir
-              // Bu değişiklik çok büyük olabilir (çünkü geçmiş trade'ler 24 saat dışına çıkıyor)
-              // Bu yüzden sadece pozitif ve makul değişiklikleri kabul ediyoruz
-              const futuresVolumeDiff = currentFuturesQuoteVolume - previousFuturesQuoteVolume
-              
-              let updatedHourlyFuturesVolume = parseFloat(existingCoin.hourlyFuturesVolume || '0')
-              
-              // Sadece volume arttıysa VE değişiklik makul bir aralıktaysa saatlik hacme ekle
-              // Makul aralık: saatlik hacim, 24 saatlik hacmin maksimum %5'i kadar olabilir
-              // Eğer değişiklik çok büyükse, bu bir hesaplama hatası olabilir, ekleme
-              const maxReasonableChange = parseFloat(existingCoin.futuresQuoteVolume || '0') * 0.05
-              
-              if (futuresVolumeDiff > 0 && futuresVolumeDiff <= maxReasonableChange) {
-                const accumulator = hourlyVolumeAccumulatorRef.current.get(symbol) || { spot: 0, futures: 0 }
-                accumulator.futures += futuresVolumeDiff
-                hourlyVolumeAccumulatorRef.current.set(symbol, accumulator)
-                updatedHourlyFuturesVolume = accumulator.futures
-              } else if (futuresVolumeDiff < 0) {
-                // Volume azaldıysa (24 saatlik toplam volume'dan eski trade'ler çıktı), saatlik hacmi etkilemez
-                // Çünkü biz sadece sayfa açıldıktan sonraki yeni trade'leri takip ediyoruz
-              }
-              
-              // Önceki volume'u güncelle
+              // 24 saatlik volume'u güncelle
               previousQuoteVolumesRef.current.set(symbol, {
-                spot: previousQuoteVolumeRef.spot,
-                futures: currentFuturesQuoteVolume,
+                spot: previousQuoteVolumesRef.current.get(symbol)?.spot || 0,
+                futures: parseFloat(data.q || data.quoteVolume || '0'),
               })
               
-              // Buy/sell volume oranlarını koru (mevcut oranları kullan)
-              const currentFuturesBuyVolume = parseFloat(existingCoin.hourlyFuturesBuyVolume || '0')
-              const currentFuturesSellVolume = parseFloat(existingCoin.hourlyFuturesSellVolume || '0')
-              const currentFuturesTotalVolume = parseFloat(existingCoin.hourlyFuturesVolume || '0')
-              
-              let updatedFuturesBuyVolume = currentFuturesBuyVolume
-              let updatedFuturesSellVolume = currentFuturesSellVolume
-              
-              // Eğer volume değiştiyse, oranları koruyarak güncelle
-              if (currentFuturesTotalVolume > 0 && updatedHourlyFuturesVolume !== currentFuturesTotalVolume) {
-                const buyRatio = currentFuturesBuyVolume / currentFuturesTotalVolume
-                const sellRatio = currentFuturesSellVolume / currentFuturesTotalVolume
-                updatedFuturesBuyVolume = updatedHourlyFuturesVolume * buyRatio
-                updatedFuturesSellVolume = updatedHourlyFuturesVolume * sellRatio
+              // Saatlik hacimler trade WebSocket'lerinden güncellenecek, buradan accumulator'dan al
+              const accumulator = hourlyVolumeAccumulatorRef.current.get(symbol) || {
+                spot: 0, spotBuy: 0, spotSell: 0,
+                futures: 0, futuresBuy: 0, futuresSell: 0
               }
               
-              // Update coin data, preserving spot data, hourly volumes and updating only futures volume
+              // Update coin data - sadece fiyat, priceChangePercent ve 24 saatlik volume
+              // Saatlik hacimler trade WebSocket'lerinden güncellenecek
               const updatedCoin: Coin = {
                 ...existingCoin,
                 futuresVolume: data.v || data.volume || existingCoin.futuresVolume || '0',
                 futuresQuoteVolume: data.q || data.quoteVolume || existingCoin.futuresQuoteVolume || '0',
-                hourlySpotVolume: existingCoin.hourlySpotVolume || '0',
-                hourlySpotBuyVolume: existingCoin.hourlySpotBuyVolume || '0',
-                hourlySpotSellVolume: existingCoin.hourlySpotSellVolume || '0',
-                hourlyFuturesVolume: updatedHourlyFuturesVolume.toString(),
-                hourlyFuturesBuyVolume: updatedFuturesBuyVolume.toFixed(2),
-                hourlyFuturesSellVolume: updatedFuturesSellVolume.toFixed(2),
+                hourlySpotVolume: accumulator.spot.toFixed(2),
+                hourlySpotBuyVolume: accumulator.spotBuy.toFixed(2),
+                hourlySpotSellVolume: accumulator.spotSell.toFixed(2),
+                hourlyFuturesVolume: accumulator.futures.toFixed(2),
+                hourlyFuturesBuyVolume: accumulator.futuresBuy.toFixed(2),
+                hourlyFuturesSellVolume: accumulator.futuresSell.toFixed(2),
               }
               
               coinsMapRef.current.set(symbol, updatedCoin)
@@ -545,7 +500,241 @@ export default function HourlyVolumePage() {
 
       futuresWsRef.current = futuresWs
     } catch (error) {
-      console.error('Failed to create Futures WebSocket:', error)
+      console.error('Failed to create Futures Ticker WebSocket:', error)
+    }
+
+    // Spot Trade WebSocket (her trade'i alış/satış olarak takip edecek)
+    try {
+      const spotTradeWs = new WebSocket(spotTradeWsUrl)
+      
+      const spotTradeWsTimeout = setTimeout(() => {
+        if (spotTradeWs.readyState === WebSocket.CONNECTING) {
+          console.warn('Spot Trade WebSocket connection timeout, closing...')
+          try {
+            spotTradeWs.close()
+          } catch (e) {
+            console.error('Error closing timed-out Spot Trade WebSocket:', e)
+          }
+          
+          if (isMountedRef.current && spotTradesWsRef.current === spotTradeWs) {
+            setTimeout(() => {
+              const currentSymbols = Array.from(coinsMapRef.current.keys())
+              if (isMountedRef.current && currentSymbols.length > 0) {
+                subscribeToWebSocket(currentSymbols)
+              }
+            }, 2000)
+          }
+        }
+      }, 10000)
+
+      spotTradeWs.onopen = () => {
+        clearTimeout(spotTradeWsTimeout)
+        console.log('Spot Trade WebSocket connected')
+      }
+
+      spotTradeWs.onmessage = (event) => {
+        if (!isMountedRef.current) return
+        
+        try {
+          const message = JSON.parse(event.data)
+          if (message.stream && message.data) {
+            const stream = message.stream
+            const data = message.data
+            const symbol = stream.split('@')[0].toUpperCase()
+            
+            // Sadece sayfa açıldıktan sonraki trade'leri işle
+            const oneHourAgo = hourlyVolumeStartTimeRef.current.get(symbol)
+            if (!oneHourAgo) return
+            
+            const tradeTime = data.T || data.t || 0 // Trade zamanı
+            // Trade zamanı sayfa açıldıktan sonraki trade'ler için
+            if (tradeTime < oneHourAgo) return
+            
+            if (isMountedRef.current && coinsMapRef.current.has(symbol)) {
+              const existingCoin = coinsMapRef.current.get(symbol)!
+              
+              // Trade bilgilerini al
+              const price = parseFloat(data.p || data.price || '0')
+              const quantity = parseFloat(data.q || data.quantity || '0')
+              const quoteAmount = price * quantity // USDT cinsinden hacim
+              
+              // isBuyerMaker: false = alış (buy), true = satış (sell)
+              const isBuyerMaker = data.m !== undefined ? data.m : (data.isBuyerMaker !== undefined ? data.isBuyerMaker : false)
+              
+              // Accumulator'ı güncelle
+              const accumulator = hourlyVolumeAccumulatorRef.current.get(symbol) || {
+                spot: 0, spotBuy: 0, spotSell: 0,
+                futures: 0, futuresBuy: 0, futuresSell: 0
+              }
+              
+              if (!isBuyerMaker) {
+                // Alış trade'i
+                accumulator.spotBuy += quoteAmount
+              } else {
+                // Satış trade'i
+                accumulator.spotSell += quoteAmount
+              }
+              
+              // Toplam spot hacmi güncelle
+              accumulator.spot = accumulator.spotBuy + accumulator.spotSell
+              
+              hourlyVolumeAccumulatorRef.current.set(symbol, accumulator)
+              
+              // Coin verisini güncelle
+              const updatedCoin: Coin = {
+                ...existingCoin,
+                hourlySpotVolume: accumulator.spot.toFixed(2),
+                hourlySpotBuyVolume: accumulator.spotBuy.toFixed(2),
+                hourlySpotSellVolume: accumulator.spotSell.toFixed(2),
+              }
+              
+              coinsMapRef.current.set(symbol, updatedCoin)
+              updateCoinsDisplay()
+            }
+          }
+        } catch (error) {
+          console.error('Error parsing Spot Trade WebSocket message:', error)
+        }
+      }
+
+      spotTradeWs.onerror = (error) => {
+        clearTimeout(spotTradeWsTimeout)
+        console.error('Spot Trade WebSocket error:', error)
+      }
+
+      spotTradeWs.onclose = (event) => {
+        clearTimeout(spotTradeWsTimeout)
+        if (isMountedRef.current && spotTradesWsRef.current === spotTradeWs) {
+          console.log('Spot Trade WebSocket disconnected, reconnecting...', event.code, event.reason)
+          setTimeout(() => {
+            const currentSymbols = Array.from(coinsMapRef.current.keys())
+            if (isMountedRef.current && currentSymbols.length > 0 && spotTradesWsRef.current === spotTradeWs) {
+              subscribeToWebSocket(currentSymbols)
+            }
+          }, 3000)
+        }
+      }
+
+      spotTradesWsRef.current = spotTradeWs
+    } catch (error) {
+      console.error('Failed to create Spot Trade WebSocket:', error)
+    }
+
+    // Futures Trade WebSocket (her trade'i alış/satış olarak takip edecek)
+    try {
+      const futuresTradeWs = new WebSocket(futuresTradeWsUrl)
+      
+      const futuresTradeWsTimeout = setTimeout(() => {
+        if (futuresTradeWs.readyState === WebSocket.CONNECTING) {
+          console.warn('Futures Trade WebSocket connection timeout, closing...')
+          try {
+            futuresTradeWs.close()
+          } catch (e) {
+            console.error('Error closing timed-out Futures Trade WebSocket:', e)
+          }
+          
+          if (isMountedRef.current && futuresTradesWsRef.current === futuresTradeWs) {
+            setTimeout(() => {
+              const currentSymbols = Array.from(coinsMapRef.current.keys())
+              if (isMountedRef.current && currentSymbols.length > 0) {
+                subscribeToWebSocket(currentSymbols)
+              }
+            }, 2000)
+          }
+        }
+      }, 10000)
+
+      futuresTradeWs.onopen = () => {
+        clearTimeout(futuresTradeWsTimeout)
+        console.log('Futures Trade WebSocket connected')
+      }
+
+      futuresTradeWs.onmessage = (event) => {
+        if (!isMountedRef.current) return
+        
+        try {
+          const message = JSON.parse(event.data)
+          if (message.stream && message.data) {
+            const stream = message.stream
+            const data = message.data
+            const symbol = stream.split('@')[0].toUpperCase()
+            
+            // Sadece sayfa açıldıktan sonraki trade'leri işle
+            const oneHourAgo = hourlyVolumeStartTimeRef.current.get(symbol)
+            if (!oneHourAgo) return
+            
+            const tradeTime = data.T || data.t || 0 // Trade zamanı
+            // Trade zamanı sayfa açıldıktan sonraki trade'ler için
+            if (tradeTime < oneHourAgo) return
+            
+            if (isMountedRef.current && coinsMapRef.current.has(symbol)) {
+              const existingCoin = coinsMapRef.current.get(symbol)!
+              
+              // Trade bilgilerini al
+              const price = parseFloat(data.p || data.price || '0')
+              const quantity = parseFloat(data.q || data.quantity || '0')
+              const quoteAmount = price * quantity // USDT cinsinden hacim
+              
+              // isBuyerMaker: false = alış (buy), true = satış (sell)
+              const isBuyerMaker = data.m !== undefined ? data.m : (data.isBuyerMaker !== undefined ? data.isBuyerMaker : false)
+              
+              // Accumulator'ı güncelle
+              const accumulator = hourlyVolumeAccumulatorRef.current.get(symbol) || {
+                spot: 0, spotBuy: 0, spotSell: 0,
+                futures: 0, futuresBuy: 0, futuresSell: 0
+              }
+              
+              if (!isBuyerMaker) {
+                // Alış trade'i
+                accumulator.futuresBuy += quoteAmount
+              } else {
+                // Satış trade'i
+                accumulator.futuresSell += quoteAmount
+              }
+              
+              // Toplam futures hacmi güncelle
+              accumulator.futures = accumulator.futuresBuy + accumulator.futuresSell
+              
+              hourlyVolumeAccumulatorRef.current.set(symbol, accumulator)
+              
+              // Coin verisini güncelle
+              const updatedCoin: Coin = {
+                ...existingCoin,
+                hourlyFuturesVolume: accumulator.futures.toFixed(2),
+                hourlyFuturesBuyVolume: accumulator.futuresBuy.toFixed(2),
+                hourlyFuturesSellVolume: accumulator.futuresSell.toFixed(2),
+              }
+              
+              coinsMapRef.current.set(symbol, updatedCoin)
+              updateCoinsDisplay()
+            }
+          }
+        } catch (error) {
+          console.error('Error parsing Futures Trade WebSocket message:', error)
+        }
+      }
+
+      futuresTradeWs.onerror = (error) => {
+        clearTimeout(futuresTradeWsTimeout)
+        console.error('Futures Trade WebSocket error:', error)
+      }
+
+      futuresTradeWs.onclose = (event) => {
+        clearTimeout(futuresTradeWsTimeout)
+        if (isMountedRef.current && futuresTradesWsRef.current === futuresTradeWs) {
+          console.log('Futures Trade WebSocket disconnected, reconnecting...', event.code, event.reason)
+          setTimeout(() => {
+            const currentSymbols = Array.from(coinsMapRef.current.keys())
+            if (isMountedRef.current && currentSymbols.length > 0 && futuresTradesWsRef.current === futuresTradeWs) {
+              subscribeToWebSocket(currentSymbols)
+            }
+          }, 3000)
+        }
+      }
+
+      futuresTradesWsRef.current = futuresTradeWs
+    } catch (error) {
+      console.error('Failed to create Futures Trade WebSocket:', error)
     }
   }
 
@@ -664,6 +853,34 @@ export default function HourlyVolumePage() {
           console.error('Error closing futures WebSocket:', error)
         }
         futuresWsRef.current = null
+      }
+      if (spotTradesWsRef.current) {
+        try {
+          spotTradesWsRef.current.onmessage = null
+          spotTradesWsRef.current.onerror = null
+          spotTradesWsRef.current.onclose = null
+          spotTradesWsRef.current.onopen = null
+          if (spotTradesWsRef.current.readyState === WebSocket.OPEN || spotTradesWsRef.current.readyState === WebSocket.CONNECTING) {
+            spotTradesWsRef.current.close()
+          }
+        } catch (error) {
+          console.error('Error closing spot trade WebSocket:', error)
+        }
+        spotTradesWsRef.current = null
+      }
+      if (futuresTradesWsRef.current) {
+        try {
+          futuresTradesWsRef.current.onmessage = null
+          futuresTradesWsRef.current.onerror = null
+          futuresTradesWsRef.current.onclose = null
+          futuresTradesWsRef.current.onopen = null
+          if (futuresTradesWsRef.current.readyState === WebSocket.OPEN || futuresTradesWsRef.current.readyState === WebSocket.CONNECTING) {
+            futuresTradesWsRef.current.close()
+          }
+        } catch (error) {
+          console.error('Error closing futures trade WebSocket:', error)
+        }
+        futuresTradesWsRef.current = null
       }
       
       // Saatlik hacim referanslarını temizle
