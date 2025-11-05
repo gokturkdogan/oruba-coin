@@ -355,7 +355,13 @@ export default function HomePage() {
               return (
                 <Card 
                   key={coin.symbol} 
-                  className="glass-effect border-white/10 hover:border-primary/30 transition-all duration-300 hover:shadow-xl hover:shadow-primary/10 hover:-translate-y-2 group overflow-hidden relative animate-fade-in-up"
+                  className={`glass-effect border-white/10 hover:border-primary/30 transition-all duration-500 hover:shadow-xl hover:shadow-primary/10 hover:-translate-y-2 group overflow-hidden relative animate-fade-in-up ${
+                    flashAnimations[coin.symbol] === 'up' 
+                      ? 'bg-green-500/10 border-green-500/30' 
+                      : flashAnimations[coin.symbol] === 'down' 
+                      ? 'bg-red-500/10 border-red-500/30' 
+                      : ''
+                  }`}
                   style={{ animationDelay: `${(index + 1) * 0.1}s` }}
                 >
                   <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -377,10 +383,12 @@ export default function HomePage() {
                   
                   <CardContent className="relative z-10 space-y-3">
                     <div 
-                      className={`text-2xl font-bold transition-transform duration-300 group-hover:scale-105 ${
-                        flashAnimations[coin.symbol] === 'up' ? 'animate-flash-green' : ''
-                      } ${
-                        flashAnimations[coin.symbol] === 'down' ? 'animate-flash-red' : ''
+                      className={`text-2xl font-bold transition-colors duration-500 group-hover:scale-105 ${
+                        flashAnimations[coin.symbol] === 'up' 
+                          ? 'text-green-400' 
+                          : flashAnimations[coin.symbol] === 'down' 
+                          ? 'text-red-400' 
+                          : ''
                       }`}
                     >
                       ${parseFloat(coin.price).toLocaleString('tr-TR', {
@@ -391,16 +399,12 @@ export default function HomePage() {
                     
                     <div className="flex items-center gap-2">
                       <Badge
-                        variant={isPositive ? 'default' : 'destructive'}
+                        variant="outline"
                         className={`${
                           isPositive 
-                            ? 'bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-400 border-green-500/30' 
-                            : 'bg-gradient-to-r from-red-500/20 to-rose-500/20 text-red-400 border-red-500/30'
-                        } border transition-transform duration-300 group-hover:scale-110 ${
-                          flashAnimations[coin.symbol] === 'up' ? 'animate-flash-green' : ''
-                        } ${
-                          flashAnimations[coin.symbol] === 'down' ? 'animate-flash-red' : ''
-                        }`}
+                            ? 'bg-gradient-to-r from-green-500/10 to-emerald-500/10 text-green-400 border-green-500/30' 
+                            : 'bg-gradient-to-r from-red-500/10 to-red-600/10 text-red-400 border-red-500/30'
+                        } border transition-transform duration-300 group-hover:scale-110`}
                       >
                         {isPositive ? (
                           <TrendingUp className="h-3 w-3 mr-1 inline-block" />
