@@ -260,6 +260,21 @@ export function Navbar() {
               )}
             </a>
             <a
+              href="/spot-coins"
+              onClick={(e) => {
+                e.preventDefault()
+                window.location.href = '/spot-coins'
+              }}
+              className={`transition-all duration-200 hover:text-primary relative cursor-pointer ${
+                pathname === '/spot-coins' ? 'text-primary font-semibold' : 'text-foreground/70'
+              }`}
+            >
+              Spot Coin Listesi
+              {pathname === '/spot-coins' && (
+                <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-gradient-to-r from-primary to-primary/50 rounded-full" />
+              )}
+            </a>
+            <a
               href="/futures-coins"
               onClick={(e) => {
                 e.preventDefault()
@@ -449,6 +464,19 @@ export function Navbar() {
               }`}
             >
               Saatlik Hacim Takibi
+            </a>
+            <a
+              href="/spot-coins"
+              onClick={(e) => {
+                e.preventDefault()
+                setMobileMenuOpen(false)
+                window.location.href = '/spot-coins'
+              }}
+              className={`block px-4 py-2 rounded-lg transition-all cursor-pointer ${
+                pathname === '/spot-coins' ? 'text-primary bg-primary/10' : 'text-foreground/70 hover:bg-white/5'
+              }`}
+            >
+              Spot Coin Listesi
             </a>
             <a
               href="/futures-coins"
