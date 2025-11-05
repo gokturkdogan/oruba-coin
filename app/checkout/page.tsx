@@ -5,18 +5,12 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { Check, Lock, Copy, CheckCircle, Clock, Building2 } from 'lucide-react'
+import { Check, Lock, Copy, CheckCircle, Clock, Building2, AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
 const PLAN_PRICES = {
   monthly: 99,
   yearly: 899,
-}
-
-const IBAN_INFO = {
-  bankName: process.env.NEXT_PUBLIC_BANK_NAME || 'Banka Adı',
-  iban: process.env.NEXT_PUBLIC_IBAN || 'TR00 0000 0000 0000 0000 0000 00',
-  accountHolder: process.env.NEXT_PUBLIC_ACCOUNT_HOLDER || 'Oruba Coin',
 }
 
 export default function CheckoutPage() {
@@ -26,6 +20,11 @@ export default function CheckoutPage() {
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('monthly')
   const [pendingPayment, setPendingPayment] = useState<any>(null)
   const [orderCreated, setOrderCreated] = useState(false)
+  const [ibanInfo, setIbanInfo] = useState({
+    bankName: 'Banka Adı',
+    iban: 'TR00 0000 0000 0000 0000 0000 00',
+    accountHolder: 'Oruba Coin',
+  })
 
   useEffect(() => {
     fetch('/api/user/profile')
@@ -57,10 +56,24 @@ export default function CheckoutPage() {
       .catch(() => {
         // Ignore error
       })
+
+    // Fetch active bank account info
+    fetch('/api/bank-account/active')
+      .then((res) => res.json())
+      .then((data) => {
+        setIbanInfo({
+          bankName: data.bankName || 'Banka Adı',
+          iban: data.iban || 'TR00 0000 0000 0000 0000 0000 00',
+          accountHolder: data.accountHolder || 'Oruba Coin',
+        })
+      })
+      .catch(() => {
+        // Ignore error, use defaults
+      })
   }, [router])
 
   const handleCopyIban = () => {
-    navigator.clipboard.writeText(IBAN_INFO.iban.replace(/\s/g, ''))
+    navigator.clipboard.writeText(ibanInfo.iban.replace(/\s/g, ''))
     toast.success('IBAN kopyalandı!')
   }
 
@@ -165,16 +178,16 @@ export default function CheckoutPage() {
             <div className="space-y-4 p-6 bg-muted/30 rounded-lg border border-border/50">
               <div className="space-y-2">
                 <div className="text-sm text-muted-foreground">Banka Adı</div>
-                <div className="text-lg font-semibold">{IBAN_INFO.bankName}</div>
+                <div className="text-lg font-semibold">{ibanInfo.bankName}</div>
               </div>
               <div className="space-y-2">
                 <div className="text-sm text-muted-foreground">Hesap Sahibi</div>
-                <div className="text-lg font-semibold">{IBAN_INFO.accountHolder}</div>
+                <div className="text-lg font-semibold">{ibanInfo.accountHolder}</div>
               </div>
               <div className="space-y-2">
                 <div className="text-sm text-muted-foreground">IBAN</div>
                 <div className="flex items-center gap-3">
-                  <div className="text-lg font-mono font-semibold">{IBAN_INFO.iban}</div>
+                  <div className="text-lg font-mono font-semibold">{ibanInfo.iban}</div>
                   <Button
                     variant="outline"
                     size="sm"
@@ -195,6 +208,19 @@ export default function CheckoutPage() {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Warning Message */}
+            <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="font-semibold text-yellow-500 mb-1">Önemli Uyarı</div>
+                  <div className="text-sm text-muted-foreground">
+                    Hesap bilgilerindeki isim soy isim ile gönderici IBAN isim soy isim uyuşmazlığı durumunda ödeme onaylanmayacaktır ve para iadesi gerçekleştirilmeyecektir.
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Order Status */}

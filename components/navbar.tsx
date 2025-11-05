@@ -16,7 +16,7 @@ import { Badge } from '@/components/ui/badge'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import { Menu, X, Shield, LogOut, ShieldCheck, DollarSign, Home } from 'lucide-react'
+import { Menu, X, Shield, LogOut, ShieldCheck, DollarSign, Home, Building2 } from 'lucide-react'
 
 interface User {
   id: string
@@ -135,6 +135,17 @@ export function Navbar() {
                 >
                   <DollarSign className="h-4 w-4" />
                   Ödemeler
+                </Link>
+                <Link
+                  href="/admin/bank-account"
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
+                    pathname === '/admin/bank-account'
+                      ? 'bg-primary/20 text-primary'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  }`}
+                >
+                  <Building2 className="h-4 w-4" />
+                  IBAN Bilgileri
                 </Link>
               </div>
             </div>

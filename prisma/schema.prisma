@@ -147,3 +147,16 @@ model PendingPayment {
   @@index([status, createdAt])
   @@map("pending_payments")
 }
+
+model BankAccount {
+  id              String   @id @default(uuid())
+  bankName        String   @map("bank_name")
+  iban            String   @unique
+  accountHolder   String   @map("account_holder")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  
+  @@index([isActive])
+  @@map("bank_accounts")
+}
