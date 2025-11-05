@@ -115,6 +115,8 @@ export default function CoinDetailPage() {
   const [flashAnimations, setFlashAnimations] = useState<Record<string, 'up' | 'down'>>({})
   const [buyTrades, setBuyTrades] = useState<Trade[]>([])
   const [sellTrades, setSellTrades] = useState<Trade[]>([])
+  const [futuresBuyTrades, setFuturesBuyTrades] = useState<Trade[]>([])
+  const [futuresSellTrades, setFuturesSellTrades] = useState<Trade[]>([])
   // Üst grafik (Fiyat Grafiği) için zaman aralığı
   const [timeRangeTop, setTimeRangeTop] = useState<'1M' | '5M' | '15M' | '30M' | '1D' | '7D' | '30D' | '90D' | '1Y'>('1D')
   // Alt grafik (Hacim Grafiği) için zaman aralığı
@@ -948,6 +950,32 @@ export default function CoinDetailPage() {
                 coinDataRef.current = updatedCoinData
                 // Don't call setCoinData here - it's too frequent and causes infinite loop
                 // The ticker WebSocket will update the state periodically
+              }
+              
+              // Use trade ID from Binance if available, otherwise generate a unique ID
+              const tradeId = data.t || `${tradeTime}-${Math.random().toString(36).substring(2, 9)}`
+              
+              const trade: Trade = {
+                id: tradeId,
+                price: price,
+                quantity: quantity,
+                quoteAmount: quoteAmount,
+                time: tradeTime,
+                isBuy: isBuy,
+              }
+              
+              if (isBuy) {
+                setFuturesBuyTrades(prev => {
+                  const updated = [trade, ...prev]
+                  // Keep only last 20
+                  return updated.slice(0, 20)
+                })
+              } else {
+                setFuturesSellTrades(prev => {
+                  const updated = [trade, ...prev]
+                  // Keep only last 20
+                  return updated.slice(0, 20)
+                })
               }
             }
           } catch (error) {
@@ -1966,15 +1994,18 @@ export default function CoinDetailPage() {
             </CardContent>
           </Card>
 
-          <div className="grid gap-6 md:grid-cols-2 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-green-400" />
-                  Alış Emirleri
-                </CardTitle>
-                <CardDescription>Son 20 alış emri (gerçek zamanlı)</CardDescription>
-              </CardHeader>
+          {/* Spot Trades Tables */}
+          <div className="mt-8">
+            <h3 className="text-2xl font-bold mb-6 gradient-text">Spot İşlemler Tradeleri</h3>
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-green-400" />
+                    Spot Alış Emirleri
+                  </CardTitle>
+                  <CardDescription>Son 20 spot alış emri (gerçek zamanlı)</CardDescription>
+                </CardHeader>
               <CardContent>
                 <div className="space-y-2 max-h-[500px] overflow-y-auto">
                   {buyTrades.length === 0 ? (
@@ -2031,9 +2062,9 @@ export default function CoinDetailPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <TrendingDown className="h-5 w-5 text-red-400" />
-                  Satış Emirleri
+                  Spot Satış Emirleri
                 </CardTitle>
-                <CardDescription>Son 20 satış emri (gerçek zamanlı)</CardDescription>
+                <CardDescription>Son 20 spot satış emri (gerçek zamanlı)</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 max-h-[500px] overflow-y-auto">
@@ -2086,6 +2117,133 @@ export default function CoinDetailPage() {
                 </div>
               </CardContent>
             </Card>
+            </div>
+          </div>
+
+          {/* Futures Trades Tables */}
+          <div className="mt-8">
+            <h3 className="text-2xl font-bold mb-6 gradient-text">Vadeli İşlemler Tradeleri</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-green-400" />
+                    Vadeli Alış Emirleri
+                  </CardTitle>
+                  <CardDescription>Son 20 vadeli alış emri (gerçek zamanlı)</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                    {futuresBuyTrades.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        Henüz vadeli alış emri yok
+                      </div>
+                    ) : (
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border/50">
+                            <th className="text-left p-2 text-muted-foreground">Zaman</th>
+                            <th className="text-right p-2 text-muted-foreground">Fiyat</th>
+                            <th className="text-right p-2 text-muted-foreground">Miktar</th>
+                            <th className="text-right p-2 text-muted-foreground">Toplam</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {futuresBuyTrades.map((trade, index) => (
+                            <tr key={`futures-buy-${trade.id}-${trade.time}-${index}`} className="border-b border-border/30 hover:bg-green-500/5 transition-colors">
+                              <td className="p-2 text-muted-foreground">
+                                {new Date(trade.time).toLocaleTimeString('tr-TR', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  second: '2-digit',
+                                })}
+                              </td>
+                              <td className="p-2 text-right font-semibold text-green-400">
+                                ${trade.price.toLocaleString('tr-TR', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 8,
+                                })}
+                              </td>
+                              <td className="p-2 text-right text-muted-foreground">
+                                {trade.quantity.toLocaleString('tr-TR', {
+                                  maximumFractionDigits: 8,
+                                })}
+                              </td>
+                              <td className="p-2 text-right font-semibold text-green-300">
+                                ${trade.quoteAmount.toLocaleString('tr-TR', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingDown className="h-5 w-5 text-red-400" />
+                    Vadeli Satış Emirleri
+                  </CardTitle>
+                  <CardDescription>Son 20 vadeli satış emri (gerçek zamanlı)</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                    {futuresSellTrades.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        Henüz vadeli satış emri yok
+                      </div>
+                    ) : (
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border/50">
+                            <th className="text-left p-2 text-muted-foreground">Zaman</th>
+                            <th className="text-right p-2 text-muted-foreground">Fiyat</th>
+                            <th className="text-right p-2 text-muted-foreground">Miktar</th>
+                            <th className="text-right p-2 text-muted-foreground">Toplam</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {futuresSellTrades.map((trade, index) => (
+                            <tr key={`futures-sell-${trade.id}-${trade.time}-${index}`} className="border-b border-border/30 hover:bg-red-500/5 transition-colors">
+                              <td className="p-2 text-muted-foreground">
+                                {new Date(trade.time).toLocaleTimeString('tr-TR', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  second: '2-digit',
+                                })}
+                              </td>
+                              <td className="p-2 text-right font-semibold text-red-400">
+                                ${trade.price.toLocaleString('tr-TR', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 8,
+                                })}
+                              </td>
+                              <td className="p-2 text-right text-muted-foreground">
+                                {trade.quantity.toLocaleString('tr-TR', {
+                                  maximumFractionDigits: 8,
+                                })}
+                              </td>
+                              <td className="p-2 text-right font-semibold text-red-300">
+                                ${trade.quoteAmount.toLocaleString('tr-TR', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </div>

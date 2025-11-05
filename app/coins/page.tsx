@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Input } from '@/components/ui/input'
 import {
@@ -13,18 +12,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { TrendingUp, TrendingDown, ArrowUpDown, Star, StarOff } from 'lucide-react'
+import { TrendingUp, TrendingDown, ArrowUpDown } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { toast } from 'sonner'
 
 interface Coin {
   symbol: string
@@ -40,7 +29,6 @@ type SortBy = 'symbol' | 'price' | 'change' | 'volume' | 'futuresVolume'
 type SortOrder = 'asc' | 'desc'
 
 export default function CoinsPage() {
-  const router = useRouter()
   const [coins, setCoins] = useState<Coin[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -51,154 +39,11 @@ export default function CoinsPage() {
   const coinsMapRef = useRef<Map<string, Coin>>(new Map())
   const previousPricesRef = useRef<Map<string, number>>(new Map())
   const [flashAnimations, setFlashAnimations] = useState<Record<string, 'up' | 'down'>>({})
-  const [watchlist, setWatchlist] = useState<Set<string>>(new Set())
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [isPremium, setIsPremium] = useState(false)
-  const [showReplaceModal, setShowReplaceModal] = useState(false)
-  const [newCoinSymbol, setNewCoinSymbol] = useState<string>('')
-  const [selectedCoinToReplace, setSelectedCoinToReplace] = useState<string>('')
   const sortByRef = useRef<SortBy>(sortBy)
   const sortOrderRef = useRef<SortOrder>(sortOrder)
   const searchRef = useRef<string>(search)
   const isMountedRef = useRef<boolean>(true)
 
-  // Fetch watchlist and premium status
-  const fetchWatchlist = async () => {
-    try {
-      const res = await fetch('/api/watchlist')
-      if (res.ok) {
-        const data = await res.json()
-        setWatchlist(new Set(data.watchlist || []))
-        setIsAuthenticated(true)
-      } else {
-        setIsAuthenticated(false)
-      }
-    } catch (error) {
-      setIsAuthenticated(false)
-    }
-  }
-
-  // Fetch premium status
-  const fetchPremiumStatus = async () => {
-    try {
-      const res = await fetch('/api/user/profile')
-      if (res.ok) {
-        const data = await res.json()
-        setIsPremium(data.user?.isPremium || false)
-      }
-    } catch (error) {
-      setIsPremium(false)
-    }
-  }
-
-  // Toggle watchlist
-  const toggleWatchlist = async (symbol: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    
-    if (!isAuthenticated) {
-      toast.warning('Takip listesi için giriş yapmanız gerekiyor')
-      router.push('/login')
-      return
-    }
-
-    const isInWatchlist = watchlist.has(symbol)
-
-    // Check premium status for adding to watchlist (removing is allowed for everyone)
-    if (!isInWatchlist && !isPremium) {
-      toast.warning('Takip listesine ekleme özelliği premium üyelerimize özeldir')
-      return
-    }
-    
-    try {
-      if (isInWatchlist) {
-        // Remove from watchlist
-        const res = await fetch(`/api/watchlist?symbol=${symbol}`, {
-          method: 'DELETE',
-        })
-        
-        if (res.ok) {
-          setWatchlist((prev) => {
-            const newSet = new Set(prev)
-            newSet.delete(symbol)
-            return newSet
-          })
-          toast.success(`${symbol} takip listesinden çıkarıldı`)
-        } else {
-          toast.error('Bir hata oluştu')
-        }
-      } else {
-        // Check if watchlist is full (10 coins limit)
-        if (watchlist.size >= 10) {
-          // Open modal to replace a coin
-          setNewCoinSymbol(symbol)
-          setShowReplaceModal(true)
-          return
-        }
-
-        // Add to watchlist
-        const res = await fetch('/api/watchlist', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ symbol }),
-        })
-        
-        if (res.ok) {
-          setWatchlist((prev) => new Set([...prev, symbol]))
-          toast.success(`${symbol} takip listesine eklendi`)
-        } else {
-          const data = await res.json()
-          toast.error(data.error || 'Bir hata oluştu')
-        }
-      }
-    } catch (error) {
-      toast.error('Bir hata oluştu')
-    }
-  }
-
-  // Replace coin in watchlist
-  const handleReplaceCoin = async () => {
-    if (!selectedCoinToReplace) {
-      toast.warning('Lütfen değiştirmek istediğiniz coin\'i seçin')
-      return
-    }
-
-    try {
-      // First remove the old coin
-      const deleteRes = await fetch(`/api/watchlist?symbol=${selectedCoinToReplace}`, {
-        method: 'DELETE',
-      })
-
-      if (!deleteRes.ok) {
-        toast.error('Coin çıkarılırken bir hata oluştu')
-        return
-      }
-
-      // Then add the new coin
-      const addRes = await fetch('/api/watchlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbol: newCoinSymbol }),
-      })
-
-      if (addRes.ok) {
-        setWatchlist((prev) => {
-          const newSet = new Set(prev)
-          newSet.delete(selectedCoinToReplace)
-          newSet.add(newCoinSymbol)
-          return newSet
-        })
-        toast.success(`${selectedCoinToReplace} yerine ${newCoinSymbol} eklendi`)
-        setShowReplaceModal(false)
-        setSelectedCoinToReplace('')
-        setNewCoinSymbol('')
-      } else {
-        const data = await addRes.json()
-        toast.error(data.error || 'Bir hata oluştu')
-      }
-    } catch (error) {
-      toast.error('Bir hata oluştu')
-    }
-  }
 
   // Initial fetch - only called once on mount
   const fetchCoins = async () => {
@@ -220,9 +65,6 @@ export default function CoinsPage() {
       const sorted = sortCoins(coinsData, sortBy, sortOrder)
       setCoins(sorted)
       setLoading(false)
-      
-      // Fetch watchlist
-      await fetchWatchlist()
       
       // Subscribe to WebSocket for these symbols
       if (coinsData.length > 0) {
@@ -479,8 +321,6 @@ export default function CoinsPage() {
   useEffect(() => {
     isMountedRef.current = true
     fetchCoins()
-    fetchWatchlist()
-    fetchPremiumStatus()
 
     // Cleanup function - WebSocket'leri kapat
     return () => {
@@ -949,25 +789,7 @@ export default function CoinsPage() {
                           zIndex: 10,
                           whiteSpace: 'nowrap'
                         }}>
-                          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }} className="md:gap-2">
-                            <Button
-                              onClick={(e) => toggleWatchlist(coin.symbol, e)}
-                              variant="ghost"
-                              size="sm"
-                              className={`md:h-9 h-8 md:px-2 px-1.5 cursor-pointer ${
-                                watchlist.has(coin.symbol)
-                                  ? 'text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10'
-                                  : 'text-muted-foreground hover:text-yellow-400 hover:bg-yellow-500/10'
-                              }`}
-                              title={watchlist.has(coin.symbol) ? 'Takip listesinden çıkar' : 'Takip listesine ekle'}
-                            >
-                              {watchlist.has(coin.symbol) ? (
-                                <Star className="md:h-4 md:w-4 h-3.5 w-3.5 fill-yellow-400" />
-                              ) : (
-                                <StarOff className="md:h-4 md:w-4 h-3.5 w-3.5" />
-                              )}
-                            </Button>
-                            <Link
+                          <Link
                               href={`/coins/${coin.symbol}`}
                               onClick={(e) => {
                                 e.stopPropagation()
@@ -981,13 +803,12 @@ export default function CoinsPage() {
                                   futuresWsRef.current = null
                                 }
                               }}
-                              className="inline-flex items-center justify-center text-center rounded-md md:text-sm text-xs font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-primary/30 bg-background hover:bg-primary/10 hover:border-primary/50 md:h-9 md:px-4 h-8 px-2 py-2 relative z-10 cursor-pointer md:flex-1"
+                              className="inline-flex items-center justify-center text-center rounded-md md:text-sm text-xs font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-primary/30 bg-background hover:bg-primary/10 hover:border-primary/50 md:h-9 md:px-4 h-8 px-2 py-2 relative z-10 cursor-pointer w-full"
                               style={{ position: 'relative', zIndex: 10 }}
                             >
                               <span className="hidden md:inline">Detay</span>
                               <span className="md:hidden">→</span>
                             </Link>
-                          </div>
                         </td>
                       </tr>
                     )
@@ -999,88 +820,6 @@ export default function CoinsPage() {
         </div>
       </div>
       )}
-
-      {/* Replace Coin Modal */}
-      <Dialog open={showReplaceModal} onOpenChange={setShowReplaceModal}>
-        <DialogContent className="glass-effect border-white/10 max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold gradient-text">
-              Takip Listesi Sınırına Ulaştınız
-            </DialogTitle>
-            <DialogDescription className="text-muted-foreground">
-              Takip listenizde maksimum 10 coin bulunabilir. Yeni coin eklemek için mevcut coinlerden birini seçip değiştirin.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div>
-              <p className="text-sm font-medium mb-2">
-                Eklemek istediğiniz coin: <span className="text-primary font-semibold">{newCoinSymbol}</span>
-              </p>
-            </div>
-            
-            <div>
-              <p className="text-sm font-medium mb-3">Değiştirmek istediğiniz coin'i seçin:</p>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {Array.from(watchlist).map((symbol) => {
-                  const coinData = coinsMapRef.current.get(symbol)
-                  return (
-                    <button
-                      key={symbol}
-                      onClick={() => setSelectedCoinToReplace(symbol)}
-                      className={`w-full text-left p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
-                        selectedCoinToReplace === symbol
-                          ? 'bg-primary/20 border-primary/50 shadow-lg shadow-primary/20'
-                          : 'bg-muted/30 border-white/10 hover:bg-muted/50 hover:border-white/20'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <Star className={`h-5 w-5 ${
-                            selectedCoinToReplace === symbol ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground'
-                          }`} />
-                          <div>
-                            <p className="font-semibold">{symbol}</p>
-                            {coinData && (
-                              <p className="text-sm text-muted-foreground">
-                                ${formatPrice(coinData.price)}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        {selectedCoinToReplace === symbol && (
-                          <div className="h-2 w-2 rounded-full bg-primary"></div>
-                        )}
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowReplaceModal(false)
-                setSelectedCoinToReplace('')
-                setNewCoinSymbol('')
-              }}
-              className="cursor-pointer"
-            >
-              İptal
-            </Button>
-            <Button
-              onClick={handleReplaceCoin}
-              disabled={!selectedCoinToReplace}
-              className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Değiştir
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
