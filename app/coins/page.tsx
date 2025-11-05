@@ -657,25 +657,22 @@ export default function CoinsPage() {
         <div className="glass-effect border border-white/10 rounded-xl overflow-hidden bg-card shadow-xl">
           <div className="overflow-x-auto">
             {/* Custom Table - Pixel Perfect */}
-                <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto', minWidth: '800px' }}>
                   <colgroup>
-                    <col style={{ width: '180px' }} />
-                    <col style={{ width: 'auto' }} />
-                    <col style={{ width: '180px' }} />
-                    <col style={{ width: 'auto' }} />
-                    <col style={{ width: 'auto' }} />
-                    <col style={{ width: '150px' }} />
+                    <col className="md:w-[180px] w-[120px]" />
+                    <col className="md:w-auto w-[140px]" />
+                    <col className="md:w-[180px] w-[140px]" />
+                    <col className="md:w-auto w-[130px]" />
+                    <col className="md:w-auto w-[130px]" />
+                    <col className="md:w-[150px] w-[120px]" />
                   </colgroup>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', backgroundColor: 'rgba(255, 255, 255, 0.05)' }}>
-                  <th style={{ 
+                  <th className="md:w-[180px] md:min-w-[180px] md:max-w-[180px] w-[120px] min-w-[120px]" style={{ 
                     textAlign: 'left', 
-                    padding: '12px 16px', 
+                    padding: '8px 12px',
                     fontWeight: 600, 
                     color: 'var(--muted-foreground)',
-                    width: '180px',
-                    minWidth: '180px',
-                    maxWidth: '180px'
                   }}>
                     <button
                       onClick={() => handleSort('symbol')}
@@ -702,9 +699,9 @@ export default function CoinsPage() {
                       <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
                     </button>
                   </th>
-                  <th style={{ 
+                  <th className="md:w-auto w-[140px] min-w-[140px]" style={{ 
                     textAlign: 'left', 
-                    padding: '12px 16px', 
+                    padding: '8px 12px',
                     fontWeight: 600, 
                     color: 'var(--muted-foreground)'
                   }}>
@@ -730,14 +727,11 @@ export default function CoinsPage() {
                       <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
                     </button>
                   </th>
-                  <th style={{ 
+                  <th className="md:w-[180px] md:min-w-[180px] md:max-w-[180px] w-[140px] min-w-[140px]" style={{ 
                     textAlign: 'left', 
-                    padding: '12px 16px', 
+                    padding: '8px 12px',
                     fontWeight: 600, 
                     color: 'var(--muted-foreground)',
-                    width: '180px',
-                    minWidth: '180px',
-                    maxWidth: '180px'
                   }}>
                     <button
                       onClick={() => handleSort('change')}
@@ -761,9 +755,9 @@ export default function CoinsPage() {
                       <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
                     </button>
                   </th>
-                  <th style={{ 
+                  <th className="md:w-auto w-[130px] min-w-[130px]" style={{ 
                     textAlign: 'left', 
-                    padding: '12px 16px', 
+                    padding: '8px 12px',
                     fontWeight: 600, 
                     color: 'var(--muted-foreground)'
                   }}>
@@ -789,9 +783,9 @@ export default function CoinsPage() {
                       <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
                     </button>
                   </th>
-                  <th style={{ 
+                  <th className="md:w-auto w-[130px] min-w-[130px]" style={{ 
                     textAlign: 'left', 
-                    padding: '12px 16px', 
+                    padding: '8px 12px',
                     fontWeight: 600, 
                     color: 'var(--muted-foreground)'
                   }}>
@@ -817,16 +811,14 @@ export default function CoinsPage() {
                       <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
                     </button>
                   </th>
-                  <th style={{ 
+                  <th className="md:w-[200px] md:min-w-[200px] md:max-w-[200px] w-[120px] min-w-[120px]" style={{ 
                     textAlign: 'left', 
-                    padding: '12px 16px', 
+                    padding: '8px 12px',
                     fontWeight: 600, 
                     color: 'var(--muted-foreground)',
-                    width: '200px',
-                    minWidth: '200px',
-                    maxWidth: '200px'
                   }}>
-                    İşlemler
+                    <span className="hidden md:inline">İşlemler</span>
+                    <span className="md:hidden">İşlem</span>
                   </th>
                 </tr>
               </thead>
@@ -871,13 +863,10 @@ export default function CoinsPage() {
                           }
                         }}
                       >
-                        <td style={{ 
-                          padding: '12px 16px', 
+                        <td className="md:w-[180px] md:min-w-[180px] md:max-w-[180px] w-[120px] min-w-[120px]" style={{ 
+                          padding: '8px 12px',
                           fontWeight: 700, 
-                          fontSize: '18px',
-                          width: '180px',
-                          minWidth: '180px',
-                          maxWidth: '180px'
+                          fontSize: '14px',
                         }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span style={{ width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -891,7 +880,7 @@ export default function CoinsPage() {
                           </div>
                         </td>
                         
-                        <td style={{ padding: '12px 16px', fontWeight: 500 }}>
+                        <td className="md:w-auto w-[140px] min-w-[140px]" style={{ padding: '8px 12px', fontWeight: 500, whiteSpace: 'nowrap' }}>
                           <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md transition-all duration-300 ${
                             isPositive 
                               ? 'text-green-400 bg-green-500/10 group-hover:bg-green-500/20 group-hover:shadow-lg group-hover:shadow-green-500/30' 
@@ -906,11 +895,9 @@ export default function CoinsPage() {
                           </div>
                         </td>
                         
-                        <td style={{ 
-                          padding: '12px 16px',
-                          width: '180px',
-                          minWidth: '180px',
-                          maxWidth: '180px'
+                        <td className="md:w-[180px] md:min-w-[180px] md:max-w-[180px] w-[140px] min-w-[140px]" style={{ 
+                          padding: '8px 12px',
+                          whiteSpace: 'nowrap'
                         }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Badge
@@ -932,40 +919,42 @@ export default function CoinsPage() {
                           </div>
                         </td>
                         
-                        <td style={{ 
-                          padding: '12px 16px', 
+                        <td className="md:w-auto w-[130px] min-w-[130px]" style={{ 
+                          padding: '8px 12px',
                           color: 'var(--muted-foreground)',
-                          fontSize: '14px'
+                          fontSize: '12px',
+                          whiteSpace: 'nowrap'
                         }}>
-                          ${parseFloat(coin.quoteVolume || '0').toLocaleString('tr-TR', {
+                          <span className="md:hidden">${(parseFloat(coin.quoteVolume || '0') / 1000000).toFixed(1)}M</span>
+                          <span className="hidden md:inline">${parseFloat(coin.quoteVolume || '0').toLocaleString('tr-TR', {
                             maximumFractionDigits: 0,
-                          })}
+                          })}</span>
                         </td>
                         
-                        <td style={{ 
-                          padding: '12px 16px', 
+                        <td className="md:w-auto w-[130px] min-w-[130px]" style={{ 
+                          padding: '8px 12px',
                           color: 'var(--muted-foreground)',
-                          fontSize: '14px'
+                          fontSize: '12px',
+                          whiteSpace: 'nowrap'
                         }}>
-                          ${parseFloat(coin.futuresQuoteVolume || '0').toLocaleString('tr-TR', {
+                          <span className="md:hidden">${(parseFloat(coin.futuresQuoteVolume || '0') / 1000000).toFixed(1)}M</span>
+                          <span className="hidden md:inline">${parseFloat(coin.futuresQuoteVolume || '0').toLocaleString('tr-TR', {
                             maximumFractionDigits: 0,
-                          })}
+                          })}</span>
                         </td>
                         
-                        <td style={{ 
-                          padding: '12px 16px',
-                          width: '200px',
-                          minWidth: '200px',
-                          maxWidth: '200px',
+                        <td className="md:w-[200px] md:min-w-[200px] md:max-w-[200px] w-[120px] min-w-[120px]" style={{ 
+                          padding: '8px 12px',
                           position: 'relative',
-                          zIndex: 10
+                          zIndex: 10,
+                          whiteSpace: 'nowrap'
                         }}>
-                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }} className="md:gap-2">
                             <Button
                               onClick={(e) => toggleWatchlist(coin.symbol, e)}
                               variant="ghost"
                               size="sm"
-                              className={`h-9 px-2 cursor-pointer ${
+                              className={`md:h-9 h-8 md:px-2 px-1.5 cursor-pointer ${
                                 watchlist.has(coin.symbol)
                                   ? 'text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10'
                                   : 'text-muted-foreground hover:text-yellow-400 hover:bg-yellow-500/10'
@@ -973,9 +962,9 @@ export default function CoinsPage() {
                               title={watchlist.has(coin.symbol) ? 'Takip listesinden çıkar' : 'Takip listesine ekle'}
                             >
                               {watchlist.has(coin.symbol) ? (
-                                <Star className="h-4 w-4 fill-yellow-400" />
+                                <Star className="md:h-4 md:w-4 h-3.5 w-3.5 fill-yellow-400" />
                               ) : (
-                                <StarOff className="h-4 w-4" />
+                                <StarOff className="md:h-4 md:w-4 h-3.5 w-3.5" />
                               )}
                             </Button>
                             <Link
@@ -992,10 +981,11 @@ export default function CoinsPage() {
                                   futuresWsRef.current = null
                                 }
                               }}
-                              className="inline-flex items-center justify-center text-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-primary/30 bg-background hover:bg-primary/10 hover:border-primary/50 h-9 px-4 py-2 relative z-10 cursor-pointer flex-1"
+                              className="inline-flex items-center justify-center text-center rounded-md md:text-sm text-xs font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-primary/30 bg-background hover:bg-primary/10 hover:border-primary/50 md:h-9 md:px-4 h-8 px-2 py-2 relative z-10 cursor-pointer md:flex-1"
                               style={{ position: 'relative', zIndex: 10 }}
                             >
-                              Detay
+                              <span className="hidden md:inline">Detay</span>
+                              <span className="md:hidden">→</span>
                             </Link>
                           </div>
                         </td>

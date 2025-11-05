@@ -134,7 +134,34 @@ export default function WatchlistPage() {
       })
       futuresTradesWsRef.current.clear()
     }
-  }, [])
+  }, [checkingPremium, isPremium])
+
+  // Refresh watchlist when page becomes visible or gains focus
+  useEffect(() => {
+    if (checkingPremium || isPremium === false || !isPremium) {
+      return
+    }
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isMountedRef.current) {
+        fetchWatchlist()
+      }
+    }
+
+    const handleFocus = () => {
+      if (isMountedRef.current) {
+        fetchWatchlist()
+      }
+    }
+
+    window.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      window.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [checkingPremium, isPremium])
 
   const fetchWatchlist = async () => {
     try {
