@@ -926,6 +926,693 @@ export async function sendPriceAlertEmail(
   })
 }
 
-export { resend }
+// Helper function for sending order confirmation emails
+export async function sendOrderConfirmationEmail(
+  email: string,
+  name: string | null | undefined,
+  planName: string,
+  planPrice: number,
+  planDuration: string,
+  bankName: string,
+  iban: string,
+  accountHolder: string
+) {
+  return sendEmail({
+    to: email,
+    subject: '💎 Premium Üyelik Siparişiniz Oluşturuldu - Oruba Coin',
+    html: `
+      <!DOCTYPE html>
+      <html lang="tr">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+              line-height: 1.6;
+              color: #1a1a1a;
+              background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0f0f1e 100%);
+              background-attachment: fixed;
+              padding: 20px;
+            }
+            .email-container {
+              max-width: 600px;
+              margin: 0 auto;
+              background: #ffffff;
+              border-radius: 16px;
+              overflow: hidden;
+              box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            }
+            .header {
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+              background-size: 200% 200%;
+              animation: gradient 8s ease infinite;
+              padding: 40px 30px;
+              text-align: center;
+              position: relative;
+              overflow: hidden;
+            }
+            .header::before {
+              content: '';
+              position: absolute;
+              top: -50%;
+              left: -50%;
+              width: 200%;
+              height: 200%;
+              background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+              animation: pulse 3s ease-in-out infinite;
+            }
+            .logo {
+              font-size: 32px;
+              font-weight: 700;
+              color: #ffffff;
+              text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+              margin-bottom: 10px;
+              position: relative;
+              z-index: 1;
+            }
+            .header h1 {
+              font-size: 28px;
+              font-weight: 600;
+              color: #ffffff;
+              margin: 0;
+              position: relative;
+              z-index: 1;
+              text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            }
+            .content {
+              background: #ffffff;
+              padding: 40px 30px;
+            }
+            .greeting {
+              font-size: 18px;
+              color: #1a1a1a;
+              margin-bottom: 20px;
+              font-weight: 500;
+            }
+            .content p {
+              font-size: 16px;
+              color: #4a4a4a;
+              margin-bottom: 20px;
+              line-height: 1.8;
+            }
+            .plan-box {
+              background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+              border-radius: 12px;
+              padding: 25px;
+              margin: 25px 0;
+              border: 2px solid #667eea;
+            }
+            .plan-box h3 {
+              color: #667eea;
+              font-size: 20px;
+              margin-bottom: 15px;
+              font-weight: 600;
+              text-align: center;
+            }
+            .plan-details {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin: 15px 0;
+              padding: 15px;
+              background: #ffffff;
+              border-radius: 8px;
+              border: 1px solid #e9ecef;
+            }
+            .plan-details-label {
+              font-size: 14px;
+              color: #6c757d;
+              font-weight: 500;
+            }
+            .plan-details-value {
+              font-size: 18px;
+              color: #1a1a1a;
+              font-weight: 700;
+            }
+            .price-value {
+              color: #667eea;
+              font-size: 24px;
+            }
+            .payment-box {
+              background: linear-gradient(135deg, #fff3cd 0%, #ffe69c 100%);
+              border-left: 4px solid #ffc107;
+              border-radius: 8px;
+              padding: 25px;
+              margin: 30px 0;
+              box-shadow: 0 4px 12px rgba(255, 193, 7, 0.15);
+            }
+            .payment-box h3 {
+              color: #856404;
+              font-size: 18px;
+              margin-bottom: 15px;
+              font-weight: 600;
+            }
+            .payment-info {
+              background: #ffffff;
+              border-radius: 8px;
+              padding: 20px;
+              margin: 15px 0;
+              border: 1px solid #ffc107;
+            }
+            .payment-info-item {
+              display: flex;
+              justify-content: space-between;
+              padding: 12px 0;
+              border-bottom: 1px solid #f0f0f0;
+            }
+            .payment-info-item:last-child {
+              border-bottom: none;
+            }
+            .payment-info-label {
+              font-size: 14px;
+              color: #6c757d;
+              font-weight: 500;
+            }
+            .payment-info-value {
+              font-size: 15px;
+              color: #1a1a1a;
+              font-weight: 600;
+              text-align: right;
+            }
+            .iban-value {
+              font-family: 'Courier New', monospace;
+              font-size: 16px;
+              letter-spacing: 1px;
+              color: #667eea;
+            }
+            .note-box {
+              background: #e7f3ff;
+              border-left: 4px solid #2196f3;
+              border-radius: 8px;
+              padding: 20px;
+              margin: 25px 0;
+            }
+            .note-box p {
+              color: #1565c0;
+              margin: 0;
+              font-size: 14px;
+              line-height: 1.6;
+            }
+            .warning-box {
+              background: linear-gradient(135deg, #fff3cd 0%, #ffe69c 100%);
+              border-left: 4px solid #ffc107;
+              border-radius: 8px;
+              padding: 20px;
+              margin: 25px 0;
+              box-shadow: 0 4px 12px rgba(255, 193, 7, 0.15);
+            }
+            .warning-box p {
+              color: #856404;
+              margin: 0;
+              font-size: 14px;
+              line-height: 1.6;
+            }
+            .button-container {
+              text-align: center;
+              margin: 30px 0;
+            }
+            .button {
+              display: inline-block;
+              padding: 16px 40px;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: #ffffff !important;
+              text-decoration: none;
+              border-radius: 12px;
+              font-weight: 600;
+              font-size: 16px;
+              box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+              transition: all 0.3s ease;
+              letter-spacing: 0.5px;
+            }
+            .button:hover {
+              transform: translateY(-2px);
+              box-shadow: 0 12px 24px rgba(102, 126, 234, 0.5);
+            }
+            .footer {
+              background: #f8f9fa;
+              padding: 30px;
+              text-align: center;
+              border-top: 1px solid #e9ecef;
+            }
+            .footer p {
+              color: #6c757d;
+              font-size: 12px;
+              margin: 5px 0;
+            }
+            .social-links {
+              margin-top: 20px;
+            }
+            .social-links a {
+              display: inline-block;
+              margin: 0 10px;
+              color: #667eea;
+              text-decoration: none;
+              font-size: 14px;
+            }
+            @keyframes gradient {
+              0% { background-position: 0% 50%; }
+              50% { background-position: 100% 50%; }
+              100% { background-position: 0% 50%; }
+            }
+            @keyframes pulse {
+              0%, 100% { opacity: 0.5; transform: scale(1); }
+              50% { opacity: 0.8; transform: scale(1.1); }
+            }
+            @media only screen and (max-width: 600px) {
+              .content {
+                padding: 30px 20px;
+              }
+              .header {
+                padding: 30px 20px;
+              }
+              .logo {
+                font-size: 28px;
+              }
+              .header h1 {
+                font-size: 24px;
+              }
+              .button {
+                padding: 14px 30px;
+                font-size: 14px;
+              }
+              .plan-details {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+              }
+              .payment-info-item {
+                flex-direction: column;
+                gap: 5px;
+              }
+              .payment-info-value {
+                text-align: left;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="email-container">
+            <div class="header">
+              <div class="logo">💎 Oruba Coin</div>
+              <h1>Premium Üyelik Siparişiniz</h1>
+            </div>
+            <div class="content">
+              <p class="greeting">Merhaba ${name || 'Değerli Kullanıcı'}, 👋</p>
+              <p>Premium üyelik siparişiniz başarıyla oluşturuldu! Aşağıda sipariş detaylarınızı ve ödeme bilgilerini bulabilirsiniz.</p>
+              
+              <div class="plan-box">
+                <h3>📦 Seçtiğiniz Plan</h3>
+                <div class="plan-details">
+                  <span class="plan-details-label">Plan Adı:</span>
+                  <span class="plan-details-value">${planName}</span>
+                </div>
+                <div class="plan-details">
+                  <span class="plan-details-label">Plan Süresi:</span>
+                  <span class="plan-details-value">${planDuration}</span>
+                </div>
+                <div class="plan-details">
+                  <span class="plan-details-label">Toplam Tutar:</span>
+                  <span class="plan-details-value price-value">₺${planPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+
+              <div class="payment-box">
+                <h3>💳 Ödeme Bilgileri</h3>
+                <p style="color: #856404; margin-bottom: 15px; font-size: 14px;">Aşağıdaki bilgileri kullanarak EFT/Havale yöntemi ile ödemenizi yapabilirsiniz:</p>
+                
+                <div class="payment-info">
+                  <div class="payment-info-item">
+                    <span class="payment-info-label">Banka Adı:</span>
+                    <span class="payment-info-value">${bankName}</span>
+                  </div>
+                  <div class="payment-info-item">
+                    <span class="payment-info-label">IBAN:</span>
+                    <span class="payment-info-value iban-value">${iban}</span>
+                  </div>
+                  <div class="payment-info-item">
+                    <span class="payment-info-label">Hesap Sahibi:</span>
+                    <span class="payment-info-value">${accountHolder}</span>
+                  </div>
+                  <div class="payment-info-item">
+                    <span class="payment-info-label">Tutar:</span>
+                    <span class="payment-info-value" style="color: #667eea; font-size: 18px;">₺${planPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="note-box">
+                <p><strong>ℹ️ Önemli Not:</strong> Ödeme yaptıysanız bu e-postayı görmezden gelebilirsiniz. Ödemeniz admin tarafından onaylandıktan sonra premium üyeliğiniz aktif olacaktır.</p>
+              </div>
+
+              <div class="warning-box">
+                <p><strong>⚠️ Uyarı:</strong> Hesap bilgilerindeki isim soy isim ile gönderici IBAN isim soy isim uyuşmazlığı durumunda ödeme onaylanmayacaktır ve para iadesi gerçekleştirilmeyecektir.</p>
+              </div>
+
+              <div class="button-container">
+                <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/profile" class="button">Sipariş Durumunu Görüntüle</a>
+              </div>
+              
+              <p style="margin-top: 30px;">Ödemeniz onaylandıktan sonra premium üyelik özelliklerine erişebileceksiniz. Sorularınız için bizimle iletişime geçmekten çekinmeyin.</p>
+              <p style="margin-top: 10px; font-weight: 600; color: #667eea;">Oruba Coin Ekibi</p>
+            </div>
+            <div class="footer">
+              <p><strong>Oruba Coin</strong> - Gerçek Zamanlı Kripto Para Analiz Platformu</p>
+              <p>Bu e-posta otomatik olarak gönderilmiştir. Lütfen yanıtlamayın.</p>
+              <div class="social-links">
+                <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}">Web Sitesi</a>
+                <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/premium">Premium</a>
+              </div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+  })
+}
+
+// Helper function for sending premium welcome email after payment approval
+export async function sendPremiumWelcomeEmail(
+  email: string,
+  name: string | null | undefined,
+  planName: string,
+  currentPeriodEnd: Date
+) {
+  const endDate = new Date(currentPeriodEnd).toLocaleDateString('tr-TR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+
+  return sendEmail({
+    to: email,
+    subject: '🎉 Premium Ailesine Hoş Geldiniz! - Oruba Coin',
+    html: `
+      <!DOCTYPE html>
+      <html lang="tr">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+              line-height: 1.6;
+              color: #1a1a1a;
+              background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0f0f1e 100%);
+              background-attachment: fixed;
+              padding: 20px;
+            }
+            .email-container {
+              max-width: 600px;
+              margin: 0 auto;
+              background: #ffffff;
+              border-radius: 16px;
+              overflow: hidden;
+              box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            }
+            .header {
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+              background-size: 200% 200%;
+              animation: gradient 8s ease infinite;
+              padding: 40px 30px;
+              text-align: center;
+              position: relative;
+              overflow: hidden;
+            }
+            .header::before {
+              content: '';
+              position: absolute;
+              top: -50%;
+              left: -50%;
+              width: 200%;
+              height: 200%;
+              background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+              animation: pulse 3s ease-in-out infinite;
+            }
+            .logo {
+              font-size: 32px;
+              font-weight: 700;
+              color: #ffffff;
+              text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+              margin-bottom: 10px;
+              position: relative;
+              z-index: 1;
+            }
+            .header h1 {
+              font-size: 28px;
+              font-weight: 600;
+              color: #ffffff;
+              margin: 0;
+              position: relative;
+              z-index: 1;
+              text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            }
+            .content {
+              background: #ffffff;
+              padding: 40px 30px;
+            }
+            .greeting {
+              font-size: 18px;
+              color: #1a1a1a;
+              margin-bottom: 20px;
+              font-weight: 500;
+            }
+            .content p {
+              font-size: 16px;
+              color: #4a4a4a;
+              margin-bottom: 20px;
+              line-height: 1.8;
+            }
+            .success-box {
+              background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+              border-left: 4px solid #28a745;
+              border-radius: 8px;
+              padding: 25px;
+              margin: 25px 0;
+              box-shadow: 0 4px 12px rgba(40, 167, 69, 0.15);
+            }
+            .success-box h3 {
+              color: #155724;
+              font-size: 20px;
+              margin-bottom: 15px;
+              font-weight: 600;
+            }
+            .success-box p {
+              color: #155724;
+              margin: 0;
+              font-size: 15px;
+              line-height: 1.6;
+            }
+            .plan-info {
+              background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+              border-radius: 12px;
+              padding: 25px;
+              margin: 25px 0;
+              border: 2px solid #667eea;
+            }
+            .plan-info h3 {
+              color: #667eea;
+              font-size: 18px;
+              margin-bottom: 15px;
+              font-weight: 600;
+              text-align: center;
+            }
+            .plan-details {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin: 15px 0;
+              padding: 15px;
+              background: #ffffff;
+              border-radius: 8px;
+              border: 1px solid #e9ecef;
+            }
+            .plan-details-label {
+              font-size: 14px;
+              color: #6c757d;
+              font-weight: 500;
+            }
+            .plan-details-value {
+              font-size: 18px;
+              color: #1a1a1a;
+              font-weight: 700;
+            }
+            .features-box {
+              background: linear-gradient(135deg, #e7f3ff 0%, #d0e7ff 100%);
+              border-radius: 12px;
+              padding: 25px;
+              margin: 25px 0;
+            }
+            .features-box h3 {
+              color: #667eea;
+              font-size: 18px;
+              margin-bottom: 15px;
+              font-weight: 600;
+            }
+            .features-list {
+              list-style: none;
+              padding: 0;
+            }
+            .features-list li {
+              padding: 10px 0;
+              color: #4a4a4a;
+              font-size: 15px;
+              display: flex;
+              align-items: center;
+            }
+            .features-list li:before {
+              content: '✓ ';
+              color: #28a745;
+              font-weight: 700;
+              margin-right: 10px;
+              font-size: 18px;
+            }
+            .button-container {
+              text-align: center;
+              margin: 30px 0;
+            }
+            .button {
+              display: inline-block;
+              padding: 16px 40px;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: #ffffff !important;
+              text-decoration: none;
+              border-radius: 12px;
+              font-weight: 600;
+              font-size: 16px;
+              box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+              transition: all 0.3s ease;
+              letter-spacing: 0.5px;
+            }
+            .button:hover {
+              transform: translateY(-2px);
+              box-shadow: 0 12px 24px rgba(102, 126, 234, 0.5);
+            }
+            .footer {
+              background: #f8f9fa;
+              padding: 30px;
+              text-align: center;
+              border-top: 1px solid #e9ecef;
+            }
+            .footer p {
+              color: #6c757d;
+              font-size: 12px;
+              margin: 5px 0;
+            }
+            .social-links {
+              margin-top: 20px;
+            }
+            .social-links a {
+              display: inline-block;
+              margin: 0 10px;
+              color: #667eea;
+              text-decoration: none;
+              font-size: 14px;
+            }
+            @keyframes gradient {
+              0% { background-position: 0% 50%; }
+              50% { background-position: 100% 50%; }
+              100% { background-position: 0% 50%; }
+            }
+            @keyframes pulse {
+              0%, 100% { opacity: 0.5; transform: scale(1); }
+              50% { opacity: 0.8; transform: scale(1.1); }
+            }
+            @media only screen and (max-width: 600px) {
+              .content {
+                padding: 30px 20px;
+              }
+              .header {
+                padding: 30px 20px;
+              }
+              .logo {
+                font-size: 28px;
+              }
+              .header h1 {
+                font-size: 24px;
+              }
+              .button {
+                padding: 14px 30px;
+                font-size: 14px;
+              }
+              .plan-details {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="email-container">
+            <div class="header">
+              <div class="logo">🎉 Oruba Coin</div>
+              <h1>Premium Ailesine Hoş Geldiniz!</h1>
+            </div>
+            <div class="content">
+              <p class="greeting">Merhaba ${name || 'Değerli Kullanıcı'}, 👋</p>
+              
+              <div class="success-box">
+                <h3>✅ Ödemeniz Onaylandı!</h3>
+                <p>Premium üyelik ödemeniz başarıyla onaylandı. Artık premium özelliklerin tüm avantajlarından yararlanabilirsiniz!</p>
+              </div>
+
+              <div class="plan-info">
+                <h3>📦 Üyelik Detaylarınız</h3>
+                <div class="plan-details">
+                  <span class="plan-details-label">Plan:</span>
+                  <span class="plan-details-value">${planName}</span>
+                </div>
+                <div class="plan-details">
+                  <span class="plan-details-label">Bitiş Tarihi:</span>
+                  <span class="plan-details-value">${endDate}</span>
+                </div>
+              </div>
+
+              <div class="features-box">
+                <h3>✨ Premium Özellikler</h3>
+                <ul class="features-list">
+                  <li>Detaylı coin analizi ve grafikler</li>
+                  <li>Saatlik hacim takibi</li>
+                  <li>Takip listesi oluşturma</li>
+                  <li>Fiyat alarmları ve bildirimler</li>
+                  <li>Alım-satım hacim ayrıştırması</li>
+                  <li>Gerçek zamanlı trade takibi</li>
+                </ul>
+              </div>
+
+              <div class="button-container">
+                <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/coins" class="button">Premium Özellikleri Keşfet</a>
+              </div>
+              
+              <p style="margin-top: 30px;">Sorularınız veya destek ihtiyacınız için bizimle iletişime geçmekten çekinmeyin. İyi yatırımlar dileriz! 📈</p>
+              <p style="margin-top: 10px; font-weight: 600; color: #667eea;">Oruba Coin Ekibi</p>
+            </div>
+            <div class="footer">
+              <p><strong>Oruba Coin</strong> - Gerçek Zamanlı Kripto Para Analiz Platformu</p>
+              <p>Bu e-posta otomatik olarak gönderilmiştir. Lütfen yanıtlamayın.</p>
+              <div class="social-links">
+                <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}">Web Sitesi</a>
+                <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/premium">Premium</a>
+              </div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+  })
+}
+
+export { resend, sendPremiumWelcomeEmail }
 
 

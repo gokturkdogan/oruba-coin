@@ -59,6 +59,10 @@ export default function HourlyVolumePage() {
   const sortOrderRef = useRef<SortOrder>(sortOrder)
   const searchRef = useRef<string>(search)
   const isMountedRef = useRef<boolean>(true)
+  const flashTimeoutRef = useRef<Map<string, NodeJS.Timeout>>(new Map()) // Flash animasyon debounce için
+  const lastFlashTimeRef = useRef<Map<string, number>>(new Map()) // Son flash zamanı
+  const updateCoinsDisplayTimeoutRef = useRef<NodeJS.Timeout | null>(null) // updateCoinsDisplay throttle için
+  const lastUpdateTimeRef = useRef<number>(0) // Son update zamanı
 
   // Fetch hourly volume for a single coin - Dinamik hesaplama
   // Şu anki zamandan tam 1 saat öncesine kadar olan hacmi hesaplıyoruz
@@ -217,14 +221,39 @@ export default function HourlyVolumePage() {
     // Futures WebSocket
     const futuresWsUrl = `wss://fstream.binance.com/stream?streams=${streams}`
 
-    // Helper function to update coins and trigger re-render
+    // Helper function to update coins and trigger re-render (throttled for performance)
     const updateCoinsDisplay = () => {
       // Only update if component is still mounted
       if (!isMountedRef.current) return
+      
+      const now = Date.now()
+      const timeSinceLastUpdate = now - lastUpdateTimeRef.current
+      
+      // Throttle: Maksimum 300ms'de bir güncelle (3-4 FPS - daha smooth)
+      if (timeSinceLastUpdate < 300) {
+        // Önceki timeout'u iptal et ve yeni bir tane planla
+        if (updateCoinsDisplayTimeoutRef.current) {
+          clearTimeout(updateCoinsDisplayTimeoutRef.current)
+        }
+        
+        updateCoinsDisplayTimeoutRef.current = setTimeout(() => {
+          if (isMountedRef.current) {
+            const updatedCoins = Array.from(coinsMapRef.current.values())
+            const sorted = sortCoins(updatedCoins, sortByRef.current, sortOrderRef.current)
+            const filtered = searchCoins(sorted, searchRef.current)
+            setCoins(filtered)
+            lastUpdateTimeRef.current = Date.now()
+          }
+        }, 300 - timeSinceLastUpdate)
+        return
+      }
+      
+      // Yeterince zaman geçtiyse direkt güncelle
       const updatedCoins = Array.from(coinsMapRef.current.values())
       const sorted = sortCoins(updatedCoins, sortByRef.current, sortOrderRef.current)
       const filtered = searchCoins(sorted, searchRef.current)
       setCoins(filtered)
+      lastUpdateTimeRef.current = now
     }
 
     // Spot WebSocket
@@ -320,28 +349,50 @@ export default function HourlyVolumePage() {
                 hourlyFuturesSellVolume: existingCoin.hourlyFuturesSellVolume || '0',
               }
               
-              // Check if price changed and trigger flash animation
+              // Check if price changed and trigger flash animation (optimized with debounce)
               if (isMountedRef.current && previousPrice !== undefined && previousPrice !== 0 && currentPrice !== 0 && currentPrice !== previousPrice) {
                 const priceDiff = Math.abs(currentPrice - previousPrice)
                 const priceChangePercent = (priceDiff / previousPrice) * 100
                 
-                if (priceChangePercent >= 0.001 || priceDiff >= 0.00000001) {
-                  const flashType = currentPrice > previousPrice ? 'up' : 'down'
+                // Daha yüksek eşik: %0.5 veya daha büyük değişiklikler için tetikle (daha az sıklıkta)
+                const shouldFlash = priceChangePercent >= 0.5 || priceDiff >= 0.001
+                
+                if (shouldFlash) {
+                  const now = Date.now()
+                  const lastFlashTime = lastFlashTimeRef.current.get(symbol) || 0
+                  const timeSinceLastFlash = now - lastFlashTime
                   
-                  if (isMountedRef.current) {
-                    setFlashAnimations(prev => ({
-                      ...prev,
-                      [symbol]: flashType
-                    }))
+                  // Aynı coin için 3 saniyede bir maksimum flash tetikle (daha az sıklık)
+                  if (timeSinceLastFlash >= 3000) {
+                    // Önceki timeout'u temizle
+                    const existingTimeout = flashTimeoutRef.current.get(symbol)
+                    if (existingTimeout) {
+                      clearTimeout(existingTimeout)
+                    }
                     
-                    setTimeout(() => {
-                      if (isMountedRef.current) {
-                        setFlashAnimations(prev => {
-                          const { [symbol]: _, ...rest } = prev
-                          return rest
-                        })
-                      }
-                    }, 1200)
+                    const flashType = currentPrice > previousPrice ? 'up' : 'down'
+                    
+                    if (isMountedRef.current) {
+                      lastFlashTimeRef.current.set(symbol, now)
+                      
+                      setFlashAnimations(prev => ({
+                        ...prev,
+                        [symbol]: flashType
+                      }))
+                      
+                      // Animasyon süresini CSS ile uyumlu tut (600ms)
+                      const timeout = setTimeout(() => {
+                        if (isMountedRef.current) {
+                          setFlashAnimations(prev => {
+                            const { [symbol]: _, ...rest } = prev
+                            return rest
+                          })
+                          flashTimeoutRef.current.delete(symbol)
+                        }
+                      }, 600)
+                      
+                      flashTimeoutRef.current.set(symbol, timeout)
+                    }
                   }
                 }
               }
@@ -619,6 +670,19 @@ export default function HourlyVolumePage() {
       hourlyVolumeStartTimeRef.current.clear()
       hourlyVolumeAccumulatorRef.current.clear()
       previousQuoteVolumesRef.current.clear()
+      
+      // Flash animasyon timeout'larını temizle
+      flashTimeoutRef.current.forEach((timeout) => {
+        clearTimeout(timeout)
+      })
+      flashTimeoutRef.current.clear()
+      lastFlashTimeRef.current.clear()
+      
+      // updateCoinsDisplay timeout'unu temizle
+      if (updateCoinsDisplayTimeoutRef.current) {
+        clearTimeout(updateCoinsDisplayTimeoutRef.current)
+        updateCoinsDisplayTimeoutRef.current = null
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPremium])
@@ -1161,10 +1225,10 @@ export default function HourlyVolumePage() {
                     return (
                       <tr 
                         key={coin.symbol}
-                        className={`group relative ${flashClass}`}
+                        className={`group ${flashClass}`}
                         style={{
                           borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                          transition: 'all 0.3s',
+                          transition: 'background-color 0.3s',
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'

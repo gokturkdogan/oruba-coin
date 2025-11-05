@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -22,11 +22,18 @@ export default function RegisterPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
+  const [siteUrl, setSiteUrl] = useState('')
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     name: '',
   })
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setSiteUrl(window.location.origin)
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -175,9 +182,21 @@ export default function RegisterPage() {
                             <h3 className="font-semibold text-lg mb-2">5. Sözleşme Değişiklikleri:</h3>
                             <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground ml-4">
                               <li>Oruba Coin, gerekli gördüğü durumlarda işbu sözleşmeyi güncelleme hakkını saklı tutar.</li>
-                              <li>Güncel metin her zaman <a href="https://orubacoin.com/kullanicisozlesmesi" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">orubacoin.com/kullanicisozlesmesi</a> adresinde yayımlanacaktır.</li>
+                              <li>Güncel metin her zaman <Link href="/kullanicisozlesmesi" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{siteUrl}/kullanicisozlesmesi</Link> adresinde yayımlanacaktır.</li>
                             </ul>
                           </div>
+                        </div>
+                        <div className="border-t border-white/10 pt-4 mt-6">
+                          <p className="text-center text-sm text-muted-foreground">
+                            <Link 
+                              href="/kullanicisozlesmesi" 
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary hover:underline font-medium cursor-pointer"
+                            >
+                              Detaylı Kullanıcı Sözleşmesi ve Gizlilik Politikası
+                            </Link>
+                          </p>
                         </div>
                       </DialogContent>
                     </Dialog>

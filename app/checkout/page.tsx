@@ -8,16 +8,20 @@ import { toast } from 'sonner'
 import { Check, Lock, Copy, CheckCircle, Clock, Building2, AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
-const PLAN_PRICES = {
-  monthly: 99,
-  yearly: 899,
+interface Plan {
+  id: string
+  name: string
+  price: number
+  durationDays: number
+  displayOrder: number
 }
 
 export default function CheckoutPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [user, setUser] = useState<any>(null)
-  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('monthly')
+  const [plans, setPlans] = useState<Plan[]>([])
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
   const [pendingPayment, setPendingPayment] = useState<any>(null)
   const [orderCreated, setOrderCreated] = useState(false)
   const [ibanInfo, setIbanInfo] = useState({
@@ -43,6 +47,19 @@ export default function CheckoutPage() {
         router.push('/login')
       })
 
+    // Fetch active plans
+    fetch('/api/plans/active')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.plans && data.plans.length > 0) {
+          setPlans(data.plans)
+          setSelectedPlanId(data.plans[0].id)
+        }
+      })
+      .catch(() => {
+        // Ignore error
+      })
+
     // Check for pending payment
     fetch('/api/subscription/my-pending-payment')
       .then((res) => res.json())
@@ -50,7 +67,18 @@ export default function CheckoutPage() {
         if (data.pendingPayment) {
           setPendingPayment(data.pendingPayment)
           setOrderCreated(true)
-          setSelectedPlan(data.pendingPayment.plan as 'monthly' | 'yearly')
+          // Find plan by name from pending payment
+          fetch('/api/plans/active')
+            .then((res) => res.json())
+            .then((planData) => {
+              if (planData.plans) {
+                const matchingPlan = planData.plans.find((p: Plan) => p.name === data.pendingPayment.plan)
+                if (matchingPlan) {
+                  setSelectedPlanId(matchingPlan.id)
+                }
+              }
+            })
+            .catch(() => {})
         }
       })
       .catch(() => {
@@ -78,12 +106,27 @@ export default function CheckoutPage() {
   }
 
   const handleCreateOrder = async () => {
+    if (!selectedPlanId) {
+      toast.error('Lütfen bir plan seçin')
+      return
+    }
+
+    const selectedPlan = plans.find(p => p.id === selectedPlanId)
+    if (!selectedPlan) {
+      toast.error('Seçilen plan bulunamadı')
+      return
+    }
+
     setLoading(true)
     try {
       const res = await fetch('/api/subscription/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: selectedPlan }),
+        body: JSON.stringify({ 
+          plan: selectedPlan.name, // Backward compatibility için name gönderiyoruz
+          planId: selectedPlan.id,
+          amount: selectedPlan.price 
+        }),
       })
 
       const data = await res.json()
@@ -95,13 +138,33 @@ export default function CheckoutPage() {
 
       toast.success('Sipariş oluşturuldu! Ödeme yaptıktan sonra admin onayı bekleniyor.')
       setOrderCreated(true)
-      setPendingPayment(data.order)
+      setPendingPayment(data.order || data.pendingPayment)
     } catch (error) {
       toast.error('Bir hata oluştu')
     } finally {
       setLoading(false)
     }
   }
+
+  const formatDuration = (days: number) => {
+    if (days === 30) return '1 Ay'
+    if (days === 365) return '1 Yıl'
+    if (days < 30) return `${days} Gün`
+    if (days < 365) {
+      const months = Math.floor(days / 30)
+      const remainingDays = days % 30
+      if (remainingDays === 0) return `${months} Ay`
+      return `${months} Ay ${remainingDays} Gün`
+    }
+    const years = Math.floor(days / 365)
+    const remainingDays = days % 365
+    if (remainingDays === 0) return `${years} Yıl`
+    const months = Math.floor(remainingDays / 30)
+    if (months === 0) return `${years} Yıl ${remainingDays} Gün`
+    return `${years} Yıl ${months} Ay`
+  }
+
+  const selectedPlan = plans.find(p => p.id === selectedPlanId)
 
   if (!user) {
     return (
@@ -117,48 +180,34 @@ export default function CheckoutPage() {
         <h1 className="text-4xl font-bold mb-8 gradient-text">Premium'a Yükselt</h1>
 
         {/* Plan Selection */}
-        {!orderCreated && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <Card
-              className={`cursor-pointer transition-all ${
-                selectedPlan === 'monthly'
-                  ? 'border-primary border-2 bg-primary/5'
-                  : 'hover:border-primary/50'
-              }`}
-              onClick={() => setSelectedPlan('monthly')}
-            >
-              <CardHeader>
-                <CardTitle>Aylık Plan</CardTitle>
-                <div className="mt-4">
-                  <div className="text-4xl font-bold gradient-text">₺{PLAN_PRICES.monthly}</div>
-                  <div className="text-sm text-muted-foreground">aylık</div>
-                </div>
-              </CardHeader>
-            </Card>
-
-            <Card
-              className={`cursor-pointer transition-all relative ${
-                selectedPlan === 'yearly'
-                  ? 'border-primary border-2 bg-primary/5'
-                  : 'hover:border-primary/50'
-              }`}
-              onClick={() => setSelectedPlan('yearly')}
-            >
-              <div className="absolute top-0 right-0 bg-primary text-white text-xs font-bold px-3 py-1 rounded-bl-lg">
-                Popüler
-              </div>
-              <CardHeader>
-                <CardTitle>Yıllık Plan</CardTitle>
-                <div className="mt-4">
-                  <div className="flex items-baseline gap-2">
-                    <div className="text-4xl font-bold gradient-text">₺{PLAN_PRICES.yearly}</div>
-                    <div className="text-sm text-muted-foreground line-through">₺{PLAN_PRICES.monthly * 12}</div>
+        {!orderCreated && plans.length > 0 && (
+          <div className={`grid gap-6 mb-8 ${plans.length === 1 ? 'grid-cols-1' : plans.length === 2 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+            {plans.map((plan, index) => (
+              <Card
+                key={plan.id}
+                className={`cursor-pointer transition-all relative ${
+                  selectedPlanId === plan.id
+                    ? 'border-primary border-2 bg-primary/5'
+                    : 'hover:border-primary/50'
+                }`}
+                onClick={() => setSelectedPlanId(plan.id)}
+              >
+                {index === 0 && plans.length > 1 && (
+                  <div className="absolute top-0 right-0 bg-primary text-white text-xs font-bold px-3 py-1 rounded-bl-lg">
+                    Popüler
                   </div>
-                  <div className="text-sm text-muted-foreground">yıllık</div>
-                  <div className="text-xs text-green-400 font-semibold mt-1">2 ay ücretsiz!</div>
-                </div>
-              </CardHeader>
-            </Card>
+                )}
+                <CardHeader>
+                  <CardTitle>{plan.name}</CardTitle>
+                  <div className="mt-4">
+                    <div className="text-4xl font-bold gradient-text">
+                      ₺{plan.price.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <div className="text-sm text-muted-foreground">{formatDuration(plan.durationDays)}</div>
+                  </div>
+                </CardHeader>
+              </Card>
+            ))}
           </div>
         )}
 
@@ -204,7 +253,7 @@ export default function CheckoutPage() {
                   <div className="text-sm text-muted-foreground">Ödenecek Tutar</div>
                   <div className="text-2xl font-bold gradient-text">₺{pendingPayment.amount}</div>
                   <div className="text-xs text-muted-foreground">
-                    {selectedPlan === 'monthly' ? 'Aylık' : 'Yıllık'} plan
+                    {pendingPayment.plan || selectedPlan?.name || 'Plan'}
                   </div>
                 </div>
               )}

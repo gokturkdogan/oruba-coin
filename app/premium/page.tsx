@@ -1,12 +1,56 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Check, Zap, BarChart3, Download, Bell, Lock, TrendingUp, Sparkles, Target } from 'lucide-react'
 
+interface Plan {
+  id: string
+  name: string
+  price: number
+  durationDays: number
+  displayOrder: number
+}
+
 export default function PremiumPage() {
+  const [plans, setPlans] = useState<Plan[]>([])
+
+  useEffect(() => {
+    // Fetch active plans
+    fetch('/api/plans/active')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.plans && data.plans.length > 0) {
+          // Sort by displayOrder
+          const sortedPlans = [...data.plans].sort((a, b) => a.displayOrder - b.displayOrder)
+          setPlans(sortedPlans)
+        }
+      })
+      .catch(() => {
+        // Ignore error
+      })
+  }, [])
+
+  const formatDuration = (days: number) => {
+    if (days === 30) return '1 Ay'
+    if (days === 365) return '1 Yıl'
+    if (days < 30) return `${days} Gün`
+    if (days < 365) {
+      const months = Math.floor(days / 30)
+      const remainingDays = days % 30
+      if (remainingDays === 0) return `${months} Ay`
+      return `${months} Ay ${remainingDays} Gün`
+    }
+    const years = Math.floor(days / 365)
+    const remainingDays = days % 365
+    if (remainingDays === 0) return `${years} Yıl`
+    const months = Math.floor(remainingDays / 30)
+    if (months === 0) return `${years} Yıl ${remainingDays} Gün`
+    return `${years} Yıl ${months} Ay`
+  }
   return (
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
       {/* Hero Section */}
@@ -274,54 +318,42 @@ export default function PremiumPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-              {/* Aylık Plan */}
-              <Card className="glass-effect border-primary/30 hover:border-primary/50 transition-all duration-300 hover:shadow-xl hover:shadow-primary/20">
-                <CardHeader className="text-center pb-4">
-                  <CardTitle className="text-2xl font-bold mb-2">Aylık Plan</CardTitle>
-                  <div className="space-y-1">
-                    <div className="text-4xl font-extrabold gradient-text">₺99</div>
-                    <div className="text-sm text-muted-foreground">aylık</div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <Button 
-                    asChild
-                    size="lg"
-                    className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/30 text-base px-8 py-6 hover:scale-105 transition-transform duration-200 cursor-pointer"
+            {plans.length > 0 ? (
+              <div className={`grid gap-6 max-w-2xl mx-auto ${plans.length === 1 ? 'grid-cols-1' : plans.length === 2 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+                {plans.map((plan, index) => (
+                  <Card 
+                    key={plan.id}
+                    className={`glass-effect border-primary/30 hover:border-primary/50 transition-all duration-300 hover:shadow-xl hover:shadow-primary/20 relative overflow-hidden ${index === 1 && plans.length > 1 ? 'md:relative' : ''}`}
                   >
-                    <Link href="/checkout">Aylık Planı Seç</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Yıllık Plan */}
-              <Card className="glass-effect border-primary/30 hover:border-primary/50 transition-all duration-300 hover:shadow-xl hover:shadow-primary/20 relative overflow-hidden">
-                <div className="absolute top-0 right-0 bg-primary text-white text-xs font-bold px-3 py-1 rounded-bl-lg">
-                  Popüler
-                </div>
-                <CardHeader className="text-center pb-4">
-                  <CardTitle className="text-2xl font-bold mb-2">Yıllık Plan</CardTitle>
-                  <div className="space-y-1">
-                    <div className="flex items-baseline justify-center gap-2">
-                      <div className="text-4xl font-extrabold gradient-text">₺899</div>
-                      <div className="text-sm text-muted-foreground line-through">₺1.188</div>
-                    </div>
-                    <div className="text-sm text-muted-foreground">yıllık</div>
-                    <div className="text-xs text-green-400 font-semibold mt-1">2 ay ücretsiz!</div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <Button 
-                    asChild
-                    size="lg"
-                    className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/30 text-base px-8 py-6 hover:scale-105 transition-transform duration-200 cursor-pointer"
-                  >
-                    <Link href="/checkout">Yıllık Planı Seç</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
+                    {index === 1 && plans.length > 1 && (
+                      <div className="absolute top-0 right-0 bg-primary text-white text-xs font-bold px-3 py-1 rounded-bl-lg z-10">
+                        Popüler
+                      </div>
+                    )}
+                    <CardHeader className="text-center pb-4">
+                      <CardTitle className="text-2xl font-bold mb-2">{plan.name}</CardTitle>
+                      <div className="space-y-1">
+                        <div className="text-4xl font-extrabold gradient-text">₺{plan.price.toLocaleString('tr-TR')}</div>
+                        <div className="text-sm text-muted-foreground">{formatDuration(plan.durationDays)}</div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <Button 
+                        asChild
+                        size="lg"
+                        className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/30 text-base px-8 py-6 hover:scale-105 transition-transform duration-200 cursor-pointer"
+                      >
+                        <Link href="/checkout">Planı Seç</Link>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center text-muted-foreground py-8">
+                Planlar yükleniyor...
+              </div>
+            )}
             
             <p className="text-sm text-muted-foreground text-center">
               💳 Güvenli ödeme işleme • 🔒 İstediğiniz zaman iptal edin • ✨ 7/24 öncelikli destek

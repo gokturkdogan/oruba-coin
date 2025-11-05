@@ -160,3 +160,18 @@ model BankAccount {
   @@index([isActive])
   @@map("bank_accounts")
 }
+
+model Plan {
+  id           String   @id @default(uuid())
+  name         String   @unique // "Aylık", "Yıllık", etc.
+  price        Float
+  durationDays Int      @map("duration_days") // 30, 365, etc.
+  isActive     Boolean  @default(true) @map("is_active")
+  displayOrder Int      @default(0) @map("display_order") // Sıralama için
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  @@index([isActive])
+  @@index([displayOrder])
+  @@map("plans")
+}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/middleware'
 import { prisma } from '@/lib/prisma'
+import { sendPremiumWelcomeEmail } from '@/lib/resend'
 import { z } from 'zod'
 
 const approvePaymentSchema = z.object({
@@ -83,6 +84,23 @@ export async function PUT(
           currentPeriodEnd: periodEndDate,
         },
       })
+
+      // Get plan name from pending payment or use default
+      const planName = pendingPayment.plan || 'Premium Plan'
+
+      // Send welcome email
+      try {
+        await sendPremiumWelcomeEmail(
+          pendingPayment.user.email,
+          pendingPayment.user.name,
+          planName,
+          periodEndDate
+        )
+        console.log('[Payment Approval] Welcome email sent to:', pendingPayment.user.email)
+      } catch (emailError) {
+        // Log error but don't fail the approval
+        console.error('[Payment Approval] Failed to send welcome email:', emailError)
+      }
 
       return NextResponse.json({
         message: 'Payment approved and subscription activated',

@@ -94,17 +94,65 @@ export default function AdminPaymentsPage() {
     }
   }
 
-  const handleApproveClick = (payment: PendingPayment) => {
+  const handleApproveClick = async (payment: PendingPayment) => {
     setSelectedPayment(payment)
-    // Set default period end date based on plan
-    const today = new Date()
-    if (payment.plan === 'monthly') {
-      today.setMonth(today.getMonth() + 1)
-    } else {
-      today.setFullYear(today.getFullYear() + 1)
-    }
-    setPeriodEndDate(today)
     setAdminNotes('')
+    
+    // Fetch plan from database to get duration
+    try {
+      const plansRes = await fetch('/api/admin/plans?activeOnly=false')
+      if (plansRes.ok) {
+        const plansData = await plansRes.json()
+        const matchingPlan = plansData.plans?.find((p: any) => p.name === payment.plan)
+        
+        if (matchingPlan) {
+          // Set default period end date based on plan duration
+          const today = new Date()
+          today.setDate(today.getDate() + matchingPlan.durationDays)
+          setPeriodEndDate(today)
+        } else {
+          // Fallback: try to infer from plan name or use 30 days default
+          const today = new Date()
+          const planNameLower = payment.plan.toLowerCase()
+          if (planNameLower.includes('aylık') || planNameLower.includes('monthly')) {
+            today.setMonth(today.getMonth() + 1)
+          } else if (planNameLower.includes('yıllık') || planNameLower.includes('yearly') || planNameLower.includes('yıl')) {
+            today.setFullYear(today.getFullYear() + 1)
+          } else {
+            // Default to 30 days if unknown
+            today.setDate(today.getDate() + 30)
+          }
+          setPeriodEndDate(today)
+        }
+      } else {
+        // Fallback: try to infer from plan name or use 30 days default
+        const today = new Date()
+        const planNameLower = payment.plan.toLowerCase()
+        if (planNameLower.includes('aylık') || planNameLower.includes('monthly')) {
+          today.setMonth(today.getMonth() + 1)
+        } else if (planNameLower.includes('yıllık') || planNameLower.includes('yearly') || planNameLower.includes('yıl')) {
+          today.setFullYear(today.getFullYear() + 1)
+        } else {
+          // Default to 30 days if unknown
+          today.setDate(today.getDate() + 30)
+        }
+        setPeriodEndDate(today)
+      }
+    } catch (error) {
+      // Fallback: try to infer from plan name or use 30 days default
+      const today = new Date()
+      const planNameLower = payment.plan.toLowerCase()
+      if (planNameLower.includes('aylık') || planNameLower.includes('monthly')) {
+        today.setMonth(today.getMonth() + 1)
+      } else if (planNameLower.includes('yıllık') || planNameLower.includes('yearly') || planNameLower.includes('yıl')) {
+        today.setFullYear(today.getFullYear() + 1)
+      } else {
+        // Default to 30 days if unknown
+        today.setDate(today.getDate() + 30)
+      }
+      setPeriodEndDate(today)
+    }
+    
     setApproveModalOpen(true)
   }
 
@@ -295,7 +343,7 @@ export default function AdminPaymentsPage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">
-                          {payment.plan === 'monthly' ? 'Aylık' : 'Yıllık'}
+                          {payment.plan}
                         </Badge>
                       </TableCell>
                       <TableCell className="font-semibold">₺{payment.amount}</TableCell>
@@ -394,7 +442,7 @@ export default function AdminPaymentsPage() {
                 </PopoverContent>
               </Popover>
               <p className="text-xs text-muted-foreground">
-                Plan: {selectedPayment?.plan === 'monthly' ? 'Aylık' : 'Yıllık'} • 
+                Plan: {selectedPayment?.plan} • 
                 Tutar: ₺{selectedPayment?.amount}
               </p>
             </div>
