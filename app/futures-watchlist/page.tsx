@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { StarOff, Lock, Star, TrendingUp, TrendingDown } from 'lucide-react'
+import { StarOff, Lock, Star, TrendingUp, TrendingDown, Bell, BellOff } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface Coin {
   symbol: string
@@ -27,6 +30,18 @@ interface Coin {
   hourlyFuturesSellVolume?: string
 }
 
+interface PriceAlert {
+  id: string
+  symbol: string
+  market: string
+  type: 'above' | 'below'
+  targetPrice: number
+  isActive: boolean
+  triggeredAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export default function FuturesWatchlistPage() {
   const router = useRouter()
   const [watchlist, setWatchlist] = useState<string[]>([])
@@ -36,6 +51,12 @@ export default function FuturesWatchlistPage() {
   const [checkingPremium, setCheckingPremium] = useState(true)
   const [removeModalOpen, setRemoveModalOpen] = useState(false)
   const [coinToRemove, setCoinToRemove] = useState<string | null>(null)
+  const [alerts, setAlerts] = useState<Record<string, PriceAlert[]>>({}) // symbol -> alerts[]
+  const [alertModalOpen, setAlertModalOpen] = useState(false)
+  const [selectedCoin, setSelectedCoin] = useState<string | null>(null)
+  const [alertType, setAlertType] = useState<'above' | 'below'>('above')
+  const [targetPrice, setTargetPrice] = useState<string>('')
+  const [editingAlert, setEditingAlert] = useState<PriceAlert | null>(null)
   const isMountedRef = useRef<boolean>(true)
   const wsRef = useRef<WebSocket | null>(null) // Futures ticker WebSocket
   const tradesWsRef = useRef<WebSocket | null>(null) // Futures trade WebSocket
@@ -487,6 +508,152 @@ export default function FuturesWatchlistPage() {
     }
   }, [router, subscribeToWebSocket, subscribeToTradeWebSocket])
 
+  // Fetch alerts for all coins in watchlist
+  const fetchAlerts = useCallback(async () => {
+    if (!isMountedRef.current || !isPremium) return
+    
+    try {
+      const res = await fetch('/api/alerts?market=futures')
+      if (res.ok) {
+        const data = await res.json()
+        const alertsArray = data.alerts || []
+        
+        // Group alerts by symbol
+        const alertsBySymbol: Record<string, PriceAlert[]> = {}
+        alertsArray.forEach((alert: PriceAlert) => {
+          if (!alertsBySymbol[alert.symbol]) {
+            alertsBySymbol[alert.symbol] = []
+          }
+          alertsBySymbol[alert.symbol].push(alert)
+        })
+        
+        if (isMountedRef.current) {
+          setAlerts(alertsBySymbol)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch alerts:', error)
+    }
+  }, [isPremium])
+
+  // Open alert modal for creating/editing
+  const handleAlertClick = (symbol: string, alert?: PriceAlert) => {
+    setSelectedCoin(symbol)
+    if (alert) {
+      // Existing alert - edit mode
+      setEditingAlert(alert)
+      setAlertType(alert.type)
+      setTargetPrice(alert.targetPrice.toString())
+    } else {
+      // New alert - check if there are existing alerts for this coin
+      const existingAlerts = alerts[symbol] || []
+      const hasAbove = existingAlerts.some(a => a.type === 'above' && a.isActive)
+      const hasBelow = existingAlerts.some(a => a.type === 'below' && a.isActive)
+      
+      // If both exist, default to above (user can still change)
+      // If one exists, default to the other one
+      if (hasAbove && !hasBelow) {
+        setAlertType('below')
+      } else if (hasBelow && !hasAbove) {
+        setAlertType('above')
+      } else {
+        setAlertType('above') // Default
+      }
+      
+      setEditingAlert(null)
+      setTargetPrice('')
+    }
+    setAlertModalOpen(true)
+  }
+
+  // Create or update alert
+  const handleSaveAlert = async () => {
+    if (!selectedCoin || !targetPrice) {
+      toast.error('Lütfen hedef fiyat girin')
+      return
+    }
+
+    const price = parseFloat(targetPrice)
+    if (isNaN(price) || price <= 0) {
+      toast.error('Geçerli bir fiyat girin')
+      return
+    }
+
+    try {
+      if (editingAlert) {
+        // Update existing alert
+        const res = await fetch(`/api/alerts/${editingAlert.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetPrice: price }),
+        })
+
+        if (res.ok) {
+          toast.success('Alert güncellendi')
+          await fetchAlerts()
+          setAlertModalOpen(false)
+          setEditingAlert(null)
+          setTargetPrice('')
+        } else {
+          const error = await res.json()
+          toast.error(error.error || 'Alert güncellenirken hata oluştu')
+        }
+      } else {
+        // Create new alert
+        const res = await fetch('/api/alerts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            symbol: selectedCoin,
+            market: 'futures',
+            type: alertType,
+            targetPrice: price,
+          }),
+        })
+
+        if (res.ok) {
+          toast.success('Alert oluşturuldu')
+          await fetchAlerts()
+          setAlertModalOpen(false)
+          setTargetPrice('')
+        } else {
+          const error = await res.json()
+          toast.error(error.error || 'Alert oluşturulurken hata oluştu')
+        }
+      }
+    } catch (error) {
+      console.error('Failed to save alert:', error)
+      toast.error('Bir hata oluştu')
+    }
+  }
+
+  // Delete alert
+  const handleDeleteAlert = async (alertId: string) => {
+    try {
+      const res = await fetch(`/api/alerts/${alertId}`, {
+        method: 'DELETE',
+      })
+
+      if (res.ok) {
+        toast.success('Alert silindi')
+        await fetchAlerts()
+      } else {
+        const error = await res.json()
+        toast.error(error.error || 'Alert silinirken hata oluştu')
+      }
+    } catch (error) {
+      console.error('Failed to delete alert:', error)
+      toast.error('Bir hata oluştu')
+    }
+  }
+
+  // Fetch alerts when watchlist changes
+  useEffect(() => {
+    if (isPremium && !checkingPremium && watchlist.length > 0) {
+      fetchAlerts()
+    }
+  }, [isPremium, checkingPremium, watchlist.length, fetchAlerts])
+
   useEffect(() => {
     isMountedRef.current = true
     
@@ -801,13 +968,26 @@ export default function FuturesWatchlistPage() {
                       <div>
                         <CardTitle className="text-xl">{coin.symbol}</CardTitle>
                       </div>
-                      <button
-                        onClick={() => handleRemoveClick(coin.symbol)}
-                        className="p-1.5 rounded-md hover:bg-yellow-500/10 transition-colors cursor-pointer text-yellow-400 hover:text-yellow-300"
-                        title="Vadeli takip listesinden çıkar"
-                      >
-                        <Star className="h-5 w-5 fill-yellow-400" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleAlertClick(coin.symbol)}
+                          className="p-1.5 rounded-md hover:bg-primary/10 transition-colors cursor-pointer text-primary hover:text-primary/80"
+                          title="Fiyat alarmı oluştur/düzenle"
+                        >
+                          {alerts[coin.symbol] && alerts[coin.symbol].some(a => a.isActive) ? (
+                            <Bell className="h-5 w-5 fill-primary" />
+                          ) : (
+                            <Bell className="h-5 w-5" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleRemoveClick(coin.symbol)}
+                          className="p-1.5 rounded-md hover:bg-yellow-500/10 transition-colors cursor-pointer text-yellow-400 hover:text-yellow-300"
+                          title="Vadeli takip listesinden çıkar"
+                        >
+                          <Star className="h-5 w-5 fill-yellow-400" />
+                        </button>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -883,6 +1063,50 @@ export default function FuturesWatchlistPage() {
                         </div>
                       </div>
                     </div>
+                    
+                    {/* Aktif Alert'ler */}
+                    {alerts[coin.symbol] && alerts[coin.symbol].length > 0 && (
+                      <div className="pt-2 border-t border-border/50">
+                        <p className="text-xs text-muted-foreground mb-2">Aktif Alarmlar</p>
+                        <div className="flex flex-col gap-1.5">
+                          {alerts[coin.symbol]
+                            .filter((alert) => alert.isActive)
+                            .map((alert) => (
+                              <div
+                                key={alert.id}
+                                className="flex items-center justify-between p-2 rounded-md bg-primary/5 border border-primary/20"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Bell className="h-3.5 w-3.5 text-primary" />
+                                  <span className="text-xs font-medium">
+                                    {alert.type === 'above' ? '↑' : '↓'} ${alert.targetPrice.toLocaleString('tr-TR', {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 8,
+                                    })}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => handleAlertClick(coin.symbol, alert)}
+                                    className="p-1 rounded hover:bg-primary/10 transition-colors cursor-pointer text-xs text-primary"
+                                    title="Düzenle"
+                                  >
+                                    Düzenle
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteAlert(alert.id)}
+                                    className="p-1 rounded hover:bg-red-500/10 transition-colors cursor-pointer text-xs text-red-400"
+                                    title="Sil"
+                                  >
+                                    <BellOff className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                    
                     <Button
                       asChild
                       className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 cursor-pointer mt-2"
@@ -895,6 +1119,95 @@ export default function FuturesWatchlistPage() {
             })}
           </div>
         )}
+
+        {/* Alert Modal */}
+        <Dialog open={alertModalOpen} onOpenChange={setAlertModalOpen}>
+          <DialogContent className="glass-effect border-white/10 max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold gradient-text">
+                {editingAlert ? 'Alert Düzenle' : 'Yeni Alert Oluştur'}
+              </DialogTitle>
+              <DialogDescription className="text-muted-foreground">
+                {selectedCoin && (
+                  <>
+                    <strong>{selectedCoin}</strong> için vadeli fiyat alarmı {editingAlert ? 'düzenle' : 'oluştur'}
+                  </>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              {!editingAlert && selectedCoin && (
+                <div>
+                  <Label htmlFor="alert-type">Alert Tipi</Label>
+                  {(() => {
+                    const existingAlerts = alerts[selectedCoin] || []
+                    const hasAbove = existingAlerts.some(a => a.type === 'above' && a.isActive)
+                    const hasBelow = existingAlerts.some(a => a.type === 'below' && a.isActive)
+                    
+                    return (
+                      <>
+                        <Select value={alertType} onValueChange={(value) => setAlertType(value as 'above' | 'below')}>
+                          <SelectTrigger className="mt-2">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="above" disabled={hasAbove}>
+                              Fiyat Yukarı Çıktığında (Above) {hasAbove && '(Zaten var)'}
+                            </SelectItem>
+                            <SelectItem value="below" disabled={hasBelow}>
+                              Fiyat Aşağı İndiğinde (Below) {hasBelow && '(Zaten var)'}
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {hasAbove && hasBelow && (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Bu coin için zaten hem "yukarı" hem "aşağı" alert'i mevcut. Mevcut alert'leri düzenlemek için listeden seçin.
+                          </p>
+                        )}
+                      </>
+                    )
+                  })()}
+                </div>
+              )}
+              <div>
+                <Label htmlFor="target-price">Hedef Fiyat (USDT)</Label>
+                <Input
+                  id="target-price"
+                  type="number"
+                  step="any"
+                  value={targetPrice}
+                  onChange={(e) => setTargetPrice(e.target.value)}
+                  placeholder="Örn: 50000"
+                  className="mt-2"
+                />
+              </div>
+              {selectedCoin && coinsMapRef.current.has(selectedCoin) && (
+                <div className="text-sm text-muted-foreground">
+                  Mevcut fiyat: <strong>${formatPrice(coinsMapRef.current.get(selectedCoin)!.price)}</strong>
+                </div>
+              )}
+            </div>
+            <DialogFooter className="gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setAlertModalOpen(false)
+                  setEditingAlert(null)
+                  setTargetPrice('')
+                }}
+                className="cursor-pointer"
+              >
+                İptal
+              </Button>
+              <Button
+                onClick={handleSaveAlert}
+                className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 cursor-pointer"
+              >
+                {editingAlert ? 'Güncelle' : 'Oluştur'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Remove Confirmation Modal */}
         <Dialog open={removeModalOpen} onOpenChange={setRemoveModalOpen}>

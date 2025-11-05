@@ -34,6 +34,7 @@ model User {
   spotWatchlist             SpotWatchlist[]
   futuresWatchlist          FuturesWatchlist[]
   pendingPayments           PendingPayment[]
+  priceAlerts               PriceAlert[]
   
   @@map("users")
 }
@@ -172,4 +173,27 @@ model Plan {
   @@index([isActive])
   @@index([displayOrder])
   @@map("plans")
+}
+
+model PriceAlert {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  symbol      String
+  market      String   // "spot" veya "futures"
+  type        String   // "above" veya "below"
+  targetPrice Float    @map("target_price")
+  isActive    Boolean  @default(true) @map("is_active")
+  triggeredAt DateTime? @map("triggered_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Her coin için max 2 alert (above + below) ve market'e göre ayrı
+  // Örnek: ETHUSDT spot için above + below, ETHUSDT futures için above + below = 4 alert
+  @@unique([userId, symbol, market, type])
+  @@index([userId, market])
+  @@index([symbol, market, isActive])
+  @@index([isActive, market])
+  @@map("price_alerts")
 }
