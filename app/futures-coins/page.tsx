@@ -14,9 +14,12 @@ interface FuturesCoin {
   priceChangePercent: string
   volume: string
   quoteVolume: string
+  hourlyFuturesVolume?: string
+  hourlyFuturesBuyVolume?: string
+  hourlyFuturesSellVolume?: string
 }
 
-type SortBy = 'symbol' | 'price' | 'change' | 'volume'
+type SortBy = 'symbol' | 'price' | 'change' | 'volume' | 'hourlyVolume'
 type SortOrder = 'asc' | 'desc'
 
 export default function FuturesCoinsPage() {
@@ -26,10 +29,13 @@ export default function FuturesCoinsPage() {
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<SortBy>('volume')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
-  const wsRef = useRef<WebSocket | null>(null)
+  const wsRef = useRef<WebSocket | null>(null) // Ticker WebSocket
+  const tradesWsRef = useRef<WebSocket | null>(null) // Trade WebSocket
   const coinsMapRef = useRef<Map<string, FuturesCoin>>(new Map())
   const previousPricesRef = useRef<Map<string, number>>(new Map())
+  const hourlyVolumeStartTimeRef = useRef<Map<string, number>>(new Map()) // Her coin için saatlik hacim başlangıç zamanı
   const [flashAnimations, setFlashAnimations] = useState<Record<string, 'up' | 'down'>>({})
+  const [pageOpenTime, setPageOpenTime] = useState<number | null>(null) // Sayfa açıldığı zaman (info kutusu için)
   const sortByRef = useRef<SortBy>(sortBy)
   const sortOrderRef = useRef<SortOrder>(sortOrder)
   const searchRef = useRef<string>(search)
@@ -45,9 +51,22 @@ export default function FuturesCoinsPage() {
       // Update map with all coins
       coinsMapRef.current.clear()
       previousPricesRef.current.clear()
+      hourlyVolumeStartTimeRef.current.clear()
+      
+      // Her coin için saatlik hacim başlangıç zamanını kaydet (sayfa açıldığı andan 1 saat öncesi)
+      const currentTime = Date.now()
+      const oneHourAgo = currentTime - (60 * 60 * 1000) // Tam 1 saat önce
+      
+      // Sayfa açıldığı zamanı kaydet (info kutusu için)
+      setPageOpenTime(oneHourAgo)
+      
       coinsData.forEach((coin: FuturesCoin) => {
         coinsMapRef.current.set(coin.symbol, coin)
         previousPricesRef.current.set(coin.symbol, parseFloat(coin.price))
+        // Her coin için saatlik hacim başlangıç zamanını kaydet
+        // API'den gelen saatlik hacim, bu zamandan şu ana kadar olan hacim
+        // WebSocket'ten gelen yeni trade'ler bu zamandan sonraki olanlar olacak
+        hourlyVolumeStartTimeRef.current.set(coin.symbol, oneHourAgo)
       })
       
       // Initial sort and display
@@ -57,11 +76,179 @@ export default function FuturesCoinsPage() {
       
       // Subscribe to WebSocket for these symbols
       if (coinsData.length > 0) {
-        subscribeToWebSocket(coinsData.map((c: FuturesCoin) => c.symbol))
+        const symbols = coinsData.map((c: FuturesCoin) => c.symbol)
+        subscribeToWebSocket(symbols)
+        subscribeToTradeWebSocket(symbols)
       }
     } catch (error) {
       console.error('Failed to fetch futures coins:', error)
       setLoading(false)
+    }
+  }
+
+  const subscribeToTradeWebSocket = (symbols: string[]) => {
+    // Close existing trade WebSocket
+    if (tradesWsRef.current) {
+      if (tradesWsRef.current.readyState === WebSocket.OPEN || tradesWsRef.current.readyState === WebSocket.CONNECTING) {
+        try {
+          tradesWsRef.current.onopen = null
+          tradesWsRef.current.onerror = null
+          tradesWsRef.current.onclose = null
+          tradesWsRef.current.onmessage = null
+          tradesWsRef.current.close()
+        } catch (e) {
+          console.error('Error closing Futures Trade WebSocket:', e)
+        }
+      }
+      tradesWsRef.current = null
+    }
+
+    if (symbols.length === 0) return
+
+    // Binance allows up to 200 streams in a single connection
+    const limitedSymbols = symbols.slice(0, 200).map((s) => s.toUpperCase())
+    const tradeStreams = limitedSymbols
+      .map((s) => `${s.toLowerCase()}@aggTrade`)
+      .join('/')
+
+    // Futures Trade WebSocket
+    const futuresTradeWsUrl = `wss://fstream.binance.com/stream?streams=${tradeStreams}`
+
+    // Helper function to update coins and trigger re-render (throttled for performance)
+    let lastUpdateTime = 0
+    const updateCoinsDisplay = () => {
+      if (!isMountedRef.current) return
+      
+      const now = Date.now()
+      const timeSinceLastUpdate = now - lastUpdateTime
+      
+      // Throttle: Maksimum 300ms'de bir güncelle (3-4 FPS - smooth)
+      if (timeSinceLastUpdate < 300) {
+        return
+      }
+      
+      const updatedCoins = Array.from(coinsMapRef.current.values())
+      const sorted = sortCoins(updatedCoins, sortByRef.current, sortOrderRef.current)
+      const filtered = searchCoins(sorted, searchRef.current)
+      setCoins(filtered)
+      lastUpdateTime = now
+    }
+
+    try {
+      const futuresTradeWs = new WebSocket(futuresTradeWsUrl)
+      
+      const wsTimeout = setTimeout(() => {
+        if (futuresTradeWs.readyState === WebSocket.CONNECTING) {
+          console.warn('Futures Trade WebSocket connection timeout, closing...')
+          try {
+            futuresTradeWs.close()
+          } catch (e) {
+            console.error('Error closing timed-out Futures Trade WebSocket:', e)
+          }
+          
+          if (isMountedRef.current && tradesWsRef.current === futuresTradeWs) {
+            setTimeout(() => {
+              const currentSymbols = Array.from(coinsMapRef.current.keys())
+              if (isMountedRef.current && currentSymbols.length > 0) {
+                subscribeToTradeWebSocket(currentSymbols)
+              }
+            }, 2000)
+          }
+        }
+      }, 10000)
+
+      futuresTradeWs.onopen = () => {
+        clearTimeout(wsTimeout)
+        console.log('Futures Trade WebSocket connected')
+      }
+
+      futuresTradeWs.onmessage = (event) => {
+        if (!isMountedRef.current) return
+        
+        try {
+          const message = JSON.parse(event.data)
+          if (message.stream && message.data) {
+            const stream = message.stream
+            const data = message.data
+            const symbol = stream.split('@')[0].toUpperCase()
+            
+            // Sadece sayfa açıldıktan sonraki trade'leri işle (başlangıç zamanından sonra)
+            const oneHourAgo = hourlyVolumeStartTimeRef.current.get(symbol)
+            if (!oneHourAgo) return
+            
+            const tradeTime = data.T || data.t || 0 // Trade zamanı
+            const currentTime = Date.now()
+            
+            // Trade zamanı başlangıç zamanından sonraki ve şu anki zamandan önceki trade'ler için
+            if (tradeTime < oneHourAgo || tradeTime > currentTime) return
+            
+            if (isMountedRef.current && coinsMapRef.current.has(symbol)) {
+              const existingCoin = coinsMapRef.current.get(symbol)!
+              
+              // Trade bilgilerini al
+              const price = parseFloat(data.p || data.price || '0')
+              const quantity = parseFloat(data.q || data.quantity || '0')
+              const quoteAmount = price * quantity // USDT cinsinden hacim
+              
+              // isBuyerMaker: false = alış (buy), true = satış (sell)
+              const isBuyerMaker = data.m !== undefined ? data.m : (data.isBuyerMaker !== undefined ? data.isBuyerMaker : false)
+              
+              // Mevcut saatlik hacimleri al
+              const currentHourlyVolume = parseFloat(existingCoin.hourlyFuturesVolume || '0')
+              const currentHourlyBuyVolume = parseFloat(existingCoin.hourlyFuturesBuyVolume || '0')
+              const currentHourlySellVolume = parseFloat(existingCoin.hourlyFuturesSellVolume || '0')
+              
+              // Yeni trade'i saatlik hacimlere ekle
+              let updatedHourlyVolume = currentHourlyVolume + quoteAmount
+              let updatedHourlyBuyVolume = currentHourlyBuyVolume
+              let updatedHourlySellVolume = currentHourlySellVolume
+              
+              if (!isBuyerMaker) {
+                // Alış trade'i
+                updatedHourlyBuyVolume = currentHourlyBuyVolume + quoteAmount
+              } else {
+                // Satış trade'i
+                updatedHourlySellVolume = currentHourlySellVolume + quoteAmount
+              }
+              
+              // Coin verisini güncelle
+              const updatedCoin: FuturesCoin = {
+                ...existingCoin,
+                hourlyFuturesVolume: updatedHourlyVolume.toFixed(2),
+                hourlyFuturesBuyVolume: updatedHourlyBuyVolume.toFixed(2),
+                hourlyFuturesSellVolume: updatedHourlySellVolume.toFixed(2),
+              }
+              
+              coinsMapRef.current.set(symbol, updatedCoin)
+              updateCoinsDisplay()
+            }
+          }
+        } catch (error) {
+          console.error('Error parsing Futures Trade WebSocket message:', error)
+        }
+      }
+
+      futuresTradeWs.onerror = (error) => {
+        clearTimeout(wsTimeout)
+        console.error('Futures Trade WebSocket error:', error)
+      }
+
+      futuresTradeWs.onclose = (event) => {
+        clearTimeout(wsTimeout)
+        if (isMountedRef.current && tradesWsRef.current === futuresTradeWs) {
+          console.log('Futures Trade WebSocket disconnected, reconnecting...', event.code, event.reason)
+          setTimeout(() => {
+            const currentSymbols = Array.from(coinsMapRef.current.keys())
+            if (isMountedRef.current && currentSymbols.length > 0 && tradesWsRef.current === futuresTradeWs) {
+              subscribeToTradeWebSocket(currentSymbols)
+            }
+          }, 3000)
+        }
+      }
+
+      tradesWsRef.current = futuresTradeWs
+    } catch (error) {
+      console.error('Failed to create Futures Trade WebSocket:', error)
     }
   }
 
@@ -150,13 +337,16 @@ export default function FuturesCoinsPage() {
               const previousPrice = previousPricesRef.current.get(symbol)
               const currentPrice = parseFloat(data.c || data.lastPrice || '0')
 
-              // Update coin data
+              // Update coin data - preserve hourly volumes from API
               const updatedCoin: FuturesCoin = {
                 symbol,
                 price: data.c || data.lastPrice || '0',
                 priceChangePercent: data.P || data.priceChangePercent || '0',
                 volume: data.v || data.volume || '0',
                 quoteVolume: data.q || data.quoteVolume || '0',
+                hourlyFuturesVolume: existingCoin.hourlyFuturesVolume || '0', // Preserve hourly volume from API
+                hourlyFuturesBuyVolume: existingCoin.hourlyFuturesBuyVolume || '0', // Preserve hourly buy volume from API
+                hourlyFuturesSellVolume: existingCoin.hourlyFuturesSellVolume || '0', // Preserve hourly sell volume from API
               }
               
               // Check if price changed and trigger flash animation
@@ -242,6 +432,10 @@ export default function FuturesCoinsPage() {
         case 'volume':
           aVal = parseFloat(a.quoteVolume)
           bVal = parseFloat(b.quoteVolume)
+          break
+        case 'hourlyVolume':
+          aVal = parseFloat(a.hourlyFuturesVolume || '0')
+          bVal = parseFloat(b.hourlyFuturesVolume || '0')
           break
         default:
           return 0
@@ -422,11 +616,63 @@ export default function FuturesCoinsPage() {
     )
   }
 
+  // Zaman formatını Türkiye formatına çevir (HH:mm)
+  const formatStartTime = (startTime: number | null) => {
+    if (!startTime) return null
+    
+    const startDate = new Date(startTime)
+    const startHours = startDate.getHours().toString().padStart(2, '0')
+    const startMinutes = startDate.getMinutes().toString().padStart(2, '0')
+    
+    return `${startHours}:${startMinutes}`
+  }
+
   return (
     <div className="w-full py-16">
       <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-16">
-        <h1 className="text-5xl font-bold mb-4 gradient-text">Vadeli Coin Listesi</h1>
-        <p className="text-muted-foreground text-lg">Binance Vadeli İşlemler Piyasası - Gerçek Zamanlı Veriler</p>
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-4">
+          <div className="flex-1">
+            <h1 className="text-5xl font-bold mb-4 gradient-text">Vadeli Coin Listesi</h1>
+            <p className="text-muted-foreground text-lg">Binance Vadeli İşlemler Piyasası - Gerçek Zamanlı Veriler</p>
+          </div>
+          
+          {/* Info Kutusu - Sağ Üst */}
+          {pageOpenTime && (
+            <Card className="glass-effect border-white/10 min-w-[280px]">
+              <CardContent className="pt-3 pb-3">
+                <div className="flex items-start gap-2">
+                  <div className="flex-shrink-0 mt-0.5">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-4 w-4 text-primary"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-foreground mb-1">
+                      Saatlik Hacim Takibi
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatStartTime(pageOpenTime)} saatinden itibaren
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      alınmıştır ve sonrasında gelen tradeler aktif olarak eklenmektedir
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
 
       <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-10">
@@ -460,6 +706,7 @@ export default function FuturesCoinsPage() {
                 <col className="md:w-[180px] w-[120px]" />
                 <col className="md:w-auto w-[140px]" />
                 <col className="md:w-[180px] w-[140px]" />
+                <col className="md:w-auto w-[130px]" />
                 <col className="md:w-auto w-[130px]" />
               </colgroup>
               <thead>
@@ -575,16 +822,60 @@ export default function FuturesCoinsPage() {
                       onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
                       onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}
                     >
-                      <span>Vadeli Hacim</span>
+                      <span>24s Hacim</span>
                       <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
                     </button>
+                  </th>
+                  <th className="md:w-auto w-[130px] min-w-[130px]" style={{ 
+                    textAlign: 'left', 
+                    padding: '8px 12px',
+                    fontWeight: 600, 
+                    color: 'var(--muted-foreground)'
+                  }}>
+                    <button
+                      onClick={() => handleSort('hourlyVolume')}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        width: '100%',
+                        textAlign: 'left',
+                        background: 'transparent',
+                        border: 'none',
+                        padding: 0,
+                        margin: 0,
+                        cursor: 'pointer',
+                        color: 'inherit'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
+                      onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}
+                    >
+                      <span>Saatlik Hacim</span>
+                      <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
+                    </button>
+                  </th>
+                  <th className="md:w-auto w-[130px] min-w-[130px]" style={{ 
+                    textAlign: 'left', 
+                    padding: '8px 12px',
+                    fontWeight: 600, 
+                    color: 'var(--muted-foreground)'
+                  }}>
+                    <span>Saatlik Alış</span>
+                  </th>
+                  <th className="md:w-auto w-[130px] min-w-[130px]" style={{ 
+                    textAlign: 'left', 
+                    padding: '8px 12px',
+                    fontWeight: 600, 
+                    color: 'var(--muted-foreground)'
+                  }}>
+                    <span>Saatlik Satış</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {coins.length === 0 ? (
                   <tr>
-                    <td colSpan={4} style={{ textAlign: 'center', padding: '32px', color: 'var(--muted-foreground)' }}>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '32px', color: 'var(--muted-foreground)' }}>
                       {search ? 'Arama sonucu bulunamadı' : 'Coin bulunamadı'}
                     </td>
                   </tr>
@@ -680,6 +971,39 @@ export default function FuturesCoinsPage() {
                         }}>
                           <span className="md:hidden">${(parseFloat(coin.quoteVolume || '0') / 1000000).toFixed(1)}M</span>
                           <span className="hidden md:inline">${parseFloat(coin.quoteVolume || '0').toLocaleString('tr-TR', {
+                            maximumFractionDigits: 0,
+                          })}</span>
+                        </td>
+                        <td className="md:w-auto w-[130px] min-w-[130px]" style={{ 
+                          padding: '8px 12px',
+                          color: 'var(--muted-foreground)',
+                          fontSize: '12px',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          <span className="md:hidden">${(parseFloat(coin.hourlyFuturesVolume || '0') / 1000000).toFixed(1)}M</span>
+                          <span className="hidden md:inline">${parseFloat(coin.hourlyFuturesVolume || '0').toLocaleString('tr-TR', {
+                            maximumFractionDigits: 0,
+                          })}</span>
+                        </td>
+                        <td className="md:w-auto w-[130px] min-w-[130px]" style={{ 
+                          padding: '8px 12px',
+                          color: 'rgb(34, 197, 94)',
+                          fontSize: '12px',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          <span className="md:hidden">${(parseFloat(coin.hourlyFuturesBuyVolume || '0') / 1000000).toFixed(1)}M</span>
+                          <span className="hidden md:inline">${parseFloat(coin.hourlyFuturesBuyVolume || '0').toLocaleString('tr-TR', {
+                            maximumFractionDigits: 0,
+                          })}</span>
+                        </td>
+                        <td className="md:w-auto w-[130px] min-w-[130px]" style={{ 
+                          padding: '8px 12px',
+                          color: 'rgb(239, 68, 68)',
+                          fontSize: '12px',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          <span className="md:hidden">${(parseFloat(coin.hourlyFuturesSellVolume || '0') / 1000000).toFixed(1)}M</span>
+                          <span className="hidden md:inline">${parseFloat(coin.hourlyFuturesSellVolume || '0').toLocaleString('tr-TR', {
                             maximumFractionDigits: 0,
                           })}</span>
                         </td>
