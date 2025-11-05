@@ -18,7 +18,7 @@ import {
   Area,
   ComposedChart
 } from 'recharts'
-import { TrendingUp, TrendingDown, Lock } from 'lucide-react'
+import { TrendingUp, TrendingDown, Lock, Crown, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { formatNumberTR } from '@/lib/utils'
@@ -91,7 +91,8 @@ export default function CoinDetailPage() {
   const symbol = symbolParam?.toUpperCase()
   const [coinData, setCoinData] = useState<CoinData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [isPremium, setIsPremium] = useState(false)
+  const [isPremium, setIsPremium] = useState<boolean | null>(null) // null = checking, false = not premium, true = premium
+  const [checkingPremium, setCheckingPremium] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const futuresWsRef = useRef<WebSocket | null>(null)
@@ -186,7 +187,11 @@ export default function CoinDetailPage() {
 
   // Fetch chart data for top chart only when timeRangeTop changes and it's NOT 1D or minute ranges
   useEffect(() => {
-    if (!symbol || timeRangeTop === '1D' || timeRangeTop === '1M' || timeRangeTop === '5M' || timeRangeTop === '15M' || timeRangeTop === '30M') {
+    // Don't fetch if not premium or still checking
+    if (checkingPremium || isPremium === false) {
+      return
+    }
+    if (!symbol || !isPremium || timeRangeTop === '1D' || timeRangeTop === '1M' || timeRangeTop === '5M' || timeRangeTop === '15M' || timeRangeTop === '30M') {
       // For minute ranges, we'll fetch in a separate effect
       if (timeRangeTop !== '1D' && (timeRangeTop === '1M' || timeRangeTop === '5M' || timeRangeTop === '15M' || timeRangeTop === '30M')) {
         // Fetch minute data
@@ -270,11 +275,15 @@ export default function CoinDetailPage() {
     return () => {
       isMounted = false
     }
-  }, [timeRangeTop, symbol]) // Only fetch when timeRangeTop or symbol changes
+  }, [timeRangeTop, symbol, isPremium, checkingPremium]) // Only fetch when timeRangeTop or symbol changes, and if premium
 
   // Fetch chart data for bottom chart only when timeRangeBottom changes and it's NOT 1D or minute ranges
   useEffect(() => {
-    if (!symbol || timeRangeBottom === '1D' || timeRangeBottom === '1M' || timeRangeBottom === '5M' || timeRangeBottom === '15M' || timeRangeBottom === '30M') {
+    // Don't fetch if not premium or still checking
+    if (checkingPremium || isPremium === false) {
+      return
+    }
+    if (!symbol || !isPremium || timeRangeBottom === '1D' || timeRangeBottom === '1M' || timeRangeBottom === '5M' || timeRangeBottom === '15M' || timeRangeBottom === '30M') {
       // For minute ranges, we'll fetch in a separate effect
       if (timeRangeBottom !== '1D' && (timeRangeBottom === '1M' || timeRangeBottom === '5M' || timeRangeBottom === '15M' || timeRangeBottom === '30M')) {
         // Fetch minute data
@@ -358,7 +367,27 @@ export default function CoinDetailPage() {
     return () => {
       isMounted = false
     }
-  }, [timeRangeBottom, symbol]) // Only fetch when timeRangeBottom or symbol changes
+  }, [timeRangeBottom, symbol, isPremium]) // Only fetch when timeRangeBottom or symbol changes, and if premium
+
+  // Check premium status FIRST - before any data fetching
+  useEffect(() => {
+    const checkPremium = async () => {
+      try {
+        const res = await fetch('/api/user/profile')
+        if (res.ok) {
+          const data = await res.json()
+          setIsPremium(data.user?.isPremium || false)
+        } else {
+          setIsPremium(false)
+        }
+      } catch (error) {
+        setIsPremium(false)
+      } finally {
+        setCheckingPremium(false)
+      }
+    }
+    checkPremium()
+  }, [])
 
   useEffect(() => {
     console.log('CoinDetailPage mounted with symbol:', symbol)
@@ -369,13 +398,11 @@ export default function CoinDetailPage() {
       return
     }
 
-    // Check premium status
-    fetch('/api/user/profile')
-      .then((res) => res.json())
-      .then((data) => {
-        setIsPremium(data.user?.isPremium || false)
-      })
-      .catch(() => {})
+    // Don't fetch data if not premium or still checking
+    if (checkingPremium || isPremium === false || !isPremium) {
+      setLoading(false)
+      return
+    }
 
     // Initial fetch - get klines and initial data
     const fetchInitialData = async () => {
@@ -977,9 +1004,42 @@ export default function CoinDetailPage() {
             futuresTradesWsRef.current = null
           }
         }
-  }, [symbol])
+  }, [symbol, isPremium, checkingPremium])
 
-  console.log('Render - loading:', loading, 'coinData:', coinData ? 'exists' : 'null', 'error:', error, 'symbol:', symbol)
+  console.log('Render - loading:', loading, 'coinData:', coinData ? 'exists' : 'null', 'error:', error, 'symbol:', symbol, 'isPremium:', isPremium, 'checkingPremium:', checkingPremium)
+  
+  // Check premium status first - don't show anything if not premium
+  if (checkingPremium) {
+    return (
+      <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="text-center py-12 text-muted-foreground">Yükleniyor...</div>
+      </div>
+    )
+  }
+
+  if (!isPremium) {
+    return (
+      <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="flex flex-col items-center justify-center min-h-[60vh]">
+          <div className="bg-card border border-border rounded-lg p-12 max-w-md w-full text-center shadow-lg">
+            <Lock className="h-16 w-16 mx-auto mb-6 text-muted-foreground" />
+            <h2 className="text-2xl font-bold mb-4">Premium Özellik</h2>
+            <p className="text-muted-foreground mb-6">
+              Bu özellik sadece premium üyelerimize özeldir. Detaylı coin analizlerine erişmek için premium üyeliğe geçin.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Button asChild className="cursor-pointer">
+                <Link href="/checkout">Premium'a Geçiş Yap</Link>
+              </Button>
+              <Button asChild variant="outline" className="cursor-pointer">
+                <Link href="/premium">Premium Hakkında</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
   
   if (loading) {
     return (
@@ -1016,7 +1076,7 @@ export default function CoinDetailPage() {
   const change = parseFloat(coinData.priceChangePercent)
   const isPositive = change >= 0
 
-  const formatKlineData = (klines: CoinData['klines'], futuresKlines: CoinData['futuresKlines'] = [], timeRangeValue: string = timeRange) => {
+  const formatKlineData = (klines: CoinData['klines'], futuresKlines: CoinData['futuresKlines'] = [], timeRangeValue: string = '1D') => {
     // Create a map of futures klines by time for quick lookup
     const futuresMap = new Map<number, { volume: number, buyVolume?: number, sellVolume?: number }>()
     futuresKlines.forEach(fk => {
@@ -1132,11 +1192,88 @@ export default function CoinDetailPage() {
 
   return (
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <div className={`mb-8 p-6 rounded-xl transition-all duration-300 ${
-        flashAnimations.price === 'up' ? 'animate-flash-green' : 
-        flashAnimations.price === 'down' ? 'animate-flash-red' : 
-        'bg-transparent'
-      }`}>
+      {/* Premium Uyarı Kartı - Premium olmayan kullanıcılar için */}
+      {!isPremium && (
+        <Card className="mb-6 glass-effect border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5 shadow-lg">
+          <CardContent className="pt-6 pb-6">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl animate-pulse" />
+                  <Lock className="h-8 w-8 text-primary relative z-10" />
+                </div>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <Crown className="h-5 w-5 text-primary" />
+                  <h3 className="text-lg font-bold gradient-text">Premium Özellik</h3>
+                </div>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Coin detayı ve gelişmiş grafik analizi sadece Premium üyelerimize özeldir. Detaylı coin analitiği, grafikler, alım-satım hacim ayrıştırması ve trade takibi gibi profesyonel özelliklere erişmek için Premium'a geçiş yapın.
+                </p>
+                <div className="flex items-center gap-3">
+                  <Button
+                    asChild
+                    size="sm"
+                    className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/30 cursor-pointer"
+                  >
+                    <Link href="/checkout">
+                      <Crown className="mr-2 h-4 w-4" />
+                      Premium'a Geçiş Yap
+                    </Link>
+                  </Button>
+                  <Link
+                    href="/premium"
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Premium özellikler hakkında daha fazla bilgi →
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Premium olmayan kullanıcılar için blur overlay */}
+      <div className={`relative ${!isPremium ? 'blur-md pointer-events-none select-none' : ''}`}>
+        {!isPremium && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/85 backdrop-blur-sm">
+            <div className="text-center p-8 max-w-md">
+              <div className="relative inline-block mb-6">
+                <div className="absolute inset-0 bg-primary/40 rounded-full blur-3xl animate-pulse scale-150" />
+                <Lock className="h-24 w-24 text-primary relative z-10 mx-auto drop-shadow-2xl" />
+              </div>
+              <h3 className="text-3xl font-bold gradient-text mb-3">Premium Özellik</h3>
+              <p className="text-muted-foreground mb-2 text-base">
+                Bu özellik sadece Premium üyelerimize özeldir
+              </p>
+              <p className="text-sm text-muted-foreground/80 mb-6">
+                Detaylı coin analitiği, gelişmiş grafikler ve profesyonel araçlara erişmek için Premium'a geçiş yapın
+              </p>
+              <Button
+                asChild
+                size="lg"
+                className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/30 cursor-pointer"
+              >
+                <Link href="/checkout">
+                  <Crown className="mr-2 h-5 w-5" />
+                  Premium'a Geçiş Yap
+                </Link>
+              </Button>
+              <div className="mt-4">
+                <Link
+                  href="/premium"
+                  className="text-sm text-primary hover:underline"
+                >
+                  Premium özellikler hakkında daha fazla bilgi →
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className={`mb-8 p-6 rounded-xl transition-all duration-300 ${flashAnimations.price === 'up' ? 'animate-flash-green' : flashAnimations.price === 'down' ? 'animate-flash-red' : 'bg-transparent'}`}>
         <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
           {isPositive ? (
             <TrendingUp className="h-8 w-8 text-green-400" />
@@ -1888,6 +2025,7 @@ export default function CoinDetailPage() {
             </Card>
           </div>
         </div>
-      )
-    }
+      </div>
+  )
+}
 

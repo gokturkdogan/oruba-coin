@@ -30,6 +30,7 @@ model User {
   events                    UserEvent[]
   watchlist                 Watchlist[]
   priceAlerts               PriceAlert[]
+  pendingPayments           PendingPayment[]
   
   @@map("users")
 }
@@ -126,4 +127,23 @@ model PriceAlert {
   @@index([symbol, isActive])
   @@index([isActive, triggeredAt])
   @@map("price_alerts")
+}
+
+model PendingPayment {
+  id                String    @id @default(uuid())
+  userId            String    @map("user_id")
+  plan              String    // "monthly" or "yearly"
+  amount            Float
+  status            String    @default("pending") // pending, approved, rejected
+  currentPeriodEnd  DateTime? @map("current_period_end")
+  adminNotes        String?   @map("admin_notes")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([status])
+  @@index([status, createdAt])
+  @@map("pending_payments")
 }

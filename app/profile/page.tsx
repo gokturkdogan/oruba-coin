@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import { Lock, Check, Mail, User, Shield, Crown, Calendar, Key } from 'lucide-react'
+import { Lock, Check, Mail, User, Shield, Crown, Calendar, Key, Clock } from 'lucide-react'
 
 interface User {
   id: string
@@ -30,6 +30,7 @@ export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [changingPassword, setChangingPassword] = useState(false)
+  const [pendingPayment, setPendingPayment] = useState<any>(null)
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
@@ -54,6 +55,18 @@ export default function ProfilePage() {
         router.push('/login')
       })
       .finally(() => setLoading(false))
+
+    // Check for pending payment
+    fetch('/api/subscription/my-pending-payment')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.pendingPayment) {
+          setPendingPayment(data.pendingPayment)
+        }
+      })
+      .catch(() => {
+        // Ignore error
+      })
   }, [router])
 
   const handlePasswordChange = async (e: React.FormEvent) => {
@@ -182,6 +195,20 @@ export default function ProfilePage() {
                   <Label className="text-sm font-medium">Abonelik Durumu</Label>
                 </div>
                 <div className="pl-6 space-y-3">
+                  {pendingPayment && (
+                    <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Clock className="h-4 w-4 text-yellow-400" />
+                        <span className="font-semibold text-yellow-400">Bekleyen Ödeme</span>
+                      </div>
+                      <div className="text-sm text-muted-foreground mb-2">
+                        {pendingPayment.plan === 'monthly' ? 'Aylık' : 'Yıllık'} plan için ₺{pendingPayment.amount} tutarında ödeme bekleniyor.
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Ödemenizi yaptıktan sonra admin onayı bekleniyor. Onaylandıktan sonra Premium üyeliğiniz aktif olacaktır.
+                      </div>
+                    </div>
+                  )}
                   {user.isPremium ? (
                     <div className="space-y-2">
                       <Badge variant="default" className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white border-0 shadow-lg shadow-yellow-500/20">

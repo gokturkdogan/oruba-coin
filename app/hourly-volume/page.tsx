@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { TrendingUp, TrendingDown, ArrowUpDown } from 'lucide-react'
+import { TrendingUp, TrendingDown, ArrowUpDown, Lock, Crown, Sparkles } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface Coin {
@@ -53,6 +53,8 @@ export default function HourlyVolumePage() {
   const previousQuoteVolumesRef = useRef<Map<string, { spot: number, futures: number }>>(new Map()) // Önceki 24 saatlik toplam volume'lar (sadece değişiklik hesaplamak için)
   const [flashAnimations, setFlashAnimations] = useState<Record<string, 'up' | 'down'>>({})
   const [pageOpenTime, setPageOpenTime] = useState<number | null>(null) // Sayfa açıldığı zaman
+  const [isPremium, setIsPremium] = useState<boolean | null>(null) // Premium kontrolü
+  const [checkingPremium, setCheckingPremium] = useState(true)
   const sortByRef = useRef<SortBy>(sortBy)
   const sortOrderRef = useRef<SortOrder>(sortOrder)
   const searchRef = useRef<string>(search)
@@ -553,8 +555,29 @@ export default function HourlyVolumePage() {
     )
   }, [])
 
+  // Check premium status
+  useEffect(() => {
+    const checkPremium = async () => {
+      try {
+        const res = await fetch('/api/user/profile')
+        if (res.ok) {
+          const data = await res.json()
+          setIsPremium(data.user?.isPremium || false)
+        } else {
+          setIsPremium(false)
+        }
+      } catch (error) {
+        setIsPremium(false)
+      } finally {
+        setCheckingPremium(false)
+      }
+    }
+    checkPremium()
+  }, [])
+
   // Initial fetch - only once on mount
   useEffect(() => {
+    if (!isPremium || checkingPremium) return
     isMountedRef.current = true
     fetchCoins()
 
@@ -598,7 +621,7 @@ export default function HourlyVolumePage() {
       previousQuoteVolumesRef.current.clear()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [isPremium])
 
   // Update refs when state changes
   useEffect(() => {
@@ -715,6 +738,74 @@ export default function HourlyVolumePage() {
     const startMinutes = startDate.getMinutes().toString().padStart(2, '0')
     
     return `${startHours}:${startMinutes}`
+  }
+
+  // Premium kontrolü - Premium değilse premium uyarı sayfası göster
+  if (checkingPremium) {
+    return (
+      <div className="w-full py-6">
+        <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center text-muted-foreground">
+          Yükleniyor...
+        </div>
+      </div>
+    )
+  }
+
+  if (!isPremium) {
+    return (
+      <div className="w-full py-6">
+        <div className="container max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <Card className="glass-effect border-white/10 shadow-xl">
+            <CardHeader className="text-center pb-4">
+              <div className="flex justify-center mb-4">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-primary/20 rounded-full blur-2xl animate-pulse" />
+                  <Lock className="h-16 w-16 text-primary relative z-10" />
+                </div>
+              </div>
+              <CardTitle className="text-3xl font-bold gradient-text mb-2">
+                Premium Özellik
+              </CardTitle>
+              <CardDescription className="text-base">
+                Bu özellik sadece Premium üyelerimize özeldir
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="text-center space-y-4">
+                <p className="text-muted-foreground text-lg">
+                  Saatlik hacim takibi ile piyasa trendlerini daha iyi anlayın. Zaman dilimlerine göre hacim dağılımını görüntüleyin ve profesyonel analiz yapın.
+                </p>
+                <div className="flex items-center justify-center gap-2 text-primary">
+                  <Sparkles className="h-5 w-5" />
+                  <span className="font-semibold">Premium Üyelik ile Erişebilirsiniz</span>
+                </div>
+              </div>
+              
+              <div className="pt-6 border-t border-white/10">
+                <div className="flex flex-col items-center gap-4">
+                  <Button
+                    asChild
+                    size="lg"
+                    className="w-full max-w-md bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/30 cursor-pointer"
+                  >
+                    <Link href="/checkout">
+                      <Crown className="mr-2 h-5 w-5" />
+                      Premium'a Geçiş Yap
+                    </Link>
+                  </Button>
+                  <Link
+                    href="/premium"
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Premium özellikler hakkında daha fazla bilgi edinin →
+                  </Link>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
   }
 
   return (

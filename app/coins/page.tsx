@@ -53,6 +53,7 @@ export default function CoinsPage() {
   const [flashAnimations, setFlashAnimations] = useState<Record<string, 'up' | 'down'>>({})
   const [watchlist, setWatchlist] = useState<Set<string>>(new Set())
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isPremium, setIsPremium] = useState(false)
   const [showReplaceModal, setShowReplaceModal] = useState(false)
   const [newCoinSymbol, setNewCoinSymbol] = useState<string>('')
   const [selectedCoinToReplace, setSelectedCoinToReplace] = useState<string>('')
@@ -61,7 +62,7 @@ export default function CoinsPage() {
   const searchRef = useRef<string>(search)
   const isMountedRef = useRef<boolean>(true)
 
-  // Fetch watchlist
+  // Fetch watchlist and premium status
   const fetchWatchlist = async () => {
     try {
       const res = await fetch('/api/watchlist')
@@ -77,6 +78,19 @@ export default function CoinsPage() {
     }
   }
 
+  // Fetch premium status
+  const fetchPremiumStatus = async () => {
+    try {
+      const res = await fetch('/api/user/profile')
+      if (res.ok) {
+        const data = await res.json()
+        setIsPremium(data.user?.isPremium || false)
+      }
+    } catch (error) {
+      setIsPremium(false)
+    }
+  }
+
   // Toggle watchlist
   const toggleWatchlist = async (symbol: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -88,6 +102,12 @@ export default function CoinsPage() {
     }
 
     const isInWatchlist = watchlist.has(symbol)
+
+    // Check premium status for adding to watchlist (removing is allowed for everyone)
+    if (!isInWatchlist && !isPremium) {
+      toast.warning('Takip listesine ekleme özelliği premium üyelerimize özeldir')
+      return
+    }
     
     try {
       if (isInWatchlist) {
@@ -459,6 +479,8 @@ export default function CoinsPage() {
   useEffect(() => {
     isMountedRef.current = true
     fetchCoins()
+    fetchWatchlist()
+    fetchPremiumStatus()
 
     // Cleanup function - WebSocket'leri kapat
     return () => {

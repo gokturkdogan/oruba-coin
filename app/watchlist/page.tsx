@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { TrendingUp, TrendingDown, Star, StarOff, Bell, BellOff } from 'lucide-react'
+import { TrendingUp, TrendingDown, Star, StarOff, Bell, BellOff, Lock } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -54,6 +54,8 @@ export default function WatchlistPage() {
   const [watchlist, setWatchlist] = useState<string[]>([])
   const [coins, setCoins] = useState<Coin[]>([])
   const [loading, setLoading] = useState(true)
+  const [isPremium, setIsPremium] = useState<boolean | null>(null)
+  const [checkingPremium, setCheckingPremium] = useState(true)
   const [flashAnimations, setFlashAnimations] = useState<Record<string, 'up' | 'down'>>({})
   const [alerts, setAlerts] = useState<Map<string, PriceAlert[]>>(new Map()) // Map of symbol -> array of alerts
   const alertsRef = useRef<Map<string, PriceAlert[]>>(new Map()) // Ref to keep alerts always in sync
@@ -76,8 +78,35 @@ export default function WatchlistPage() {
   const futuresSellVolumeRef = useRef<Map<string, number>>(new Map())
   const isMountedRef = useRef<boolean>(true)
 
+  // Check premium status FIRST - before any data fetching
+  useEffect(() => {
+    const checkPremium = async () => {
+      try {
+        const res = await fetch('/api/user/profile')
+        if (res.ok) {
+          const data = await res.json()
+          setIsPremium(data.user?.isPremium || false)
+        } else {
+          setIsPremium(false)
+        }
+      } catch (error) {
+        setIsPremium(false)
+      } finally {
+        setCheckingPremium(false)
+      }
+    }
+    checkPremium()
+  }, [])
+
   useEffect(() => {
     isMountedRef.current = true
+    
+    // Don't fetch data if not premium or still checking
+    if (checkingPremium || isPremium === false || !isPremium) {
+      setLoading(false)
+      return
+    }
+    
     fetchWatchlist()
 
     return () => {
@@ -914,6 +943,39 @@ export default function WatchlistPage() {
       minimumFractionDigits: 2,
       maximumFractionDigits: 8,
     })
+  }
+
+  // Check premium status first - don't show anything if not premium
+  if (checkingPremium) {
+    return (
+      <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="text-center py-12 text-muted-foreground">Yükleniyor...</div>
+      </div>
+    )
+  }
+
+  if (!isPremium) {
+    return (
+      <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="flex flex-col items-center justify-center min-h-[60vh]">
+          <div className="bg-card border border-border rounded-lg p-12 max-w-md w-full text-center shadow-lg">
+            <Lock className="h-16 w-16 mx-auto mb-6 text-muted-foreground" />
+            <h2 className="text-2xl font-bold mb-4">Premium Özellik</h2>
+            <p className="text-muted-foreground mb-6">
+              Takip listesi özelliği sadece premium üyelerimize özeldir. Coin takibi ve fiyat alarmları için premium üyeliğe geçin.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Button asChild className="cursor-pointer">
+                <Link href="/checkout">Premium'a Geçiş Yap</Link>
+              </Button>
+              <Button asChild variant="outline" className="cursor-pointer">
+                <Link href="/premium">Premium Hakkında</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (loading) {

@@ -16,7 +16,7 @@ import { Badge } from '@/components/ui/badge'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import { Menu, X, Shield, LogOut, ShieldCheck } from 'lucide-react'
+import { Menu, X, Shield, LogOut, ShieldCheck, DollarSign, Home } from 'lucide-react'
 
 interface User {
   id: string
@@ -34,7 +34,7 @@ export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const isAdminPage = pathname?.startsWith('/admin')
 
-  useEffect(() => {
+  const fetchUser = () => {
     fetch('/api/user/profile')
       .then((res) => res.json())
       .then((data) => {
@@ -46,20 +46,39 @@ export function Navbar() {
             isPremium: data.user.isPremium,
             isAdmin: data.user.isAdmin,
           })
+        } else {
+          setUser(null)
         }
       })
       .catch(() => {
         setUser(null)
       })
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    fetchUser()
+
+    // Listen for login/logout events
+    const handleAuthChange = () => {
+      fetchUser()
+    }
+
+    window.addEventListener('auth:change', handleAuthChange)
+    return () => {
+      window.removeEventListener('auth:change', handleAuthChange)
+    }
   }, [])
 
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' })
       setUser(null)
+      // Trigger navbar update for other components
+      window.dispatchEvent(new Event('auth:change'))
       toast.success('Başarıyla çıkış yapıldı')
       router.push('/')
+      router.refresh()
     } catch (error) {
       toast.error('Çıkış yapılamadı')
     }
@@ -71,7 +90,7 @@ export function Navbar() {
       <nav className="border-b border-white/10 glass-effect-dark sticky top-0 z-50">
         <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
-            <div className="flex items-center">
+            <div className="flex items-center gap-6">
               <a 
                 href="/" 
                 onClick={(e) => {
@@ -83,6 +102,41 @@ export function Navbar() {
                 <span className="font-bold text-xl gradient-text">Oruba Coin</span>
                 <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">₿</span>
               </a>
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/admin"
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
+                    pathname === '/admin'
+                      ? 'bg-primary/20 text-primary'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  }`}
+                >
+                  <Home className="h-4 w-4" />
+                  Dashboard
+                </Link>
+                <Link
+                  href="/admin/users"
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
+                    pathname === '/admin/users'
+                      ? 'bg-primary/20 text-primary'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  }`}
+                >
+                  <Shield className="h-4 w-4" />
+                  Kullanıcılar
+                </Link>
+                <Link
+                  href="/admin/payments"
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
+                    pathname === '/admin/payments'
+                      ? 'bg-primary/20 text-primary'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  }`}
+                >
+                  <DollarSign className="h-4 w-4" />
+                  Ödemeler
+                </Link>
+              </div>
             </div>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">

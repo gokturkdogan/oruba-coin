@@ -42,6 +42,10 @@ export default function LoginPage() {
       }
 
       toast.success('Giriş başarılı! Hoş geldiniz')
+      
+      // Trigger navbar update
+      window.dispatchEvent(new Event('auth:change'))
+      
       // Admin ise admin paneline, değilse coins sayfasına yönlendir
       if (data.user?.isAdmin) {
         router.push('/admin')
