@@ -1,187 +1,179 @@
 # Oruba Coin - Crypto Analysis Platform
 
-A comprehensive cryptocurrency analysis platform built with Next.js, providing real-time price data, market insights, and advanced analytics.
+**English** | [Türkçe](#türkçe)
 
-## Features
+---
 
-- 🔄 **Real-time Data**: Live cryptocurrency prices from Binance API with WebSocket support
-- 📊 **Advanced Analytics**: Premium features including detailed charts, indicators, and market analysis
-- 💳 **Premium Subscriptions**: Stripe-integrated subscription system
-- 🔐 **Authentication**: Secure JWT-based authentication system
-- 📱 **Responsive Design**: Modern UI built with TailwindCSS and shadcn/ui
-- ⚡ **Performance**: Optimized data fetching and caching strategies
+## English
 
-## Tech Stack
+### Overview
 
-- **Frontend**: Next.js 16 (App Router), React 19, TypeScript, TailwindCSS
-- **UI Components**: shadcn/ui, Radix UI
-- **Backend**: Next.js API Routes, Prisma ORM
-- **Database**: PostgreSQL
-- **Authentication**: JWT (jsonwebtoken), bcryptjs
-- **Payment**: Stripe
-- **Data Source**: Binance API (REST + WebSocket)
-- **Charts**: Recharts
+Oruba Coin is a comprehensive cryptocurrency analysis platform that provides real-time market data, advanced analytics, and personalized tracking features for both spot and futures markets. Built with modern web technologies, the platform offers real-time price updates, detailed charts, watchlist management, and price alert systems.
 
-## Getting Started
+### How It Works
 
-### Prerequisites
+The platform integrates with Binance API to fetch real-time cryptocurrency data through both REST API and WebSocket connections. Users can browse spot and futures markets separately, track their favorite coins in personalized watchlists, and set up price alerts that notify them when prices reach specific thresholds. The system processes market data continuously, providing up-to-date information on prices, volumes, and trading activities.
 
-- Node.js 18+ 
-- PostgreSQL database
-- Stripe account (for payments)
-- Binance API keys (optional, public data doesn't require keys)
+For premium subscribers, the platform offers enhanced features including extended historical data, detailed market analysis, and advanced tracking capabilities. The subscription system is integrated with Stripe for secure payment processing.
 
-### Installation
+### Key Features
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd oruba-coin
-```
+#### Market Data
+- **Real-time Spot Market**: Live prices, 24-hour volume, and hourly volume tracking for spot markets
+- **Real-time Futures Market**: Live prices, 24-hour volume, and hourly volume tracking for futures markets
+- **Buy/Sell Volume Breakdown**: Detailed analysis of buying and selling volumes for both markets
+- **Price Charts**: Interactive charts with multiple time ranges (1M, 5M, 15M, 30M, 1D, 7D, 30D, 90D, 1Y)
+- **Trade History**: Real-time trade feed showing buy and sell orders
 
-2. Install dependencies:
-```bash
-npm install
-```
+#### Watchlist Management
+- **Spot Watchlist**: Personal watchlist for spot market coins with real-time updates
+- **Futures Watchlist**: Personal watchlist for futures market coins with real-time updates
+- **Real-time Updates**: WebSocket-powered live price and volume updates
+- **Flash Animations**: Visual indicators for price movements
 
-3. Set up environment variables:
-```bash
-cp .env.example .env
-```
+#### Price Alerts
+- **Spot Price Alerts**: Set alerts for spot market prices (above/below thresholds)
+- **Futures Price Alerts**: Set alerts for futures market prices (above/below thresholds)
+- **Multiple Alerts**: Up to 2 alerts per coin (one for above, one for below price)
+- **Browser Notifications**: Real-time notifications when price targets are reached
 
-Edit `.env` and fill in your configuration:
-- `DATABASE_URL`: PostgreSQL connection string
-- `JWT_SECRET`: Secret key for JWT tokens
-- `STRIPE_SECRET_KEY`: Stripe secret key
-- `STRIPE_PREMIUM_PRICE_ID`: Stripe price ID for premium subscription
-- `STRIPE_WEBHOOK_SECRET`: Stripe webhook secret
-- `NEXT_PUBLIC_APP_URL`: Your app URL (http://localhost:3000 for local)
+#### Premium Features
+- **Extended Historical Data**: Access to longer time ranges and more detailed charts
+- **Advanced Analytics**: In-depth market analysis and indicators
+- **Watchlist Management**: Track up to 10 coins per watchlist
+- **Price Alerts**: Unlimited price alerts for market monitoring
 
-4. Set up the database:
-```bash
-npx prisma generate
-npx prisma migrate dev
-```
+#### User Management
+- **Secure Authentication**: JWT-based authentication system with email verification
+- **User Profiles**: Personal dashboard and settings management
+- **Admin Panel**: Administrative tools for user and payment management
 
-5. Run the development server:
-```bash
-npm run dev
-```
+### Technologies Used
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+#### Frontend
+- **Next.js 16** (App Router) - React framework with server-side rendering
+- **React 19** - Modern UI library
+- **TypeScript** - Type-safe development
+- **TailwindCSS** - Utility-first CSS framework
+- **shadcn/ui** - High-quality component library
+- **Radix UI** - Accessible component primitives
+- **Recharts** - Charting library for data visualization
 
-## Project Structure
+#### Backend
+- **Next.js API Routes** - Serverless API endpoints
+- **Prisma ORM** - Database ORM for PostgreSQL
+- **PostgreSQL** - Relational database for data persistence
 
-```
-oruba-coin/
-├── app/                    # Next.js App Router pages
-│   ├── api/               # API routes
-│   │   ├── auth/         # Authentication endpoints
-│   │   ├── coins/        # Coin data endpoints
-│   │   ├── user/         # User profile endpoints
-│   │   ├── stripe/       # Stripe checkout
-│   │   └── webhook/      # Stripe webhook
-│   ├── coins/            # Coin pages
-│   ├── login/            # Login page
-│   ├── register/         # Registration page
-│   ├── profile/          # User profile
-│   └── checkout/         # Premium subscription
-├── components/           # React components
-│   ├── ui/              # shadcn/ui components
-│   └── navbar.tsx       # Navigation component
-├── lib/                  # Utility libraries
-│   ├── prisma.ts        # Prisma client
-│   ├── auth.ts          # Authentication utilities
-│   ├── binance.ts       # Binance API client
-│   ├── stripe.ts        # Stripe client
-│   └── websocket.ts     # WebSocket client
-└── prisma/              # Database schema
-    └── schema.prisma    # Prisma schema
-```
+#### Authentication & Security
+- **JWT (jsonwebtoken)** - Token-based authentication
+- **bcryptjs** - Password hashing
+- **Email Verification** - Account verification system
 
-## API Endpoints
+#### External Services
+- **Binance API** - REST API and WebSocket for cryptocurrency data
+- **Stripe** - Payment processing for subscriptions
+- **Resend** - Email delivery service
 
-### Authentication
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login user
-- `POST /api/auth/logout` - Logout user
+#### Data Processing
+- **WebSocket** - Real-time bidirectional communication
+- **Zod** - Schema validation
 
-### Coins
-- `GET /api/coins` - Get all coins (with search, sort, filter)
-- `GET /api/coins/popular` - Get top 5 popular coins
-- `GET /api/coins/[symbol]` - Get coin details
+### System Architecture
 
-### User
-- `GET /api/user/profile` - Get user profile
+The application follows a modern full-stack architecture:
 
-### Stripe
-- `POST /api/stripe/create-checkout` - Create checkout session
-- `POST /api/webhook/stripe` - Handle Stripe webhooks
+1. **Frontend Layer**: React components with Next.js App Router for client-side rendering and server-side rendering
+2. **API Layer**: Next.js API routes handling business logic and data processing
+3. **Database Layer**: PostgreSQL database managed through Prisma ORM
+4. **Real-time Layer**: WebSocket connections to Binance for live market data
+5. **External Services**: Integration with Binance API, Stripe, and email services
 
-## Database Schema
+Data flows from Binance API through WebSocket connections, processes in real-time, and displays to users through the React frontend. User interactions trigger API calls that update the database and manage user preferences.
 
-- **Users**: User accounts and authentication
-- **Subscriptions**: Premium subscription management
-- **Coins**: Coin metadata
-- **PriceSnapshots**: Historical price data
-- **UserEvents**: User activity tracking
+---
 
-## Premium Features
+## Türkçe
 
-Premium subscribers get access to:
-- Daily charts and extended historical data
-- Advanced technical indicators
-- Data export functionality
+### Genel Bakış
 
-## Deployment
+Oruba Coin, spot ve vadeli piyasalar için gerçek zamanlı piyasa verileri, gelişmiş analitikler ve kişiselleştirilmiş takip özellikleri sunan kapsamlı bir kripto para analiz platformudur. Modern web teknolojileri ile geliştirilen platform, gerçek zamanlı fiyat güncellemeleri, detaylı grafikler, takip listesi yönetimi ve fiyat alarm sistemi sunar.
 
-### Vercel
+### Sistem İşleyişi
 
-1. Push your code to GitHub
-2. Import project in Vercel
-3. Set environment variables in Vercel dashboard
-4. Deploy
+Platform, Binance API ile entegre olarak REST API ve WebSocket bağlantıları üzerinden gerçek zamanlı kripto para verilerini çeker. Kullanıcılar spot ve vadeli piyasaları ayrı ayrı görüntüleyebilir, favori coinlerini kişisel takip listelerinde takip edebilir ve fiyatlar belirli eşiklere ulaştığında bildirim almak için fiyat alarmları kurabilir. Sistem, piyasa verilerini sürekli işleyerek fiyatlar, hacimler ve işlem faaliyetleri hakkında güncel bilgi sağlar.
 
-### Database
+Premium aboneler için platform, genişletilmiş geçmiş veriler, detaylı piyasa analizi ve gelişmiş takip özellikleri sunar. Abonelik sistemi, güvenli ödeme işleme için Stripe ile entegre edilmiştir.
 
-For production, use a managed PostgreSQL service like:
-- Vercel Postgres
-- Supabase
-- Neon
-- Railway
+### Temel Özellikler
 
-### WebSocket Scaling
+#### Piyasa Verileri
+- **Gerçek Zamanlı Spot Piyasası**: Spot piyasalar için canlı fiyatlar, 24 saatlik hacim ve saatlik hacim takibi
+- **Gerçek Zamanlı Vadeli Piyasası**: Vadeli piyasalar için canlı fiyatlar, 24 saatlik hacim ve saatlik hacim takibi
+- **Alış/Satış Hacim Analizi**: Her iki piyasa için alış ve satış hacimlerinin detaylı analizi
+- **Fiyat Grafikleri**: Birden fazla zaman aralığı ile interaktif grafikler (1Dk, 5Dk, 15Dk, 30Dk, 1G, 7G, 30G, 90G, 1Y)
+- **İşlem Geçmişi**: Alış ve satış emirlerini gösteren gerçek zamanlı işlem akışı
 
-For production WebSocket scaling, consider:
-- Separate WebSocket service (Node.js/Express)
-- Redis Pub/Sub for message distribution
-- Socket.io for client-server communication
+#### Takip Listesi Yönetimi
+- **Spot Takip Listesi**: Gerçek zamanlı güncellemeler ile spot piyasa coinleri için kişisel takip listesi
+- **Vadeli Takip Listesi**: Gerçek zamanlı güncellemeler ile vadeli piyasa coinleri için kişisel takip listesi
+- **Gerçek Zamanlı Güncellemeler**: WebSocket destekli canlı fiyat ve hacim güncellemeleri
+- **Flash Animasyonları**: Fiyat hareketleri için görsel göstergeler
 
-## Environment Variables
+#### Fiyat Alarmları
+- **Spot Fiyat Alarmları**: Spot piyasa fiyatları için alarm kurulumu (yukarı/aşağı eşik değerleri)
+- **Vadeli Fiyat Alarmları**: Vadeli piyasa fiyatları için alarm kurulumu (yukarı/aşağı eşik değerleri)
+- **Çoklu Alarmlar**: Coin başına maksimum 2 alarm (biri yukarı, biri aşağı fiyat için)
+- **Tarayıcı Bildirimleri**: Fiyat hedeflerine ulaşıldığında gerçek zamanlı bildirimler
 
-See `.env.example` for all required environment variables.
+#### Premium Özellikler
+- **Genişletilmiş Geçmiş Veriler**: Daha uzun zaman aralıkları ve daha detaylı grafiklere erişim
+- **Gelişmiş Analitikler**: Derinlemesine piyasa analizi ve göstergeler
+- **Takip Listesi Yönetimi**: Takip listesi başına 10 coin'e kadar takip etme
+- **Fiyat Alarmları**: Piyasa izleme için sınırsız fiyat alarmı
 
-## Development
+#### Kullanıcı Yönetimi
+- **Güvenli Kimlik Doğrulama**: E-posta doğrulama ile JWT tabanlı kimlik doğrulama sistemi
+- **Kullanıcı Profilleri**: Kişisel kontrol paneli ve ayar yönetimi
+- **Admin Paneli**: Kullanıcı ve ödeme yönetimi için yönetim araçları
 
-```bash
-# Run development server
-npm run dev
+### Kullanılan Teknolojiler
 
-# Generate Prisma client
-npx prisma generate
+#### Frontend
+- **Next.js 16** (App Router) - Sunucu tarafı render ile React framework
+- **React 19** - Modern UI kütüphanesi
+- **TypeScript** - Tip güvenli geliştirme
+- **TailwindCSS** - Utility-first CSS framework
+- **shadcn/ui** - Yüksek kaliteli bileşen kütüphanesi
+- **Radix UI** - Erişilebilir bileşen primitifleri
+- **Recharts** - Veri görselleştirme için grafik kütüphanesi
 
-# Run database migrations
-npx prisma migrate dev
+#### Backend
+- **Next.js API Routes** - Sunucusuz API endpoint'leri
+- **Prisma ORM** - PostgreSQL için veritabanı ORM'i
+- **PostgreSQL** - Veri kalıcılığı için ilişkisel veritabanı
 
-# Open Prisma Studio
-npx prisma studio
-```
+#### Kimlik Doğrulama ve Güvenlik
+- **JWT (jsonwebtoken)** - Token tabanlı kimlik doğrulama
+- **bcryptjs** - Şifre hashleme
+- **E-posta Doğrulama** - Hesap doğrulama sistemi
 
-## License
+#### Harici Servisler
+- **Binance API** - Kripto para verileri için REST API ve WebSocket
+- **Stripe** - Abonelikler için ödeme işleme
+- **Resend** - E-posta teslimat servisi
 
-MIT
+#### Veri İşleme
+- **WebSocket** - Gerçek zamanlı çift yönlü iletişim
+- **Zod** - Şema doğrulama
 
-## Support
+### Sistem Mimarisi
 
-For issues and questions, please open an issue on GitHub.
+Uygulama modern bir full-stack mimari izler:
 
+1. **Frontend Katmanı**: İstemci tarafı render ve sunucu tarafı render için Next.js App Router ile React bileşenleri
+2. **API Katmanı**: İş mantığı ve veri işlemeyi yöneten Next.js API route'ları
+3. **Veritabanı Katmanı**: Prisma ORM ile yönetilen PostgreSQL veritabanı
+4. **Gerçek Zamanlı Katman**: Canlı piyasa verileri için Binance'e WebSocket bağlantıları
+5. **Harici Servisler**: Binance API, Stripe ve e-posta servisleri ile entegrasyon
+
+Veriler Binance API'den WebSocket bağlantıları üzerinden gelir, gerçek zamanlı olarak işlenir ve React frontend aracılığıyla kullanıcılara gösterilir. Kullanıcı etkileşimleri, veritabanını güncelleyen ve kullanıcı tercihlerini yöneten API çağrılarını tetikler.
