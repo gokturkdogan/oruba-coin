@@ -259,6 +259,21 @@ export function Navbar() {
                 <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-gradient-to-r from-primary to-primary/50 rounded-full" />
               )}
             </a>
+            <a
+              href="/futures-coins"
+              onClick={(e) => {
+                e.preventDefault()
+                window.location.href = '/futures-coins'
+              }}
+              className={`transition-all duration-200 hover:text-primary relative cursor-pointer ${
+                pathname === '/futures-coins' ? 'text-primary font-semibold' : 'text-foreground/70'
+              }`}
+            >
+              Vadeli Coin Listesi
+              {pathname === '/futures-coins' && (
+                <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-gradient-to-r from-primary to-primary/50 rounded-full" />
+              )}
+            </a>
           </div>
           
           <div className="flex items-center space-x-4">
@@ -434,6 +449,19 @@ export function Navbar() {
               }`}
             >
               Saatlik Hacim Takibi
+            </a>
+            <a
+              href="/futures-coins"
+              onClick={(e) => {
+                e.preventDefault()
+                setMobileMenuOpen(false)
+                window.location.href = '/futures-coins'
+              }}
+              className={`block px-4 py-2 rounded-lg transition-all cursor-pointer ${
+                pathname === '/futures-coins' ? 'text-primary bg-primary/10' : 'text-foreground/70 hover:bg-white/5'
+              }`}
+            >
+              Vadeli Coin Listesi
             </a>
             {user && (
               <>
