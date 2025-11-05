@@ -11,27 +11,29 @@ const updateUserSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     await requireAdmin(request)
 
+    const { userId } = await params
+
     const user = await prisma.user.findUnique({
-      where: { id: params.userId },
+      where: { id: userId },
       include: {
         subscription: true,
-        watchlist: {
+        spotWatchlist: {
           take: 10,
           orderBy: { createdAt: 'desc' },
         },
-        priceAlerts: {
+        futuresWatchlist: {
           take: 10,
           orderBy: { createdAt: 'desc' },
         },
         _count: {
           select: {
-            watchlist: true,
-            priceAlerts: true,
+            spotWatchlist: true,
+            futuresWatchlist: true,
             events: true,
           },
         },
@@ -69,23 +71,25 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     await requireAdmin(request)
+
+    const { userId } = await params
 
     const body = await request.json()
     const data = updateUserSchema.parse(body)
 
     const user = await prisma.user.update({
-      where: { id: params.userId },
+      where: { id: userId },
       data,
       include: {
         subscription: true,
         _count: {
           select: {
-            watchlist: true,
-            priceAlerts: true,
+            spotWatchlist: true,
+            futuresWatchlist: true,
           },
         },
       },
@@ -100,8 +104,7 @@ export async function PUT(
         isAdmin: user.isAdmin,
         createdAt: user.createdAt,
         subscription: user.subscription,
-        watchlistCount: user._count.watchlist,
-        priceAlertCount: user._count.priceAlerts,
+        watchlistCount: (user._count.spotWatchlist || 0) + (user._count.futuresWatchlist || 0),
       },
     })
   } catch (error) {

@@ -12,8 +12,6 @@ export async function GET(request: NextRequest) {
       verifiedUsers,
       premiumUsers,
       totalWatchlists,
-      totalPriceAlerts,
-      activePriceAlerts,
       recentUsers,
     ] = await Promise.all([
       prisma.user.count(),
@@ -26,9 +24,7 @@ export async function GET(request: NextRequest) {
           },
         },
       }),
-      prisma.watchlist.count(),
-      prisma.priceAlert.count(),
-      prisma.priceAlert.count({ where: { isActive: true } }),
+      prisma.spotWatchlist.count() + prisma.futuresWatchlist.count(),
       prisma.user.findMany({
         take: 10,
         orderBy: { createdAt: 'desc' },
@@ -69,8 +65,6 @@ export async function GET(request: NextRequest) {
         verifiedUsers,
         premiumUsers,
         totalWatchlists,
-        totalPriceAlerts,
-        activePriceAlerts,
         recentUsers,
         userGrowth: userGrowth.map((item) => ({
           date: item.createdAt,

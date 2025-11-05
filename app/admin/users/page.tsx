@@ -27,7 +27,6 @@ interface User {
     currentPeriodEnd: string
   } | null
   watchlistCount: number
-  priceAlertCount: number
 }
 
 interface Pagination {
@@ -271,9 +270,6 @@ export default function AdminUsersPage() {
                           <div className="flex flex-col gap-1 text-sm">
                             <span className="text-muted-foreground">
                               Watchlist: <span className="font-medium text-foreground">{user.watchlistCount}</span>
-                            </span>
-                            <span className="text-muted-foreground">
-                              Alarm: <span className="font-medium text-foreground">{user.priceAlertCount}</span>
                             </span>
                           </div>
                         </td>

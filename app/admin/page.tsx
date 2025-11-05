@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Users, Shield, TrendingUp, Bell, UserCheck, Mail } from 'lucide-react'
+import { Users, Shield, TrendingUp, UserCheck, Mail } from 'lucide-react'
 import Link from 'next/link'
 import { formatNumberTR } from '@/lib/utils'
 
@@ -14,8 +14,6 @@ interface Stats {
   verifiedUsers: number
   premiumUsers: number
   totalWatchlists: number
-  totalPriceAlerts: number
-  activePriceAlerts: number
   recentUsers: Array<{
     id: string
     email: string
@@ -144,18 +142,6 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Fiyat Alarmları</CardTitle>
-            <Bell className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatNumberTR(stats.activePriceAlerts)}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.totalPriceAlerts} toplam ({stats.activePriceAlerts} aktif)
-            </p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Quick Actions */}

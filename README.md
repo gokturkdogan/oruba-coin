@@ -132,7 +132,6 @@ Premium subscribers get access to:
 - Daily charts and extended historical data
 - Advanced technical indicators
 - Data export functionality
-- Price alerts (coming soon)
 
 ## Deployment
 

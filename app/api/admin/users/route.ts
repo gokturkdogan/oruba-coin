@@ -37,8 +37,8 @@ export async function GET(request: NextRequest) {
           },
           _count: {
             select: {
-              watchlist: true,
-              priceAlerts: true,
+              spotWatchlist: true,
+              futuresWatchlist: true,
             },
           },
         },
@@ -55,8 +55,7 @@ export async function GET(request: NextRequest) {
         isAdmin: user.isAdmin,
         createdAt: user.createdAt,
         subscription: user.subscription,
-        watchlistCount: user._count.watchlist,
-        priceAlertCount: user._count.priceAlerts,
+        watchlistCount: (user._count.spotWatchlist || 0) + (user._count.futuresWatchlist || 0),
       })),
       pagination: {
         page,
