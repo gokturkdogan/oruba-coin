@@ -341,6 +341,15 @@ export function Navbar() {
                       >
                         Spot Takip Listesi
                       </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={(e) => {
+                          e.preventDefault()
+                          window.location.href = '/futures-watchlist'
+                        }}
+                        className="cursor-pointer"
+                      >
+                        Vadeli Takip Listesi
+                      </DropdownMenuItem>
                       {user.isAdmin && (
                         <>
                           <DropdownMenuSeparator />
@@ -486,6 +495,17 @@ export function Navbar() {
                   className="block px-4 py-2 rounded-lg text-foreground/70 hover:bg-white/5 transition-all cursor-pointer"
                 >
                   Spot Takip Listesi
+                </a>
+                <a
+                  href="/futures-watchlist"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    setMobileMenuOpen(false)
+                    window.location.href = '/futures-watchlist'
+                  }}
+                  className="block px-4 py-2 rounded-lg text-foreground/70 hover:bg-white/5 transition-all cursor-pointer"
+                >
+                  Vadeli Takip Listesi
                 </a>
                 {user.isAdmin && (
                   <a
