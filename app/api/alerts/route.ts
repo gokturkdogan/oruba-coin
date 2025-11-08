@@ -10,6 +10,9 @@ const createAlertSchema = z.object({
   targetPrice: z.number().positive(),
 })
 
+const DAILY_ALERT_LIMIT = 5
+const ALERT_CREATION_EVENT = 'price_alert_created'
+
 // GET /api/alerts?market=spot&symbol=ETHUSDT
 export async function GET(request: NextRequest) {
   try {
@@ -98,6 +101,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ alert: updated, message: 'Alert güncellendi' })
     }
 
+    const now = new Date()
+    const startOfDayUtc = new Date(now)
+    startOfDayUtc.setUTCHours(0, 0, 0, 0)
+
+    const alertsCreatedToday = await prisma.userEvent.count({
+      where: {
+        userId: user.id,
+        eventType: ALERT_CREATION_EVENT,
+        createdAt: {
+          gte: startOfDayUtc,
+        },
+      },
+    })
+
+    if (alertsCreatedToday >= DAILY_ALERT_LIMIT) {
+      return NextResponse.json(
+        {
+          error: `Günlük alarm limiti aşıldı. Bir kullanıcı günde en fazla ${DAILY_ALERT_LIMIT} yeni alarm oluşturabilir.`,
+        },
+        { status: 429 }
+      )
+    }
+
     // Yoksa yeni oluştur
     const alert = await prisma.priceAlert.create({
       data: {
@@ -110,11 +136,24 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    await prisma.userEvent.create({
+      data: {
+        userId: user.id,
+        eventType: ALERT_CREATION_EVENT,
+        payload: {
+          symbol: symbol.toUpperCase(),
+          market,
+          type,
+          targetPrice,
+        },
+      },
+    })
+
     return NextResponse.json({ alert, message: 'Alert oluşturuldu' }, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Geçersiz veri formatı', details: error.errors },
+        { error: 'Geçersiz veri formatı', details: error.issues },
         { status: 400 }
       )
     }

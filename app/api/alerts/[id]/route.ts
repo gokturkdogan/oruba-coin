@@ -57,7 +57,7 @@ export async function PUT(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Geçersiz veri formatı', details: error.errors },
+        { error: 'Geçersiz veri formatı', details: error.issues },
         { status: 400 }
       )
     }
