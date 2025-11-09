@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { TrendingUp, TrendingDown, ArrowUpDown, Star, StarOff } from 'lucide-react'
+import { TrendingUp, TrendingDown, ArrowUpDown, Star, StarOff, Eye } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 
@@ -1200,9 +1200,12 @@ export default function SpotCoinsPage() {
                           textAlign: 'center', 
                           padding: '8px 12px'
                         }}>
-                          {isAuthenticated ? (
+                          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
                             <button
-                              onClick={(e) => toggleWatchlist(coin.symbol, e)}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                window.location.href = `/coins/${coin.symbol}`
+                              }}
                               style={{
                                 padding: '4px',
                                 background: 'transparent',
@@ -1211,27 +1214,52 @@ export default function SpotCoinsPage() {
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                margin: '0 auto',
-                                color: watchlist.has(coin.symbol) ? '#fbbf24' : 'var(--muted-foreground)',
+                                color: 'var(--muted-foreground)',
                                 transition: 'color 0.2s',
                               }}
                               onMouseEnter={(e) => {
-                                e.currentTarget.style.color = '#fbbf24'
+                                e.currentTarget.style.color = 'var(--primary)'
                               }}
                               onMouseLeave={(e) => {
-                                e.currentTarget.style.color = watchlist.has(coin.symbol) ? '#fbbf24' : 'var(--muted-foreground)'
+                                e.currentTarget.style.color = 'var(--muted-foreground)'
                               }}
-                              title={watchlist.has(coin.symbol) ? 'Spot takip listesinden çıkar' : 'Spot takip listesine ekle'}
+                              title={`${coin.symbol} detayını görüntüle`}
                             >
-                              {watchlist.has(coin.symbol) ? (
-                                <Star style={{ width: '18px', height: '18px', fill: '#fbbf24' }} />
-                              ) : (
-                                <StarOff style={{ width: '18px', height: '18px' }} />
-                              )}
+                              <Eye style={{ width: '18px', height: '18px' }} />
                             </button>
-                          ) : (
-                            <span style={{ color: 'var(--muted-foreground)', fontSize: '12px' }}>-</span>
-                          )}
+
+                            {isAuthenticated ? (
+                              <button
+                                onClick={(e) => toggleWatchlist(coin.symbol, e)}
+                                style={{
+                                  padding: '4px',
+                                  background: 'transparent',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: watchlist.has(coin.symbol) ? '#fbbf24' : 'var(--muted-foreground)',
+                                  transition: 'color 0.2s',
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.color = '#fbbf24'
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.color = watchlist.has(coin.symbol) ? '#fbbf24' : 'var(--muted-foreground)'
+                                }}
+                                title={watchlist.has(coin.symbol) ? 'Spot takip listesinden çıkar' : 'Spot takip listesine ekle'}
+                              >
+                                {watchlist.has(coin.symbol) ? (
+                                  <Star style={{ width: '18px', height: '18px', fill: '#fbbf24' }} />
+                                ) : (
+                                  <StarOff style={{ width: '18px', height: '18px' }} />
+                                )}
+                              </button>
+                            ) : (
+                              <span style={{ color: 'var(--muted-foreground)', fontSize: '12px' }}>-</span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )
