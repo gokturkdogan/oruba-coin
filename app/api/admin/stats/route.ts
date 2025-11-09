@@ -24,7 +24,9 @@ export async function GET(request: NextRequest) {
           },
         },
       }),
-      prisma.spotWatchlist.count() + prisma.futuresWatchlist.count(),
+      Promise.all([prisma.spotWatchlist.count(), prisma.futuresWatchlist.count()]).then(
+        ([spotCount, futuresCount]) => spotCount + futuresCount
+      ),
       prisma.user.findMany({
         take: 10,
         orderBy: { createdAt: 'desc' },

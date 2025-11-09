@@ -490,7 +490,7 @@ export default function SpotWatchlistPage() {
       coinsMapRef.current.clear()
       previousPricesRef.current.clear()
       hourlyVolumeStartTimeRef.current.clear()
-      watchlistCoins.forEach((coin) => {
+      watchlistCoins.forEach((coin: Coin) => {
         coinsMapRef.current.set(coin.symbol, coin)
         previousPricesRef.current.set(coin.symbol, parseFloat(coin.price))
         // Her coin için saatlik hacim başlangıç zamanını kaydet
@@ -502,7 +502,7 @@ export default function SpotWatchlistPage() {
       
       // Subscribe to WebSocket for real-time updates
       if (watchlistCoins.length > 0) {
-        const symbols = watchlistCoins.map((c) => c.symbol)
+        const symbols = watchlistCoins.map((c: Coin) => c.symbol)
         subscribeToWebSocket(symbols)
         subscribeToTradeWebSocket(symbols)
       }

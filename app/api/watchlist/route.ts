@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const watchlist = await prisma.watchlist.findMany({
+    const watchlist = await prisma.spotWatchlist.findMany({
       where: {
         userId: payload.userId,
       },
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if already in watchlist
-    const existing = await prisma.watchlist.findUnique({
+    const existing = await prisma.spotWatchlist.findUnique({
       where: {
         userId_symbol: {
           userId: payload.userId,
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check watchlist limit (10 coins)
-    const watchlistCount = await prisma.watchlist.count({
+    const watchlistCount = await prisma.spotWatchlist.count({
       where: {
         userId: payload.userId,
       },
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Add to watchlist
-    await prisma.watchlist.create({
+    await prisma.spotWatchlist.create({
       data: {
         userId: payload.userId,
         symbol: symbol.toUpperCase(),
@@ -161,7 +161,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Remove from watchlist
-    await prisma.watchlist.delete({
+    await prisma.spotWatchlist.delete({
       where: {
         userId_symbol: {
           userId: payload.userId,

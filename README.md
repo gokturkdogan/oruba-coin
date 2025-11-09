@@ -14,7 +14,7 @@ Oruba Coin is a comprehensive cryptocurrency analysis platform that provides rea
 
 The platform integrates with Binance API to fetch real-time cryptocurrency data through both REST API and WebSocket connections. Users can browse spot and futures markets separately, track their favorite coins in personalized watchlists, and set up price alerts that notify them when prices reach specific thresholds. The system processes market data continuously, providing up-to-date information on prices, volumes, and trading activities.
 
-For premium subscribers, the platform offers enhanced features including extended historical data, detailed market analysis, and advanced tracking capabilities. The subscription system is integrated with Stripe for secure payment processing.
+For premium subscribers, the platform offers enhanced features including extended historical data, detailed market analysis, and advanced tracking capabilities. Subscription renewals are managed through manual EFT/Havale requests that the support team reviews and approves.
 
 ### Key Features
 
@@ -71,7 +71,6 @@ For premium subscribers, the platform offers enhanced features including extende
 
 #### External Services
 - **Binance API** - REST API and WebSocket for cryptocurrency data
-- **Stripe** - Payment processing for subscriptions
 - **Resend** - Email delivery service
 
 #### Data Processing
@@ -86,7 +85,7 @@ The application follows a modern full-stack architecture:
 2. **API Layer**: Next.js API routes handling business logic and data processing
 3. **Database Layer**: PostgreSQL database managed through Prisma ORM
 4. **Real-time Layer**: WebSocket connections to Binance for live market data
-5. **External Services**: Integration with Binance API, Stripe, and email services
+5. **External Services**: Integration with Binance API and email services
 
 Data flows from Binance API through WebSocket connections, processes in real-time, and displays to users through the React frontend. User interactions trigger API calls that update the database and manage user preferences.
 
@@ -102,7 +101,7 @@ Oruba Coin, spot ve vadeli piyasalar için gerçek zamanlı piyasa verileri, gel
 
 Platform, Binance API ile entegre olarak REST API ve WebSocket bağlantıları üzerinden gerçek zamanlı kripto para verilerini çeker. Kullanıcılar spot ve vadeli piyasaları ayrı ayrı görüntüleyebilir, favori coinlerini kişisel takip listelerinde takip edebilir ve fiyatlar belirli eşiklere ulaştığında bildirim almak için fiyat alarmları kurabilir. Sistem, piyasa verilerini sürekli işleyerek fiyatlar, hacimler ve işlem faaliyetleri hakkında güncel bilgi sağlar.
 
-Premium aboneler için platform, genişletilmiş geçmiş veriler, detaylı piyasa analizi ve gelişmiş takip özellikleri sunar. Abonelik sistemi, güvenli ödeme işleme için Stripe ile entegre edilmiştir.
+Premium aboneler için platform, genişletilmiş geçmiş veriler, detaylı piyasa analizi ve gelişmiş takip özellikleri sunar. Abonelik yenilemeleri, destek ekibinin onayladığı EFT/Havale talepleriyle manuel olarak yönetilir.
 
 ### Temel Özellikler
 
@@ -159,7 +158,6 @@ Premium aboneler için platform, genişletilmiş geçmiş veriler, detaylı piya
 
 #### Harici Servisler
 - **Binance API** - Kripto para verileri için REST API ve WebSocket
-- **Stripe** - Abonelikler için ödeme işleme
 - **Resend** - E-posta teslimat servisi
 
 #### Veri İşleme
@@ -174,6 +172,6 @@ Uygulama modern bir full-stack mimari izler:
 2. **API Katmanı**: İş mantığı ve veri işlemeyi yöneten Next.js API route'ları
 3. **Veritabanı Katmanı**: Prisma ORM ile yönetilen PostgreSQL veritabanı
 4. **Gerçek Zamanlı Katman**: Canlı piyasa verileri için Binance'e WebSocket bağlantıları
-5. **Harici Servisler**: Binance API, Stripe ve e-posta servisleri ile entegrasyon
+5. **Harici Servisler**: Binance API ve e-posta servisleri ile entegrasyon
 
 Veriler Binance API'den WebSocket bağlantıları üzerinden gelir, gerçek zamanlı olarak işlenir ve React frontend aracılığıyla kullanıcılara gösterilir. Kullanıcı etkileşimleri, veritabanını güncelleyen ve kullanıcı tercihlerini yöneten API çağrılarını tetikler.

@@ -1,6 +1,38 @@
-import { Resend } from 'resend'
+type ResendClient = {
+  emails: {
+    send: (payload: any) => Promise<any>
+  }
+}
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+async function importResend() {
+  const module = await import('resend')
+  return module.Resend
+}
+
+let resendClient: ResendClient | null = null
+
+async function getResendClient(): Promise<ResendClient> {
+  const apiKey = process.env.RESEND_API_KEY
+
+  if (!apiKey || apiKey === 'undefined' || apiKey === 'null') {
+    console.warn('RESEND_API_KEY is not set; email sending is disabled.')
+    resendClient = {
+      emails: {
+        async send() {
+          throw new Error('RESEND_API_KEY is not configured')
+        },
+      },
+    } as ResendClient
+    return resendClient
+  }
+
+  if (!resendClient) {
+    const Resend = await importResend()
+    resendClient = new Resend(apiKey) as ResendClient
+  }
+
+  return resendClient
+}
 
 export interface EmailOptions {
   to: string | string[]
@@ -11,12 +43,6 @@ export interface EmailOptions {
 
 export async function sendEmail(options: EmailOptions) {
   try {
-    // Check if RESEND_API_KEY is set
-    if (!process.env.RESEND_API_KEY) {
-      console.error('RESEND_API_KEY is not set in environment variables')
-      throw new Error('RESEND_API_KEY is not configured')
-    }
-
     const fromEmail = options.from || process.env.EMAIL_FROM || 'Oruba Coin <noreply@oruba-coin.com>'
     
     console.log('[Resend] Sending email:', {
@@ -27,7 +53,9 @@ export async function sendEmail(options: EmailOptions) {
       htmlLength: options.html?.length || 0
     })
 
-    const { data, error } = await resend.emails.send({
+    const client = await getResendClient()
+
+    const { data, error } = await client.emails.send({
       from: fromEmail,
       to: Array.isArray(options.to) ? options.to : [options.to],
       subject: options.subject,
@@ -1418,6 +1446,6 @@ export async function sendPremiumWelcomeEmail(
   })
 }
 
-export { resend, sendPremiumWelcomeEmail }
+export { getResendClient }
 
 

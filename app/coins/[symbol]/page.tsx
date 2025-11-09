@@ -140,7 +140,10 @@ export default function CoinDetailPage() {
 
   // Calculate total volumes for the selected time range - must be before useEffect hooks
   const totalVolumes = useMemo(() => {
-    if (chartKlinesBottom.length === 0) {
+    const spotKlines = Array.isArray(chartKlinesBottom) ? chartKlinesBottom : []
+    const futuresKlines = Array.isArray(chartFuturesKlinesBottom) ? chartFuturesKlinesBottom : []
+
+    if (spotKlines.length === 0) {
       return {
         spotBuy: 0,
         spotSell: 0,
@@ -150,10 +153,10 @@ export default function CoinDetailPage() {
     }
     
     // Calculate totals from raw klines data
-    const spotBuy = chartKlinesBottom.reduce((sum, k) => sum + (k.buyVolume || 0), 0)
-    const spotSell = chartKlinesBottom.reduce((sum, k) => sum + (k.sellVolume || 0), 0)
-    const futuresBuy = chartFuturesKlinesBottom.reduce((sum, k) => sum + (k.buyVolume || 0), 0)
-    const futuresSell = chartFuturesKlinesBottom.reduce((sum, k) => sum + (k.sellVolume || 0), 0)
+    const spotBuy = spotKlines.reduce((sum, k) => sum + (k.buyVolume || 0), 0)
+    const spotSell = spotKlines.reduce((sum, k) => sum + (k.sellVolume || 0), 0)
+    const futuresBuy = futuresKlines.reduce((sum, k) => sum + (k.buyVolume || 0), 0)
+    const futuresSell = futuresKlines.reduce((sum, k) => sum + (k.sellVolume || 0), 0)
     
     return {
       spotBuy,

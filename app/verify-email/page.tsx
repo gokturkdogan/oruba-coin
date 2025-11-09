@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,29 @@ import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 
 export default function VerifyEmailPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="container max-w-md mx-auto px-4 py-16">
+          <Card className="glass-effect border-white/10">
+            <CardHeader className="text-center">
+              <CardTitle className="text-2xl mb-2">E-posta Doğrulama</CardTitle>
+              <CardDescription>E-posta adresinizi doğruluyoruz...</CardDescription>
+            </CardHeader>
+            <CardContent className="text-center space-y-6">
+              <Loader2 className="h-16 w-16 mx-auto animate-spin text-primary" />
+              <p className="text-muted-foreground">Lütfen bekleyin...</p>
+            </CardContent>
+          </Card>
+        </div>
+      }
+    >
+      <VerifyEmailContent />
+    </Suspense>
+  )
+}
+
+function VerifyEmailContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const token = searchParams.get('token')

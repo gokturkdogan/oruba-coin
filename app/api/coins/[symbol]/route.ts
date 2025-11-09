@@ -126,7 +126,8 @@ export async function GET(
     
     const klines = klinesResult.status === 'fulfilled' ? klinesResult.value : []
     const futuresKlines = futuresKlinesResult.status === 'fulfilled' ? futuresKlinesResult.value : []
-    
+    const aggTradesFetch = aggTradesResponse.status === 'fulfilled' ? aggTradesResponse.value : null
+
     // If spotBuyVolume24h is 0 or very small compared to quoteVolume, try to calculate from klines
     // This handles cases where Binance API doesn't return takerBuyQuoteVolume
     if ((spotBuyVolume24h === 0 || (spotQuoteVolume > 0 && spotBuyVolume24h < spotQuoteVolume * 0.01)) && klines.length > 0) {
@@ -173,9 +174,9 @@ export async function GET(
     let highestBuyPrice = '0'
     let highestSellPrice = '0'
 
-    if (aggTradesResponse && aggTradesResponse.ok) {
+    if (aggTradesFetch && aggTradesFetch.ok) {
       try {
-        const aggTrades = await aggTradesResponse.json()
+        const aggTrades = await aggTradesFetch.json()
         let maxBuyPrice = 0
         let maxSellPrice = 0
 
