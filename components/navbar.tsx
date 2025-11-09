@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -16,7 +17,7 @@ import { Badge } from '@/components/ui/badge'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import { Menu, X, Shield, LogOut, ShieldCheck, DollarSign, Home, Building2, CreditCard } from 'lucide-react'
+import { Menu, X, Shield, LogOut, ShieldCheck, DollarSign, Home, Building2, CreditCard, User, ListChecks, CandlestickChart } from 'lucide-react'
 
 interface User {
   id: string
@@ -186,14 +187,25 @@ export function Navbar() {
       <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center">
-            <a 
-              href="/" 
+            <a
+              href="/"
               onClick={(e) => {
                 e.preventDefault()
                 window.location.href = '/'
               }}
-              className="flex items-center space-x-2 group cursor-pointer"
+              className="flex items-center space-x-3 group cursor-pointer"
             >
+              <div className="relative h-10 w-10 overflow-hidden rounded-xl border border-white/10 bg-white/5 shadow-md">
+                <Image
+                  src="/oruba-coin-logo.png"
+                  alt="Oruba Coin"
+                  width={40}
+                  height={40}
+                  className="object-cover"
+                  priority
+                  unoptimized
+                />
+              </div>
               <span className="font-bold text-xl gradient-text">Oruba Coin</span>
               <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">₿</span>
             </a>
@@ -328,8 +340,9 @@ export function Navbar() {
                           e.preventDefault()
                           window.location.href = '/profile'
                         }}
-                        className="cursor-pointer"
+                        className="cursor-pointer flex items-center gap-2"
                       >
+                        <User className="h-4 w-4 text-primary/80" />
                         Profil
                       </DropdownMenuItem>
                       <DropdownMenuItem
@@ -347,8 +360,9 @@ export function Navbar() {
                           e.preventDefault()
                           window.location.href = '/spot-watchlist'
                         }}
-                        className="cursor-pointer"
+                        className="cursor-pointer flex items-center gap-2"
                       >
+                        <ListChecks className="h-4 w-4 text-primary/80" />
                         Spot Takip Listesi
                       </DropdownMenuItem>
                       <DropdownMenuItem 
@@ -356,8 +370,9 @@ export function Navbar() {
                           e.preventDefault()
                           window.location.href = '/futures-watchlist'
                         }}
-                        className="cursor-pointer"
+                        className="cursor-pointer flex items-center gap-2"
                       >
+                        <CandlestickChart className="h-4 w-4 text-primary/80" />
                         Vadeli Takip Listesi
                       </DropdownMenuItem>
                       {user.isAdmin && (
