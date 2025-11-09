@@ -7,6 +7,9 @@ const updateUserSchema = z.object({
   name: z.string().optional(),
   isVerified: z.boolean().optional(),
   isAdmin: z.boolean().optional(),
+  subscriptionCurrentPeriodEnd: z
+    .union([z.string().datetime({ offset: true }), z.null()])
+    .optional(),
 })
 
 export async function GET(
@@ -80,10 +83,45 @@ export async function PUT(
 
     const body = await request.json()
     const data = updateUserSchema.parse(body)
+    const { subscriptionCurrentPeriodEnd, ...userUpdateData } = data
 
-    const user = await prisma.user.update({
+    await prisma.user.update({
       where: { id: userId },
-      data,
+      data: userUpdateData,
+    })
+
+    if (subscriptionCurrentPeriodEnd !== undefined) {
+      if (subscriptionCurrentPeriodEnd === null) {
+        await prisma.subscription.deleteMany({
+          where: { userId },
+        })
+      } else {
+        const endDate = new Date(subscriptionCurrentPeriodEnd)
+        if (Number.isNaN(endDate.getTime())) {
+          return NextResponse.json(
+            { error: 'Invalid subscription end date' },
+            { status: 400 }
+          )
+        }
+        const status = endDate > new Date() ? 'active' : 'expired'
+        await prisma.subscription.upsert({
+          where: { userId },
+          update: {
+            currentPeriodEnd: endDate,
+            status,
+          },
+          create: {
+            userId,
+            plan: 'premium',
+            status,
+            currentPeriodEnd: endDate,
+          },
+        })
+      }
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
       include: {
         subscription: true,
         _count: {
@@ -94,6 +132,13 @@ export async function PUT(
         },
       },
     })
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found after update' },
+        { status: 404 }
+      )
+    }
 
     return NextResponse.json({
       user: {

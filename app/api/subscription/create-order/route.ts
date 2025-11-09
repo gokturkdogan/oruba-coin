@@ -33,21 +33,6 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth(request)
 
-    // Check if user already has active subscription
-    const existingSubscription = await prisma.subscription.findUnique({
-      where: { userId: user.id },
-    })
-
-    if (existingSubscription && existingSubscription.status === 'active') {
-      const isExpired = existingSubscription.currentPeriodEnd < new Date()
-      if (!isExpired) {
-        return NextResponse.json(
-          { error: 'Zaten aktif bir aboneliğiniz var' },
-          { status: 400 }
-        )
-      }
-    }
-
     // Check if user has pending payment
     const pendingPayment = await prisma.pendingPayment.findFirst({
       where: {

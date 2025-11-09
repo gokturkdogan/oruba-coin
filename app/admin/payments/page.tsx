@@ -249,6 +249,12 @@ export default function AdminPaymentsPage() {
             <XCircle className="h-3 w-3 mr-1" /> Reddedildi
           </Badge>
         )
+      case 'cancelled':
+        return (
+          <Badge variant="secondary" className="bg-slate-500/10 text-slate-300 border-slate-500/30">
+            <XCircle className="h-3 w-3 mr-1" /> Kullanıcı İptal Etti
+          </Badge>
+        )
       default:
         return <Badge variant="secondary">{status}</Badge>
     }
@@ -302,6 +308,13 @@ export default function AdminPaymentsPage() {
               onClick={() => setStatusFilter('rejected')}
             >
               Reddedilenler
+            </Button>
+            <Button
+              variant={statusFilter === 'cancelled' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter('cancelled')}
+            >
+              İptal Edilenler
             </Button>
             <Button
               variant={statusFilter === 'all' ? 'default' : 'outline'}

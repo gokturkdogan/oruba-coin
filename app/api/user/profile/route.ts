@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
           plan: user.subscription.plan,
           status: user.subscription.status,
           currentPeriodEnd: user.subscription.currentPeriodEnd,
+          startedAt: user.subscription.createdAt,
         } : null,
       },
     })

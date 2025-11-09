@@ -332,6 +332,16 @@ export function Navbar() {
                       >
                         Profil
                       </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.preventDefault()
+                          window.location.href = '/membership'
+                        }}
+                        className="cursor-pointer flex items-center gap-2"
+                      >
+                        <CreditCard className="h-4 w-4 text-primary/80" />
+                        Üyelik Yönetimi
+                      </DropdownMenuItem>
                       <DropdownMenuItem 
                         onClick={(e) => {
                           e.preventDefault()
@@ -484,6 +494,17 @@ export function Navbar() {
                   className="block px-4 py-2 rounded-lg text-foreground/70 hover:bg-white/5 transition-all cursor-pointer"
                 >
                   Profil
+                </a>
+                <a
+                  href="/membership"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    setMobileMenuOpen(false)
+                    window.location.href = '/membership'
+                  }}
+                  className="block px-4 py-2 rounded-lg text-foreground/70 hover:bg-white/5 transition-all cursor-pointer"
+                >
+                  Üyelik Yönetimi
                 </a>
                 <a
                   href="/spot-watchlist"

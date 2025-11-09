@@ -9,10 +9,14 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Users, Search, Edit, Shield, Mail, UserCheck } from 'lucide-react'
+import { Users, Search, Edit, Shield, Mail, CalendarClock, Calendar as CalendarIcon, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { formatNumberTR } from '@/lib/utils'
+import { formatNumberTR, cn } from '@/lib/utils'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
+import { format } from 'date-fns'
+import { tr } from 'date-fns/locale'
 
 interface User {
   id: string
@@ -24,7 +28,7 @@ interface User {
   subscription: {
     plan: string
     status: string
-    currentPeriodEnd: string
+    currentPeriodEnd: string | null
   } | null
   watchlistCount: number
 }
@@ -50,6 +54,7 @@ export default function AdminUsersPage() {
     name: '',
     isVerified: false,
     isAdmin: false,
+    subscriptionEndDate: null as Date | null,
   })
 
   useEffect(() => {
@@ -107,6 +112,7 @@ export default function AdminUsersPage() {
       name: user.name || '',
       isVerified: user.isVerified,
       isAdmin: user.isAdmin,
+      subscriptionEndDate: user.subscription?.currentPeriodEnd ? new Date(user.subscription.currentPeriodEnd) : null,
     })
     setEditDialogOpen(true)
   }
@@ -115,10 +121,24 @@ export default function AdminUsersPage() {
     if (!selectedUser) return
 
     try {
+      const payload: any = {
+        name: editData.name,
+        isVerified: editData.isVerified,
+        isAdmin: editData.isAdmin,
+      }
+
+      if (editData.subscriptionEndDate === null) {
+        payload.subscriptionCurrentPeriodEnd = null
+      } else if (editData.subscriptionEndDate instanceof Date) {
+        const endOfDay = new Date(editData.subscriptionEndDate)
+        endOfDay.setHours(23, 59, 59, 999)
+        payload.subscriptionCurrentPeriodEnd = endOfDay.toISOString()
+      }
+
       const res = await fetch(`/api/admin/users/${selectedUser.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editData),
+        body: JSON.stringify(payload),
       })
 
       if (!res.ok) {
@@ -259,9 +279,17 @@ export default function AdminUsersPage() {
                         </td>
                         <td className="p-4">
                           {user.subscription?.status === 'active' ? (
-                            <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
-                              Premium
-                            </Badge>
+                            <div className="flex flex-col gap-1">
+                              <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20 w-fit">
+                                Premium
+                              </Badge>
+                              {user.subscription?.currentPeriodEnd && (
+                                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <CalendarClock className="h-3 w-3" />
+                                  {new Date(user.subscription.currentPeriodEnd).toLocaleDateString('tr-TR')}
+                                </span>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-sm text-muted-foreground">Standart</span>
                           )}
@@ -348,6 +376,52 @@ export default function AdminUsersPage() {
                 onChange={(e) => setEditData({ ...editData, name: e.target.value })}
                 placeholder="Kullanıcı adı"
               />
+            </div>
+            <div>
+              <Label htmlFor="subscriptionEnd">Premium Bitiş Tarihi</Label>
+              <div className="mt-2 flex items-center gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        'w-full justify-start text-left font-normal',
+                        !editData.subscriptionEndDate && 'text-muted-foreground'
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {editData.subscriptionEndDate ? (
+                        format(editData.subscriptionEndDate, 'PPP', { locale: tr })
+                      ) : (
+                        'Tarih seçin'
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={editData.subscriptionEndDate || undefined}
+                      onSelect={(date) =>
+                        setEditData({ ...editData, subscriptionEndDate: date ?? null })
+                      }
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-red-500"
+                  onClick={() => setEditData({ ...editData, subscriptionEndDate: null })}
+                  title="Premium süresini kaldır"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Seçtiğiniz tarih gün sonunda sona erer. Temizlerseniz premium üyelik kapatılır.
+              </p>
             </div>
             <div className="flex items-center space-x-2">
               <Checkbox
