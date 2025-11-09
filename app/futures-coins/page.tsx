@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { TrendingUp, TrendingDown, ArrowUpDown, Star, StarOff } from 'lucide-react'
 import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
 
 interface FuturesCoin {
   symbol: string
@@ -40,6 +41,7 @@ export default function FuturesCoinsPage() {
   const [watchlist, setWatchlist] = useState<Set<string>>(new Set())
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isPremium, setIsPremium] = useState(false)
+  const [isPremiumChecked, setIsPremiumChecked] = useState(false)
   const sortByRef = useRef<SortBy>(sortBy)
   const sortOrderRef = useRef<SortOrder>(sortOrder)
   const searchRef = useRef<string>(search)
@@ -60,15 +62,24 @@ export default function FuturesCoinsPage() {
       setIsAuthenticated(false)
     }
     
-    // Also check premium status
     try {
       const res = await fetch('/api/user/profile')
-      if (res.ok) {
-        const data = await res.json()
-        setIsPremium(data.user?.isPremium || false)
+      if (!res.ok) {
+        setIsPremium(false)
+        setIsPremiumChecked(true)
+        return
       }
+      const data = await res.json()
+      const hasActiveSubscription = !!(
+        data.user?.subscription?.status === 'active' &&
+        data.user?.subscription?.currentPeriodEnd &&
+        new Date(data.user.subscription.currentPeriodEnd) > new Date()
+      )
+      setIsPremium(hasActiveSubscription)
+      setIsPremiumChecked(true)
     } catch (error) {
       setIsPremium(false)
+      setIsPremiumChecked(true)
     }
   }
 
@@ -559,7 +570,6 @@ export default function FuturesCoinsPage() {
     sortOrderRef.current = sortOrder
     searchRef.current = search
     
-    // Re-sort and filter when sort/search changes
     const updatedCoins = Array.from(coinsMapRef.current.values())
     const sorted = sortCoins(updatedCoins, sortBy, sortOrder)
     const filtered = searchCoins(sorted, search)
@@ -567,14 +577,11 @@ export default function FuturesCoinsPage() {
   }, [sortBy, sortOrder, search, sortCoins, searchCoins])
 
   useEffect(() => {
-    fetchCoins()
     fetchWatchlist()
-    
-    // Cleanup function - WebSocket'leri kapat
+
     return () => {
       isMountedRef.current = false
-      
-      // Tüm event handler'ları kaldır ve WebSocket'leri kapat
+
       if (wsRef.current) {
         try {
           wsRef.current.onmessage = null
@@ -589,16 +596,34 @@ export default function FuturesCoinsPage() {
         }
         wsRef.current = null
       }
-      
-      // Flash animasyon timeout'larını temizle
-      const flashTimeouts = Object.values(flashAnimations).map(() => {
-        return setTimeout(() => {}, 0)
-      })
-      flashTimeouts.forEach((timeout) => {
-        clearTimeout(timeout)
-      })
+
+      if (tradesWsRef.current) {
+        try {
+          tradesWsRef.current.onmessage = null
+          tradesWsRef.current.onerror = null
+          tradesWsRef.current.onclose = null
+          tradesWsRef.current.onopen = null
+          if (tradesWsRef.current.readyState === WebSocket.OPEN || tradesWsRef.current.readyState === WebSocket.CONNECTING) {
+            tradesWsRef.current.close()
+          }
+        } catch (error) {
+          console.error('Error closing Futures Trade WebSocket:', error)
+        }
+        tradesWsRef.current = null
+      }
     }
   }, [])
+
+  useEffect(() => {
+    if (!isPremiumChecked) return
+
+    if (!isPremium) {
+      setLoading(false)
+      return
+    }
+
+    fetchCoins()
+  }, [isPremiumChecked, isPremium])
 
   const handleSort = (column: SortBy) => {
     const newSortBy = column
@@ -693,6 +718,34 @@ export default function FuturesCoinsPage() {
     if (isNaN(num)) return '0,00%'
     const sign = num >= 0 ? '+' : ''
     return `${sign}${num.toFixed(2)}%`
+  }
+
+  if (isPremiumChecked && !isPremium) {
+    return (
+      <div className="container max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <Card className="glass-effect border-primary/30 bg-gradient-to-br from-primary/10 to-transparent text-center shadow-2xl">
+          <CardHeader>
+            <CardTitle className="text-3xl font-bold gradient-text mb-2">Premium Üyelik Gerekli</CardTitle>
+            <CardDescription className="text-base">
+              Vadeli coin listesini görüntülemek için aktif bir premium üyeliğe sahip olmanız gerekir.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Premium üyelik ile vadeli piyasa verilerine, gelişmiş analiz araçlarına ve takip listesi yönetimine anında erişebilirsiniz.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Button asChild size="lg" className="w-full sm:w-auto bg-gradient-to-r from-primary to-primary/80 text-white shadow-lg">
+                <Link href="/premium">Premium Paketleri Görüntüle</Link>
+              </Button>
+              <Button asChild variant="outline" size="lg" className="w-full sm:w-auto border-primary/40 text-primary">
+                <Link href="/membership">Üyelik Yönetimine Git</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   if (loading) {

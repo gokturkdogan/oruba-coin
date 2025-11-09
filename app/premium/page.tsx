@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -16,7 +17,9 @@ interface Plan {
 }
 
 export default function PremiumPage() {
+  const router = useRouter()
   const [plans, setPlans] = useState<Plan[]>([])
+  const [isPremium, setIsPremium] = useState<boolean | null>(null)
 
   useEffect(() => {
     // Fetch active plans
@@ -31,6 +34,28 @@ export default function PremiumPage() {
       })
       .catch(() => {
         // Ignore error
+      })
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/user/profile')
+      .then((res) => {
+        if (!res.ok) {
+          setIsPremium(false)
+          return null
+        }
+        return res.json()
+      })
+      .then((data) => {
+        if (!data) return
+        const isActive =
+          data.user?.subscription?.status === 'active' &&
+          data.user?.subscription?.currentPeriodEnd &&
+          new Date(data.user.subscription.currentPeriodEnd) > new Date()
+        setIsPremium(Boolean(isActive))
+      })
+      .catch(() => {
+        setIsPremium(false)
       })
   }, [])
 
@@ -314,12 +339,18 @@ export default function PremiumPage() {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <Button 
-                        asChild
+                      <Button
                         size="lg"
                         className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/30 text-base px-8 py-6 hover:scale-105 transition-transform duration-200 cursor-pointer"
+                        onClick={() => {
+                          if (isPremium) {
+                            router.push('/membership')
+                          } else {
+                            router.push('/checkout')
+                          }
+                        }}
                       >
-                        <Link href="/checkout">Planı Seç</Link>
+                        Planı Seç
                       </Button>
                     </CardContent>
                   </Card>
