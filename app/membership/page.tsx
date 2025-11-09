@@ -876,7 +876,11 @@ function PaymentInstructions({ bankInfo }: { bankInfo: BankAccountInfo }) {
           Yukarıdaki IBAN bilgilerine, talep ettiğiniz plan tutarı kadar havale/EFT yapın. Açıklama alanına e-posta
           adresinizi yazmayı unutmayın.
         </li>
-        <li>Ödeme dekontunu destek ekibimize iletin.</li>
+        <li>
+          Ödeme dekontunu destek ekibimize
+          <a href="mailto:orubacoin@gmail.com" className="text-yellow-200 underline underline-offset-2"> orubacoin@gmail.com</a>
+          adresinden iletin.
+        </li>
         <li>Dekont incelendikten sonra premium süreniz seçtiğiniz plan kadar uzatılır ve size bilgi verilir.</li>
       </ol>
       <p className="text-xs text-yellow-200/60">
