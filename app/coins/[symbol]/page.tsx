@@ -24,6 +24,7 @@ import Link from 'next/link'
 import { formatNumberTR } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
+import { createBinanceEventSource } from '@/lib/binance-stream'
 
 interface CoinData {
   symbol: string
@@ -94,10 +95,10 @@ export default function CoinDetailPage() {
   const [isPremium, setIsPremium] = useState<boolean | null>(null) // null = checking, false = not premium, true = premium
   const [checkingPremium, setCheckingPremium] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const wsRef = useRef<WebSocket | null>(null)
-  const futuresWsRef = useRef<WebSocket | null>(null)
-  const tradesWsRef = useRef<WebSocket | null>(null)
-  const futuresTradesWsRef = useRef<WebSocket | null>(null)
+  const wsRef = useRef<EventSource | null>(null)
+  const futuresWsRef = useRef<EventSource | null>(null)
+  const tradesWsRef = useRef<EventSource | null>(null)
+  const futuresTradesWsRef = useRef<EventSource | null>(null)
   const coinDataRef = useRef<CoinData | null>(null)
   const timeRangeTopRef = useRef<'1M' | '5M' | '15M' | '30M' | '1D' | '7D' | '30D' | '90D' | '1Y'>('1D')
   const timeRangeBottomRef = useRef<'1M' | '5M' | '15M' | '30M' | '1D' | '7D' | '30D' | '90D' | '1Y'>('1D')
@@ -496,512 +497,431 @@ export default function CoinDetailPage() {
 
     const connectWebSocket = (coinSymbol: string) => {
       // Close existing connections
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.close()
+      if (wsRef.current) {
+        try {
+          wsRef.current.onmessage = null
+          wsRef.current.onerror = null
+          wsRef.current.onopen = null
+          wsRef.current.close()
+        } catch (error) {
+          console.error('Error closing spot stream:', error)
+        }
         wsRef.current = null
       }
-      if (futuresWsRef.current && futuresWsRef.current.readyState === WebSocket.OPEN) {
-        futuresWsRef.current.close()
+
+      if (futuresWsRef.current) {
+        try {
+          futuresWsRef.current.onmessage = null
+          futuresWsRef.current.onerror = null
+          futuresWsRef.current.onopen = null
+          futuresWsRef.current.close()
+        } catch (error) {
+          console.error('Error closing futures stream:', error)
+        }
         futuresWsRef.current = null
       }
-      if (tradesWsRef.current && tradesWsRef.current.readyState === WebSocket.OPEN) {
-        tradesWsRef.current.close()
+
+      if (tradesWsRef.current) {
+        try {
+          tradesWsRef.current.onmessage = null
+          tradesWsRef.current.onerror = null
+          tradesWsRef.current.onopen = null
+          tradesWsRef.current.close()
+        } catch (error) {
+          console.error('Error closing trades stream:', error)
+        }
         tradesWsRef.current = null
       }
-      if (futuresTradesWsRef.current && futuresTradesWsRef.current.readyState === WebSocket.OPEN) {
-        futuresTradesWsRef.current.close()
+
+      if (futuresTradesWsRef.current) {
+        try {
+          futuresTradesWsRef.current.onmessage = null
+          futuresTradesWsRef.current.onerror = null
+          futuresTradesWsRef.current.onopen = null
+          futuresTradesWsRef.current.close()
+        } catch (error) {
+          console.error('Error closing futures trades stream:', error)
+        }
         futuresTradesWsRef.current = null
       }
 
       // Spot WebSocket
       const spotStream = `${coinSymbol.toLowerCase()}@ticker`
-      const spotWsUrl = `wss://stream.binance.com:9443/ws/${spotStream}`
-
-      // Futures WebSocket
       const futuresStream = `${coinSymbol.toLowerCase()}@ticker`
-      const futuresWsUrl = `wss://fstream.binance.com/ws/${futuresStream}`
-
-      // Trades WebSocket (Spot)
       const tradesStream = `${coinSymbol.toLowerCase()}@trade`
-      const tradesWsUrl = `wss://stream.binance.com:9443/ws/${tradesStream}`
-
-      // Futures Trades WebSocket
       const futuresTradesStream = `${coinSymbol.toLowerCase()}@trade`
-      const futuresTradesWsUrl = `wss://fstream.binance.com/ws/${futuresTradesStream}`
 
-      // Spot WebSocket
       try {
-        const spotWs = new WebSocket(spotWsUrl)
+        const spotWs = createBinanceEventSource(spotStream, { market: 'spot', endpoint: 'ticker' })
 
         spotWs.onopen = () => {
-          console.log('Spot WebSocket connected for', coinSymbol)
+          console.log('Spot stream connected for', coinSymbol)
         }
 
         spotWs.onmessage = (event) => {
           try {
-            const data = JSON.parse(event.data)
+            const payload = JSON.parse(event.data)
+            if (payload?.type) {
+              if (payload.type === 'error') {
+                console.error('Spot stream error message:', payload.message)
+              }
+              return
+            }
+
+            const dataWrapper = payload.data ?? payload
+            if (!dataWrapper) return
+
             const currentCoinData = coinDataRef.current
             const previousValues = previousValuesRef.current
-            
-            if (data && currentCoinData) {
-              const newPrice = parseFloat(data.c || data.lastPrice || currentCoinData.price || '0')
-              const newSpotVolume = parseFloat(data.q || data.quoteVolume || currentCoinData.quoteVolume || '0')
-              const newHighPrice = parseFloat(data.h || data.highPrice || currentCoinData.highPrice || '0')
-              
-              // Check for price changes - trigger on ANY change
+
+            if (currentCoinData) {
+              const newPrice = parseFloat(dataWrapper.c || dataWrapper.lastPrice || currentCoinData.price || '0')
+              const newSpotVolume = parseFloat(dataWrapper.q || dataWrapper.quoteVolume || currentCoinData.quoteVolume || '0')
+              const newHighPrice = parseFloat(dataWrapper.h || dataWrapper.highPrice || currentCoinData.highPrice || '0')
+
               if (previousValues.price !== undefined && previousValues.price > 0 && newPrice > 0 && newPrice !== previousValues.price) {
                 const priceDiff = Math.abs(newPrice - previousValues.price)
                 const priceChangePercent = (priceDiff / previousValues.price) * 100
-                
-                // Trigger animation for any meaningful change
+
                 if (priceChangePercent >= 0.001 || priceDiff >= 0.00000001) {
                   const flashType = newPrice > previousValues.price ? 'up' : 'down'
-                  console.log(`💰 Price changed: ${previousValues.price} → ${newPrice} (${flashType})`)
-                  setFlashAnimations(prev => ({ ...prev, price: flashType }))
+                  setFlashAnimations((prev) => ({ ...prev, price: flashType }))
                   setTimeout(() => {
-                    setFlashAnimations(prev => {
+                    setFlashAnimations((prev) => {
                       const { price: _, ...rest } = prev
                       return rest
                     })
                   }, 1200)
                 }
               }
-              
-              // Check for spot volume changes - trigger on ANY change
+
               if (previousValues.spotVolume !== undefined && previousValues.spotVolume > 0 && newSpotVolume > 0 && newSpotVolume !== previousValues.spotVolume) {
                 const volumeDiff = Math.abs(newSpotVolume - previousValues.spotVolume)
                 const volumeChangePercent = (volumeDiff / previousValues.spotVolume) * 100
-                
-                // Trigger animation for any meaningful change
+
                 if (volumeChangePercent >= 0.01 || volumeDiff >= 100) {
                   const flashType = newSpotVolume > previousValues.spotVolume ? 'up' : 'down'
-                  console.log(`📊 Spot Volume changed: ${previousValues.spotVolume} → ${newSpotVolume} (${flashType})`)
-                  setFlashAnimations(prev => ({ ...prev, spotVolume: flashType }))
+                  setFlashAnimations((prev) => ({ ...prev, spotVolume: flashType }))
                   setTimeout(() => {
-                    setFlashAnimations(prev => {
+                    setFlashAnimations((prev) => {
                       const { spotVolume: _, ...rest } = prev
                       return rest
                     })
                   }, 1200)
                 }
               }
-              
-              // Check for high price changes
+
               if (previousValues.highPrice !== undefined && previousValues.highPrice > 0 && newHighPrice > 0 && newHighPrice !== previousValues.highPrice) {
                 const highDiff = Math.abs(newHighPrice - previousValues.highPrice)
                 const highChangePercent = (highDiff / previousValues.highPrice) * 100
-                
-                // Trigger animation for any meaningful change
+
                 if (highChangePercent >= 0.001 || highDiff >= 0.00000001) {
                   const flashType = newHighPrice > previousValues.highPrice ? 'up' : 'down'
-                  console.log(`📈 High Price changed: ${previousValues.highPrice} → ${newHighPrice} (${flashType})`)
-                  setFlashAnimations(prev => ({ ...prev, highPrice: flashType }))
+                  setFlashAnimations((prev) => ({ ...prev, highPrice: flashType }))
                   setTimeout(() => {
-                    setFlashAnimations(prev => {
+                    setFlashAnimations((prev) => {
                       const { highPrice: _, ...rest } = prev
                       return rest
                     })
                   }, 1200)
                 }
               }
-              
-              // Update spot buy/sell volumes from ticker data
-              const newSpotBuyVolume = parseFloat(data.Q || data.takerBuyQuoteVolume || '0')
-              const newSpotQuoteVolume = parseFloat(data.q || data.quoteVolume || currentCoinData.quoteVolume || '0')
-              // Use takerSellQuoteVolume if available, otherwise calculate from difference
-              const newSpotSellVolume = data.takerSellQuoteVolume 
-                ? parseFloat(data.takerSellQuoteVolume)
+
+              const newSpotBuyVolume = parseFloat(dataWrapper.Q || dataWrapper.takerBuyQuoteVolume || '0')
+              const newSpotQuoteVolume = parseFloat(dataWrapper.q || dataWrapper.quoteVolume || currentCoinData.quoteVolume || '0')
+              const newSpotSellVolume = dataWrapper.takerSellQuoteVolume
+                ? parseFloat(dataWrapper.takerSellQuoteVolume)
                 : newSpotQuoteVolume - newSpotBuyVolume
 
-              // Update buy/sell volumes maintaining ratio if total volume changed
               if (newSpotQuoteVolume > 0 && previousValues.spotVolume !== undefined && previousValues.spotVolume > 0) {
                 const volumeRatio = newSpotQuoteVolume / previousValues.spotVolume
                 if (volumeRatio > 0.9 && volumeRatio < 1.1) {
-                  // Small change, maintain ratio
-                  const currentBuyRatio = spotBuyVolumeRef.current / (spotBuyVolumeRef.current + spotSellVolumeRef.current || 1)
-                  const currentSellRatio = spotSellVolumeRef.current / (spotBuyVolumeRef.current + spotSellVolumeRef.current || 1)
-                  spotBuyVolumeRef.current = newSpotQuoteVolume * currentBuyRatio
-                  spotSellVolumeRef.current = newSpotQuoteVolume * currentSellRatio
-                } else {
-                  // Significant change, use new values
-                  spotBuyVolumeRef.current = newSpotBuyVolume > 0 ? newSpotBuyVolume : spotBuyVolumeRef.current
-                  spotSellVolumeRef.current = newSpotSellVolume > 0 ? newSpotSellVolume : spotSellVolumeRef.current
+                  spotBuyVolumeRef.current *= volumeRatio
+                  spotSellVolumeRef.current *= volumeRatio
                 }
-              } else if (newSpotBuyVolume > 0) {
-                spotBuyVolumeRef.current = newSpotBuyVolume
-                spotSellVolumeRef.current = newSpotSellVolume > 0 ? newSpotSellVolume : (newSpotQuoteVolume - newSpotBuyVolume)
               }
 
-              // Update coin data with Spot WebSocket data
-              // Note: openPrice and prevClosePrice should NOT be updated from WebSocket
-              // They represent fixed "previous day" values and should only come from initial API call
-              const updatedCoinData: CoinData = {
-                ...currentCoinData,
-                price: data.c || data.lastPrice || currentCoinData.price,
-                priceChangePercent: data.P || data.priceChangePercent || currentCoinData.priceChangePercent,
-                volume: data.v || data.volume || currentCoinData.volume,
-                quoteVolume: data.q || data.quoteVolume || currentCoinData.quoteVolume,
-                spotBuyVolume: spotBuyVolumeRef.current.toString(),
-                spotSellVolume: spotSellVolumeRef.current.toString(),
-                highPrice: data.h || data.highPrice || currentCoinData.highPrice,
-                lowPrice: data.l || data.lowPrice || currentCoinData.lowPrice,
-                // Preserve original openPrice and prevClosePrice - do not update from WebSocket
-                openPrice: currentCoinData.openPrice,
-                prevClosePrice: currentCoinData.prevClosePrice,
-                // Preserve futures data
-                futuresVolume: currentCoinData.futuresVolume,
-                futuresQuoteVolume: currentCoinData.futuresQuoteVolume,
-                futuresBuyVolume: currentCoinData.futuresBuyVolume,
-                futuresSellVolume: currentCoinData.futuresSellVolume,
-              }
-              
-              // Update previous values
-              previousValuesRef.current = {
-                ...previousValuesRef.current,
-                price: newPrice,
-                spotVolume: newSpotVolume,
-                highPrice: newHighPrice,
-              }
-              
-              setCoinData(updatedCoinData)
-              
-              // For 1D or minute time ranges, update chartKlinesTop and chartKlinesBottom with latest data from WebSocket
-              if (timeRangeTopRef.current === '1D' || timeRangeTopRef.current === '1M' || timeRangeTopRef.current === '5M' || timeRangeTopRef.current === '15M' || timeRangeTopRef.current === '30M') {
-                setChartKlinesTop(prev => {
-                  if (prev.length === 0) return prev
-                  const updated = [...prev]
-                  const lastIndex = updated.length - 1
-                  const lastPoint = updated[lastIndex]
-                  updated[lastIndex] = {
-                    ...lastPoint,
-                    close: newPrice,
-                    high: Math.max(lastPoint.high, newPrice),
-                    low: Math.min(lastPoint.low, newPrice),
-                  }
-                  return updated
-                })
-              }
-              
-              if (timeRangeBottomRef.current === '1D' || timeRangeBottomRef.current === '1M' || timeRangeBottomRef.current === '5M' || timeRangeBottomRef.current === '15M' || timeRangeBottomRef.current === '30M') {
-                setChartKlinesBottom(prev => {
-                  if (prev.length === 0) return prev
-                  const updated = [...prev]
-                  const lastIndex = updated.length - 1
-                  const lastPoint = updated[lastIndex]
-                  updated[lastIndex] = {
-                    ...lastPoint,
-                    close: newPrice,
-                    high: Math.max(lastPoint.high, newPrice),
-                    low: Math.min(lastPoint.low, newPrice),
-                  }
-                  return updated
-                })
-              }
+              spotBuyVolumeRef.current = newSpotBuyVolume
+              spotSellVolumeRef.current = newSpotSellVolume
+
+              previousValuesRef.current.price = newPrice
+              previousValuesRef.current.spotVolume = newSpotQuoteVolume
+              previousValuesRef.current.highPrice = newHighPrice
+
+              setCoinData((prev) => {
+                if (!prev) return prev
+                return {
+                  ...prev,
+                  price: newPrice.toString(),
+                  quoteVolume: newSpotQuoteVolume.toString(),
+                  spotBuyVolume: newSpotBuyVolume.toString(),
+                  spotSellVolume: newSpotSellVolume.toString(),
+                  highPrice: newHighPrice.toString(),
+                }
+              })
             }
           } catch (error) {
-            console.error('Error parsing Spot WebSocket message:', error)
+            console.error('Spot stream parse error:', error)
           }
         }
 
         spotWs.onerror = (error) => {
-          console.error('Spot WebSocket error:', error)
-        }
-
-        spotWs.onclose = () => {
-          console.log('Spot WebSocket disconnected, reconnecting...')
-          setTimeout(() => {
-            if (coinDataRef.current) {
-              connectWebSocket(coinSymbol)
-            }
-          }, 3000)
+          console.error('Spot stream error:', error)
         }
 
         wsRef.current = spotWs
       } catch (error) {
-        console.error('Failed to create Spot WebSocket:', error)
+        console.error('Failed to create Spot stream:', error)
       }
 
       // Futures WebSocket
       try {
-        const futuresWs = new WebSocket(futuresWsUrl)
+        const futuresWs = createBinanceEventSource(futuresStream, { market: 'futures', endpoint: 'ticker' })
 
         futuresWs.onopen = () => {
-          console.log('Futures WebSocket connected for', coinSymbol)
+          console.log('Futures stream connected for', coinSymbol)
         }
 
         futuresWs.onmessage = (event) => {
           try {
-            const data = JSON.parse(event.data)
+            const payload = JSON.parse(event.data)
+            if (payload?.type) {
+              if (payload.type === 'error') {
+                console.error('Futures stream error message:', payload.message)
+              }
+              return
+            }
+
+            const dataWrapper = payload.data ?? payload
+            if (!dataWrapper) return
+
             const currentCoinData = coinDataRef.current
             const previousValues = previousValuesRef.current
-            
-            if (data && currentCoinData) {
-              const newFuturesVolume = parseFloat(data.q || data.quoteVolume || currentCoinData.futuresQuoteVolume || '0')
-              
-              // Check for futures volume changes - trigger on ANY change
+
+            if (currentCoinData) {
+              const newFuturesVolume = parseFloat(dataWrapper.q || dataWrapper.quoteVolume || currentCoinData.futuresQuoteVolume || '0')
+
               if (previousValues.futuresVolume !== undefined && previousValues.futuresVolume > 0 && newFuturesVolume > 0 && newFuturesVolume !== previousValues.futuresVolume) {
                 const volumeDiff = Math.abs(newFuturesVolume - previousValues.futuresVolume)
                 const volumeChangePercent = (volumeDiff / previousValues.futuresVolume) * 100
-                
-                // Trigger animation for any meaningful change
+
                 if (volumeChangePercent >= 0.01 || volumeDiff >= 100) {
                   const flashType = newFuturesVolume > previousValues.futuresVolume ? 'up' : 'down'
-                  console.log(`📊 Futures Volume changed: ${previousValues.futuresVolume} → ${newFuturesVolume} (${flashType})`)
-                  setFlashAnimations(prev => ({ ...prev, futuresVolume: flashType }))
+                  setFlashAnimations((prev) => ({ ...prev, futuresVolume: flashType }))
                   setTimeout(() => {
-                    setFlashAnimations(prev => {
+                    setFlashAnimations((prev) => {
                       const { futuresVolume: _, ...rest } = prev
                       return rest
                     })
                   }, 1200)
                 }
               }
-              
-              // Update futures buy/sell volumes from ticker data
-              const newFuturesBuyVolume = parseFloat(data.Q || data.takerBuyQuoteVolume || '0')
-              const newFuturesQuoteVolume = parseFloat(data.q || data.quoteVolume || currentCoinData.futuresQuoteVolume || '0')
-              // Use takerSellQuoteVolume if available, otherwise calculate from difference
-              const newFuturesSellVolume = data.takerSellQuoteVolume
-                ? parseFloat(data.takerSellQuoteVolume)
+
+              const newFuturesBuyVolume = parseFloat(dataWrapper.Q || dataWrapper.takerBuyQuoteVolume || '0')
+              const newFuturesQuoteVolume = parseFloat(dataWrapper.q || dataWrapper.quoteVolume || currentCoinData.futuresQuoteVolume || '0')
+              const newFuturesSellVolume = dataWrapper.takerSellQuoteVolume
+                ? parseFloat(dataWrapper.takerSellQuoteVolume)
                 : newFuturesQuoteVolume - newFuturesBuyVolume
 
-              // Update buy/sell volumes maintaining ratio if total volume changed
               if (newFuturesQuoteVolume > 0 && previousValues.futuresVolume !== undefined && previousValues.futuresVolume > 0) {
                 const volumeRatio = newFuturesQuoteVolume / previousValues.futuresVolume
                 if (volumeRatio > 0.9 && volumeRatio < 1.1) {
-                  // Small change, maintain ratio
                   const currentBuyRatio = futuresBuyVolumeRef.current / (futuresBuyVolumeRef.current + futuresSellVolumeRef.current || 1)
                   const currentSellRatio = futuresSellVolumeRef.current / (futuresBuyVolumeRef.current + futuresSellVolumeRef.current || 1)
                   futuresBuyVolumeRef.current = newFuturesQuoteVolume * currentBuyRatio
                   futuresSellVolumeRef.current = newFuturesQuoteVolume * currentSellRatio
                 } else {
-                  // Significant change, use new values
                   futuresBuyVolumeRef.current = newFuturesBuyVolume > 0 ? newFuturesBuyVolume : futuresBuyVolumeRef.current
                   futuresSellVolumeRef.current = newFuturesSellVolume > 0 ? newFuturesSellVolume : futuresSellVolumeRef.current
                 }
               } else if (newFuturesBuyVolume > 0) {
                 futuresBuyVolumeRef.current = newFuturesBuyVolume
-                futuresSellVolumeRef.current = newFuturesSellVolume > 0 ? newFuturesSellVolume : (newFuturesQuoteVolume - newFuturesBuyVolume)
+                futuresSellVolumeRef.current = newFuturesSellVolume > 0 ? newFuturesSellVolume : newFuturesQuoteVolume - newFuturesBuyVolume
               }
 
-              // Update coin data with Futures WebSocket data
               const updatedCoinData: CoinData = {
                 ...currentCoinData,
-                futuresVolume: data.v || data.volume || currentCoinData.futuresVolume || '0',
-                futuresQuoteVolume: data.q || data.quoteVolume || currentCoinData.futuresQuoteVolume || '0',
+                futuresVolume: dataWrapper.v || dataWrapper.volume || currentCoinData.futuresVolume || '0',
+                futuresQuoteVolume: dataWrapper.q || dataWrapper.quoteVolume || currentCoinData.futuresQuoteVolume || '0',
                 futuresBuyVolume: futuresBuyVolumeRef.current.toString(),
                 futuresSellVolume: futuresSellVolumeRef.current.toString(),
               }
-              
-              // Update previous values
+
               previousValuesRef.current = {
                 ...previousValuesRef.current,
                 futuresVolume: newFuturesVolume,
               }
-              
+
               setCoinData(updatedCoinData)
             }
           } catch (error) {
-            console.error('Error parsing Futures WebSocket message:', error)
+            console.error('Futures stream parse error:', error)
           }
         }
 
         futuresWs.onerror = (error) => {
-          console.error('Futures WebSocket error:', error)
-        }
-
-        futuresWs.onclose = () => {
-          console.log('Futures WebSocket disconnected, reconnecting...')
-          setTimeout(() => {
-            if (coinDataRef.current) {
-              connectWebSocket(coinSymbol)
-            }
-          }, 3000)
+          console.error('Futures stream error:', error)
         }
 
         futuresWsRef.current = futuresWs
       } catch (error) {
-        console.error('Failed to create Futures WebSocket:', error)
+        console.error('Failed to create Futures stream:', error)
       }
 
       // Trades WebSocket
       try {
-        const tradesWs = new WebSocket(tradesWsUrl)
+        const tradesWs = createBinanceEventSource(tradesStream, { market: 'spot', endpoint: 'trade' })
 
-            tradesWs.onopen = () => {
-              console.log('Trades WebSocket connected for', coinSymbol)
-            }
+        tradesWs.onopen = () => {
+          console.log('Trades stream connected for', coinSymbol)
+        }
 
-            tradesWs.onmessage = (event) => {
-              try {
-                const data = JSON.parse(event.data)
-                
-                if (data && data.e === 'trade') {
-                  const price = parseFloat(data.p || '0')
-                  const quantity = parseFloat(data.q || '0')
-                  const quoteAmount = price * quantity
-                  const tradeTime = data.T || data.E || Date.now()
-                  // m: true means buyer is market maker (sell order)
-                  // m: false means seller is market maker (buy order)
-                  const isBuy = !data.m
-                  
-                  // Update spot buy/sell volumes based on trade
-                  if (isBuy) {
-                    spotBuyVolumeRef.current += quoteAmount
-                  } else {
-                    spotSellVolumeRef.current += quoteAmount
-                  }
-                  
-                  // Update coinData with new volumes - only update ref, don't trigger state update on every trade
-                  // State will be updated via ticker WebSocket which is less frequent
-                  if (coinDataRef.current) {
-                    const updatedCoinData: CoinData = {
-                      ...coinDataRef.current,
-                      spotBuyVolume: spotBuyVolumeRef.current.toString(),
-                      spotSellVolume: spotSellVolumeRef.current.toString(),
-                    }
-                    coinDataRef.current = updatedCoinData
-                    // Don't call setCoinData here - it's too frequent and causes infinite loop
-                    // The ticker WebSocket will update the state periodically
-                  }
-                  
-                  // Use trade ID from Binance if available, otherwise generate a unique ID
-                  const tradeId = data.t || `${tradeTime}-${Math.random().toString(36).substring(2, 9)}`
-                  
-                  const trade: Trade = {
-                    id: tradeId,
-                    price: price,
-                    quantity: quantity,
-                    quoteAmount: quoteAmount,
-                    time: tradeTime,
-                    isBuy: isBuy,
-                  }
-                  
-                  if (isBuy) {
-                    setBuyTrades(prev => {
-                      const updated = [trade, ...prev]
-                      // Keep only last 20
-                      return updated.slice(0, 20)
-                    })
-                  } else {
-                    setSellTrades(prev => {
-                      const updated = [trade, ...prev]
-                      // Keep only last 20
-                      return updated.slice(0, 20)
-                    })
-                  }
-                }
-              } catch (error) {
-                console.error('Error parsing Trades WebSocket message:', error)
+        tradesWs.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data)
+            if (payload?.type) {
+              if (payload.type === 'error') {
+                console.error('Trades stream error message:', payload.message)
               }
+              return
             }
 
-            tradesWs.onerror = (error) => {
-              console.error('Trades WebSocket error:', error)
+            const tradeData = payload.data ?? payload
+            if (!tradeData || tradeData.e !== 'trade') return
+
+            const price = parseFloat(tradeData.p || '0')
+            const quantity = parseFloat(tradeData.q || '0')
+            const quoteAmount = price * quantity
+            const tradeTime = tradeData.T || tradeData.E || Date.now()
+            const isBuy = !tradeData.m
+
+            if (isBuy) {
+              spotBuyVolumeRef.current += quoteAmount
+            } else {
+              spotSellVolumeRef.current += quoteAmount
             }
 
-            tradesWs.onclose = () => {
-              console.log('Trades WebSocket disconnected, reconnecting...')
-              setTimeout(() => {
-                if (coinDataRef.current) {
-                  connectWebSocket(coinSymbol)
-                }
-              }, 3000)
+            if (coinDataRef.current) {
+              const updatedCoinData: CoinData = {
+                ...coinDataRef.current,
+                spotBuyVolume: spotBuyVolumeRef.current.toString(),
+                spotSellVolume: spotSellVolumeRef.current.toString(),
+              }
+              coinDataRef.current = updatedCoinData
             }
+
+            const tradeId = tradeData.t || `${tradeTime}-${Math.random().toString(36).substring(2, 9)}`
+
+            const trade: Trade = {
+              id: tradeId,
+              price,
+              quantity,
+              quoteAmount,
+              time: tradeTime,
+              isBuy,
+            }
+
+            if (isBuy) {
+              setBuyTrades((prev) => {
+                const newTrades = [trade, ...prev].slice(0, 25)
+                return newTrades
+              })
+            } else {
+              setSellTrades((prev) => {
+                const newTrades = [trade, ...prev].slice(0, 25)
+                return newTrades
+              })
+            }
+          } catch (error) {
+            console.error('Trades stream parse error:', error)
+          }
+        }
+
+        tradesWs.onerror = (error) => {
+          console.error('Trades stream error:', error)
+        }
 
         tradesWsRef.current = tradesWs
       } catch (error) {
-        console.error('Failed to create Trades WebSocket:', error)
+        console.error('Failed to create Trades stream:', error)
       }
 
       // Futures Trades WebSocket
       try {
-        const futuresTradesWs = new WebSocket(futuresTradesWsUrl)
+        const futuresTradesWs = createBinanceEventSource(futuresTradesStream, { market: 'futures', endpoint: 'trade' })
 
         futuresTradesWs.onopen = () => {
-          console.log('Futures Trades WebSocket connected for', coinSymbol)
+          console.log('Futures trades stream connected for', coinSymbol)
         }
 
         futuresTradesWs.onmessage = (event) => {
           try {
-            const data = JSON.parse(event.data)
-            
-            if (data && data.e === 'trade') {
-              const price = parseFloat(data.p || '0')
-              const quantity = parseFloat(data.q || '0')
-              const quoteAmount = price * quantity
-              const tradeTime = data.T || data.E || Date.now()
-              // m: true means buyer is market maker (sell order)
-              // m: false means seller is market maker (buy order)
-              const isBuy = !data.m
-              
-              // Update futures buy/sell volumes based on trade
-              if (isBuy) {
-                futuresBuyVolumeRef.current += quoteAmount
-              } else {
-                futuresSellVolumeRef.current += quoteAmount
+            const payload = JSON.parse(event.data)
+            if (payload?.type) {
+              if (payload.type === 'error') {
+                console.error('Futures trades stream error message:', payload.message)
               }
-              
-              // Update coinData with new volumes - only update ref, don't trigger state update on every trade
-              // State will be updated via ticker WebSocket which is less frequent
-              if (coinDataRef.current) {
-                const updatedCoinData: CoinData = {
-                  ...coinDataRef.current,
-                  futuresBuyVolume: futuresBuyVolumeRef.current.toString(),
-                  futuresSellVolume: futuresSellVolumeRef.current.toString(),
-                }
-                coinDataRef.current = updatedCoinData
-                // Don't call setCoinData here - it's too frequent and causes infinite loop
-                // The ticker WebSocket will update the state periodically
+              return
+            }
+
+            const tradeData = payload.data ?? payload
+            if (!tradeData || tradeData.e !== 'trade') return
+
+            const price = parseFloat(tradeData.p || '0')
+            const quantity = parseFloat(tradeData.q || '0')
+            const quoteAmount = price * quantity
+            const tradeTime = tradeData.T || tradeData.E || Date.now()
+            const isBuy = !tradeData.m
+
+            if (isBuy) {
+              futuresBuyVolumeRef.current += quoteAmount
+            } else {
+              futuresSellVolumeRef.current += quoteAmount
+            }
+
+            if (coinDataRef.current) {
+              const updatedCoinData: CoinData = {
+                ...coinDataRef.current,
+                futuresBuyVolume: futuresBuyVolumeRef.current.toString(),
+                futuresSellVolume: futuresSellVolumeRef.current.toString(),
               }
-              
-              // Use trade ID from Binance if available, otherwise generate a unique ID
-              const tradeId = data.t || `${tradeTime}-${Math.random().toString(36).substring(2, 9)}`
-              
-              const trade: Trade = {
-                id: tradeId,
-                price: price,
-                quantity: quantity,
-                quoteAmount: quoteAmount,
-                time: tradeTime,
-                isBuy: isBuy,
-              }
-              
-              if (isBuy) {
-                setFuturesBuyTrades(prev => {
-                  const updated = [trade, ...prev]
-                  // Keep only last 20
-                  return updated.slice(0, 20)
-                })
-              } else {
-                setFuturesSellTrades(prev => {
-                  const updated = [trade, ...prev]
-                  // Keep only last 20
-                  return updated.slice(0, 20)
-                })
-              }
+              coinDataRef.current = updatedCoinData
+            }
+
+            const tradeId = tradeData.t || `${tradeTime}-${Math.random().toString(36).substring(2, 9)}`
+
+            const trade: Trade = {
+              id: tradeId,
+              price,
+              quantity,
+              quoteAmount,
+              time: tradeTime,
+              isBuy,
+            }
+
+            if (isBuy) {
+              setFuturesBuyTrades((prev) => {
+                const newTrades = [trade, ...prev].slice(0, 25)
+                return newTrades
+              })
+            } else {
+              setFuturesSellTrades((prev) => {
+                const newTrades = [trade, ...prev].slice(0, 25)
+                return newTrades
+              })
             }
           } catch (error) {
-            console.error('Error parsing Futures Trades WebSocket message:', error)
+            console.error('Futures trades stream parse error:', error)
           }
         }
 
         futuresTradesWs.onerror = (error) => {
-          console.error('Futures Trades WebSocket error:', error)
-        }
-
-        futuresTradesWs.onclose = () => {
-          console.log('Futures Trades WebSocket disconnected, reconnecting...')
-          setTimeout(() => {
-            if (coinDataRef.current) {
-              connectWebSocket(coinSymbol)
-            }
-          }, 3000)
+          console.error('Futures trades stream error:', error)
         }
 
         futuresTradesWsRef.current = futuresTradesWs
       } catch (error) {
-        console.error('Failed to create Futures Trades WebSocket:', error)
+        console.error('Failed to create Futures trades stream:', error)
       }
     }
 
@@ -1013,13 +933,10 @@ export default function CoinDetailPage() {
             try {
               wsRef.current.onmessage = null
               wsRef.current.onerror = null
-              wsRef.current.onclose = null
               wsRef.current.onopen = null
-              if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
-                wsRef.current.close()
-              }
+              wsRef.current.close()
             } catch (error) {
-              console.error('Error closing spot WebSocket:', error)
+              console.error('Error closing spot stream:', error)
             }
             wsRef.current = null
           }
@@ -1027,13 +944,10 @@ export default function CoinDetailPage() {
             try {
               futuresWsRef.current.onmessage = null
               futuresWsRef.current.onerror = null
-              futuresWsRef.current.onclose = null
               futuresWsRef.current.onopen = null
-              if (futuresWsRef.current.readyState === WebSocket.OPEN || futuresWsRef.current.readyState === WebSocket.CONNECTING) {
-                futuresWsRef.current.close()
-              }
+              futuresWsRef.current.close()
             } catch (error) {
-              console.error('Error closing futures WebSocket:', error)
+              console.error('Error closing futures stream:', error)
             }
             futuresWsRef.current = null
           }
@@ -1041,13 +955,10 @@ export default function CoinDetailPage() {
             try {
               tradesWsRef.current.onmessage = null
               tradesWsRef.current.onerror = null
-              tradesWsRef.current.onclose = null
               tradesWsRef.current.onopen = null
-              if (tradesWsRef.current.readyState === WebSocket.OPEN || tradesWsRef.current.readyState === WebSocket.CONNECTING) {
-                tradesWsRef.current.close()
-              }
+              tradesWsRef.current.close()
             } catch (error) {
-              console.error('Error closing trades WebSocket:', error)
+              console.error('Error closing trades stream:', error)
             }
             tradesWsRef.current = null
           }
@@ -1055,13 +966,10 @@ export default function CoinDetailPage() {
             try {
               futuresTradesWsRef.current.onmessage = null
               futuresTradesWsRef.current.onerror = null
-              futuresTradesWsRef.current.onclose = null
               futuresTradesWsRef.current.onopen = null
-              if (futuresTradesWsRef.current.readyState === WebSocket.OPEN || futuresTradesWsRef.current.readyState === WebSocket.CONNECTING) {
-                futuresTradesWsRef.current.close()
-              }
+              futuresTradesWsRef.current.close()
             } catch (error) {
-              console.error('Error closing futures trades WebSocket:', error)
+              console.error('Error closing futures trades stream:', error)
             }
             futuresTradesWsRef.current = null
           }
