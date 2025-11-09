@@ -263,10 +263,15 @@ export default function CheckoutPage() {
             <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
               <div className="flex items-start gap-3">
                 <AlertTriangle className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
-                <div className="flex-1">
-                  <div className="font-semibold text-yellow-500 mb-1">Önemli Uyarı</div>
+                <div className="flex-1 space-y-2">
+                  <div>
+                    <div className="font-semibold text-yellow-500 mb-1">Önemli Uyarı</div>
+                    <div className="text-sm text-muted-foreground">
+                      Hesap bilgilerindeki isim soy isim ile gönderici IBAN isim soy isim uyuşmazlığı durumunda ödeme onaylanmayacaktır ve para iadesi gerçekleştirilmeyecektir.
+                    </div>
+                  </div>
                   <div className="text-sm text-muted-foreground">
-                    Hesap bilgilerindeki isim soy isim ile gönderici IBAN isim soy isim uyuşmazlığı durumunda ödeme onaylanmayacaktır ve para iadesi gerçekleştirilmeyecektir.
+                    Ödeme dekontunuzu <a href="mailto:orubacoin@gmail.com" className="text-primary hover:underline">orubacoin@gmail.com</a> adresine iletmeyi unutmayın.
                   </div>
                 </div>
               </div>

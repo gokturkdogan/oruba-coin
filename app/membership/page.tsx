@@ -457,8 +457,9 @@ export default function MembershipPage() {
             <DialogHeader>
               <DialogTitle>Premium Üyeliğinizi Uzatın</DialogTitle>
               <DialogDescription>
-                Favori planınızı seçin. Ödeme talebi oluşturduktan sonra dekontu destek ekibine ileterek yenilemeyi
-                tamamlayabilirsiniz.
+                Favori planınızı seçin. Ödeme talebi oluşturduktan sonra dekontu destek ekibine
+                <a href="mailto:orubacoin@gmail.com" className="text-primary hover:underline"> orubacoin@gmail.com</a>
+                adresinden ileterek yenilemeyi tamamlayabilirsiniz.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
@@ -511,7 +512,9 @@ export default function MembershipPage() {
                 </div>
               )}
               <p className="text-xs text-muted-foreground">
-                Ödeme talebinizi oluşturduktan sonra dekontu destek ekibine iletin. Onaylandıktan sonra premium
+                Ödeme talebinizi oluşturduktan sonra dekontu destek ekibine
+                <a href="mailto:orubacoin@gmail.com" className="text-primary hover:underline"> orubacoin@gmail.com</a>
+                adresinden iletin. Onaylandıktan sonra premium
                 süreniz seçtiğiniz plan kadar uzatılacaktır.
               </p>
             </div>
@@ -761,8 +764,9 @@ function PendingPaymentCard({
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <p className="text-yellow-100/80">
-            Ödemeyi tamamladıysanız dekontu destek ekibine iletmeyi unutmayın. Farklı bir planla ilerlemek isterseniz
-            önce mevcut talebi iptal etmeniz gerekir.
+            Ödemeyi tamamladıysanız dekontu destek ekibine
+            <a href="mailto:orubacoin@gmail.com" className="text-yellow-200 underline underline-offset-2"> orubacoin@gmail.com</a>
+            adresinden iletmeyi unutmayın. Farklı bir planla ilerlemek isterseniz önce mevcut talebi iptal etmeniz gerekir.
           </p>
           <Button
             variant="outline"
@@ -827,8 +831,9 @@ function PendingPaymentCard({
               </AlertDialogHeader>
               <div className="space-y-2 text-sm text-red-100/70">
                 <p>
-                  İşlemi onaylamadan önce mevcut talebinize ait dekontu gönderdiyseniz destek ekibi ile iletişime
-                  geçmeden bu işlemi yapmayın.
+                  İşlemi onaylamadan önce mevcut talebinize ait dekontu gönderdiyseniz destek ekibi ile
+                  <a href="mailto:orubacoin@gmail.com" className="text-red-200 underline underline-offset-2"> orubacoin@gmail.com</a>
+                  üzerinden iletişime geçmeden bu işlemi yapmayın.
                 </p>
               </div>
               <AlertDialogFooter className="sm:justify-end sm:space-x-2 space-y-0">
