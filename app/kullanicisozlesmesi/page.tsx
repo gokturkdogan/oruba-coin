@@ -13,7 +13,6 @@ export default function KullanimSartlariPage() {
           <div className="text-center text-muted-foreground space-y-1 pt-4">
             <p>Yürürlük Tarihi: 2025</p>
             <p>Platform: <a href="https://orubacoin.com" className="text-primary hover:underline">orubacoin.com</a></p>
-            <p>Şirket: Oruba Teknoloji A.Ş. (bundan sonra "Oruba Coin" olarak anılacaktır)</p>
           </div>
         </CardHeader>
         <CardContent className="space-y-8 text-sm leading-relaxed">
@@ -143,9 +142,7 @@ export default function KullanimSartlariPage() {
           <div className="border-t border-white/10 pt-6">
             <h2 className="text-2xl font-bold mb-4">11. İletişim</h2>
             <div className="space-y-2 text-muted-foreground">
-              <p className="font-semibold">Oruba Teknoloji A.Ş.</p>
-              <p>E-posta: <a href="mailto:support@orubacoin.com" className="text-primary hover:underline">support@orubacoin.com</a></p>
-              <p>Adres: İstanbul, Türkiye</p>
+              <p>E-posta: <a href="mailto:orubacoin@gmail.com" className="text-primary hover:underline">orubacoin@gmail.com</a></p>
             </div>
           </div>
 

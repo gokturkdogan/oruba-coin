@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { Github, Linkedin, Mail } from 'lucide-react'
 
 // WhatsApp Icon Component
@@ -22,7 +23,20 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Brand */}
           <div className="space-y-4">
-            <h3 className="font-bold text-xl gradient-text">Oruba Coin</h3>
+            <div className="flex items-center gap-3">
+              <div className="relative h-10 w-10 overflow-hidden rounded-xl border border-white/10 bg-white/5 shadow-md">
+                <Image
+                  src="/oruba-coin-logo.png"
+                  alt="Oruba Coin"
+                  width={40}
+                  height={40}
+                  className="object-cover"
+                  priority
+                  unoptimized
+                />
+              </div>
+              <h3 className="font-bold text-xl gradient-text">Oruba Coin</h3>
+            </div>
             <p className="text-sm text-muted-foreground">
               Gelişmiş içgörüler ve piyasa verileri ile gerçek zamanlı kripto para analiz platformu.
             </p>
