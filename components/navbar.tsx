@@ -596,6 +596,31 @@ export function Navbar() {
                 )}
               </>
             )}
+            {!user && (
+              <div className="px-4 pt-2 flex flex-col gap-3">
+                <Button
+                  variant="outline"
+                  className="w-full justify-center border-primary/40 text-primary hover:bg-primary/10 cursor-pointer"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    setMobileMenuOpen(false)
+                    window.location.href = '/login'
+                  }}
+                >
+                  Giriş Yap
+                </Button>
+                <Button
+                  className="w-full justify-center bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/30 cursor-pointer"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    setMobileMenuOpen(false)
+                    window.location.href = '/register'
+                  }}
+                >
+                  Kayıt Ol
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>
