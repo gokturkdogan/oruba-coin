@@ -217,31 +217,25 @@
         animation: pulse-red 2s ease-in-out infinite;
       }
 
-      /* Flash animations for price changes - simple and smooth */
-      @keyframes flash-green {
-        0% {
-          background-color: rgba(34, 197, 94, 0.15);
-        }
-        100% {
-          background-color: transparent;
-        }
+      /* Flash highlights for price changes - subtle and lightweight */
+      .flash-soft {
+        transition: background-color 0.45s ease, box-shadow 0.45s ease;
       }
 
-      @keyframes flash-red {
-        0% {
-          background-color: rgba(239, 68, 68, 0.15);
-        }
-        100% {
-          background-color: transparent;
-        }
+      .flash-soft-up {
+        background-color: rgba(34, 197, 94, 0.08);
+        box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.12);
       }
 
-      .animate-flash-green {
-        animation: flash-green 0.6s ease-out;
+      .flash-soft-down {
+        background-color: rgba(239, 68, 68, 0.08);
+        box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.12);
       }
 
-      .animate-flash-red {
-        animation: flash-red 0.6s ease-out;
+      @media (prefers-reduced-motion: reduce) {
+        .flash-soft {
+          transition: none;
+        }
       }
 
   /* Toast Styles - Modern Glass Effect */

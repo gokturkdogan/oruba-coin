@@ -323,11 +323,11 @@ export default function HomePage() {
               return (
                 <Card 
                   key={coin.symbol} 
-                  className={`glass-effect border-white/10 hover:border-primary/30 transition-all duration-500 hover:shadow-xl hover:shadow-primary/10 hover:-translate-y-2 group overflow-hidden relative animate-fade-in-up ${
-                    flashAnimations[coin.symbol] === 'up' 
-                      ? 'bg-green-500/10 border-green-500/30' 
-                      : flashAnimations[coin.symbol] === 'down' 
-                      ? 'bg-red-500/10 border-red-500/30' 
+                  className={`glass-effect border-white/10 hover:border-primary/30 transition-all duration-500 hover:shadow-xl hover:shadow-primary/10 hover:-translate-y-2 group overflow-hidden relative animate-fade-in-up flash-soft ${
+                    flashAnimations[coin.symbol] === 'up'
+                      ? 'flash-soft-up'
+                      : flashAnimations[coin.symbol] === 'down'
+                      ? 'flash-soft-down'
                       : ''
                   }`}
                   style={{ animationDelay: `${(index + 1) * 0.1}s` }}
@@ -352,10 +352,10 @@ export default function HomePage() {
                   <CardContent className="relative z-10 space-y-3">
                     <div 
                       className={`text-2xl font-bold transition-colors duration-500 group-hover:scale-105 ${
-                        flashAnimations[coin.symbol] === 'up' 
-                          ? 'text-green-400' 
-                          : flashAnimations[coin.symbol] === 'down' 
-                          ? 'text-red-400' 
+                        flashAnimations[coin.symbol] === 'up'
+                          ? 'text-green-300'
+                          : flashAnimations[coin.symbol] === 'down'
+                          ? 'text-red-300'
                           : ''
                       }`}
                     >

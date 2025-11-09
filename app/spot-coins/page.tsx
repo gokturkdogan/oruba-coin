@@ -1074,11 +1074,9 @@ export default function SpotCoinsPage() {
                     const isPositive = change >= 0
                     const changePercent = Math.abs(change)
                     const flashType = flashAnimations[coin.symbol]
-                    const flashClass = flashType === 'up' 
-                      ? 'animate-flash-green' 
-                      : flashType === 'down' 
-                      ? 'animate-flash-red' 
-                      : ''
+                    const flashClass = flashType
+                      ? `flash-soft ${flashType === 'up' ? 'flash-soft-up' : 'flash-soft-down'}`
+                      : 'flash-soft'
                     
                     return (
                       <tr 
@@ -1276,34 +1274,6 @@ export default function SpotCoinsPage() {
         </div>
       </div>
       )}
-
-      <style jsx global>{`
-        @keyframes flash-green {
-          0% {
-            background-color: rgba(34, 197, 94, 0.2);
-          }
-          100% {
-            background-color: transparent;
-          }
-        }
-        
-        @keyframes flash-red {
-          0% {
-            background-color: rgba(239, 68, 68, 0.2);
-          }
-          100% {
-            background-color: transparent;
-          }
-        }
-        
-        .animate-flash-green {
-          animation: flash-green 0.8s ease-out;
-        }
-        
-        .animate-flash-red {
-          animation: flash-red 0.8s ease-out;
-        }
-      `}</style>
     </div>
   )
 }

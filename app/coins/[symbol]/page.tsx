@@ -1335,7 +1335,7 @@ export default function CoinDetailPage() {
           </div>
         )}
 
-        <div className={`mb-8 p-6 rounded-xl transition-all duration-300 ${flashAnimations.price === 'up' ? 'animate-flash-green' : flashAnimations.price === 'down' ? 'animate-flash-red' : 'bg-transparent'}`}>
+        <div className={`mb-8 p-6 rounded-xl transition-all duration-300 flash-soft ${flashAnimations.price === 'up' ? 'flash-soft-up' : flashAnimations.price === 'down' ? 'flash-soft-down' : ''}`}>
         <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
           {isPositive ? (
             <TrendingUp className="h-8 w-8 text-green-400" />
@@ -1346,8 +1346,8 @@ export default function CoinDetailPage() {
         </h1>
         <div className="flex items-center gap-4">
           <div className={`text-3xl font-bold ${
-            flashAnimations.price === 'up' ? 'text-green-400' : 
-            flashAnimations.price === 'down' ? 'text-red-400' : 
+            flashAnimations.price === 'up' ? 'text-green-300' : 
+            flashAnimations.price === 'down' ? 'text-red-300' : 
             ''
           }`}>
             ${parseFloat(coinData.price).toLocaleString('tr-TR', {

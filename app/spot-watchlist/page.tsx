@@ -962,11 +962,11 @@ export default function SpotWatchlistPage() {
               return (
                 <Card
                   key={coin.symbol}
-                  className={`glass-effect border-white/10 shadow-xl hover:shadow-2xl transition-all duration-500 group ${
-                    flashAnimations[coin.symbol] === 'up' 
-                      ? 'bg-green-500/10 border-green-500/30' 
-                      : flashAnimations[coin.symbol] === 'down' 
-                      ? 'bg-red-500/10 border-red-500/30' 
+                  className={`glass-effect border-white/10 shadow-xl hover:shadow-2xl transition-all duration-500 group flash-soft ${
+                    flashAnimations[coin.symbol] === 'up'
+                      ? 'flash-soft-up'
+                      : flashAnimations[coin.symbol] === 'down'
+                      ? 'flash-soft-down'
                       : ''
                   }`}
                 >
@@ -1001,10 +1001,10 @@ export default function SpotWatchlistPage() {
                     <div>
                       <p className="text-sm text-muted-foreground mb-1">Fiyat</p>
                       <p className={`text-2xl font-bold transition-colors duration-500 ${
-                        flashAnimations[coin.symbol] === 'up' 
-                          ? 'text-green-400' 
-                          : flashAnimations[coin.symbol] === 'down' 
-                          ? 'text-red-400' 
+                        flashAnimations[coin.symbol] === 'up'
+                          ? 'text-green-300'
+                          : flashAnimations[coin.symbol] === 'down'
+                          ? 'text-red-300'
                           : ''
                       }`}>
                         ${formatPrice(coin.price)}

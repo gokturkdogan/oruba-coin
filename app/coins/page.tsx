@@ -675,11 +675,9 @@ export default function CoinsPage() {
                     const isPositive = change >= 0
                     const changePercent = Math.abs(change)
                     const flashType = flashAnimations[coin.symbol]
-                    const flashClass = flashType === 'up' 
-                      ? 'animate-flash-green' 
-                      : flashType === 'down' 
-                      ? 'animate-flash-red' 
-                      : ''
+                    const flashClass = flashType
+                      ? `flash-soft ${flashType === 'up' ? 'flash-soft-up' : 'flash-soft-down'}`
+                      : 'flash-soft'
                     
                     return (
                       <tr 
