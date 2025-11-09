@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { TrendingUp, TrendingDown, Sparkles, Zap, BarChart3, ArrowRight } from 'lucide-react'
+import { createBinanceEventSource } from '@/lib/binance-stream'
 
 interface Coin {
   symbol: string
@@ -21,8 +22,8 @@ export default function HomePage() {
   const [coins, setCoins] = useState<Coin[]>([])
   const [loading, setLoading] = useState(true)
   const [flashAnimations, setFlashAnimations] = useState<Record<string, 'up' | 'down'>>({})
-  const wsRef = useRef<WebSocket | null>(null)
-  const futuresWsRef = useRef<WebSocket | null>(null)
+  const wsRef = useRef<EventSource | null>(null)
+  const futuresWsRef = useRef<EventSource | null>(null)
   const coinsMapRef = useRef<Map<string, Coin>>(new Map())
   const previousPricesRef = useRef<Map<string, number>>(new Map())
   const isMountedRef = useRef<boolean>(true)
@@ -74,24 +75,18 @@ export default function HomePage() {
     return () => {
       isMountedRef.current = false
       // Cleanup WebSocket connections
-      if (wsRef.current) {
+      if (wsRef.current && wsRef.current.readyState !== EventSource.CLOSED) {
         wsRef.current.onmessage = null
         wsRef.current.onerror = null
-        wsRef.current.onclose = null
         wsRef.current.onopen = null
-        if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
-          wsRef.current.close()
-        }
+        wsRef.current.close()
         wsRef.current = null
       }
-      if (futuresWsRef.current) {
+      if (futuresWsRef.current && futuresWsRef.current.readyState !== EventSource.CLOSED) {
         futuresWsRef.current.onmessage = null
         futuresWsRef.current.onerror = null
-        futuresWsRef.current.onclose = null
         futuresWsRef.current.onopen = null
-        if (futuresWsRef.current.readyState === WebSocket.OPEN || futuresWsRef.current.readyState === WebSocket.CONNECTING) {
-          futuresWsRef.current.close()
-        }
+        futuresWsRef.current.close()
         futuresWsRef.current = null
       }
     }
@@ -100,18 +95,16 @@ export default function HomePage() {
 
   const subscribeToWebSocket = useCallback((symbols: string[]) => {
     // Close existing connections
-    if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
+    if (wsRef.current && wsRef.current.readyState !== EventSource.CLOSED) {
       wsRef.current.onmessage = null
       wsRef.current.onerror = null
-      wsRef.current.onclose = null
       wsRef.current.onopen = null
       wsRef.current.close()
       wsRef.current = null
     }
-    if (futuresWsRef.current && (futuresWsRef.current.readyState === WebSocket.OPEN || futuresWsRef.current.readyState === WebSocket.CONNECTING)) {
+    if (futuresWsRef.current && futuresWsRef.current.readyState !== EventSource.CLOSED) {
       futuresWsRef.current.onmessage = null
       futuresWsRef.current.onerror = null
-      futuresWsRef.current.onclose = null
       futuresWsRef.current.onopen = null
       futuresWsRef.current.close()
       futuresWsRef.current = null
@@ -124,10 +117,9 @@ export default function HomePage() {
       .map((s) => `${s.toLowerCase()}@ticker`)
       .join('/')
 
-    // Spot WebSocket
-    const spotWsUrl = `wss://stream.binance.com:9443/stream?streams=${streams}`
-    // Futures WebSocket
-    const futuresWsUrl = `wss://fstream.binance.com/stream?streams=${streams}`
+    // Streams proxied through server-side SSE endpoint
+    const spotStreams = streams
+    const futuresStreams = streams
 
     // Helper function to update coins and trigger re-render
     const updateCoinsDisplay = () => {
@@ -144,7 +136,7 @@ export default function HomePage() {
 
     // Spot WebSocket
     try {
-      const spotWs = new WebSocket(spotWsUrl)
+      const spotWs = createBinanceEventSource(spotStreams, { market: 'spot', endpoint: 'ticker' })
 
       spotWs.onopen = () => {
         console.log('Homepage Spot WebSocket connected')
@@ -213,19 +205,7 @@ export default function HomePage() {
       }
 
       spotWs.onerror = (error) => {
-        console.error('Spot WebSocket error:', error)
-      }
-
-      spotWs.onclose = () => {
-        if (isMountedRef.current && wsRef.current === spotWs) {
-          console.log('Spot WebSocket disconnected, reconnecting...')
-          setTimeout(() => {
-            const currentSymbols = Array.from(coinsMapRef.current.keys())
-            if (isMountedRef.current && currentSymbols.length > 0 && wsRef.current === spotWs) {
-              subscribeToWebSocket(currentSymbols)
-            }
-          }, 3000)
-        }
+        console.error('Spot stream error:', error)
       }
 
       wsRef.current = spotWs
@@ -235,7 +215,7 @@ export default function HomePage() {
 
     // Futures WebSocket
     try {
-      const futuresWs = new WebSocket(futuresWsUrl)
+      const futuresWs = createBinanceEventSource(futuresStreams, { market: 'futures', endpoint: 'ticker' })
 
       futuresWs.onopen = () => {
         console.log('Homepage Futures WebSocket connected')
@@ -271,19 +251,7 @@ export default function HomePage() {
       }
 
       futuresWs.onerror = (error) => {
-        console.error('Futures WebSocket error:', error)
-      }
-
-      futuresWs.onclose = () => {
-        if (isMountedRef.current && futuresWsRef.current === futuresWs) {
-          console.log('Futures WebSocket disconnected, reconnecting...')
-          setTimeout(() => {
-            const currentSymbols = Array.from(coinsMapRef.current.keys())
-            if (isMountedRef.current && currentSymbols.length > 0 && futuresWsRef.current === futuresWs) {
-              subscribeToWebSocket(currentSymbols)
-            }
-          }, 3000)
-        }
+        console.error('Futures stream error:', error)
       }
 
       futuresWsRef.current = futuresWs
