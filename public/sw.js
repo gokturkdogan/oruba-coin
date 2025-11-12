@@ -33,6 +33,16 @@ self.addEventListener("fetch", (event) => {
     return
   }
 
+  const requestUrl = new URL(request.url)
+
+  const isSameOrigin = requestUrl.origin === self.location.origin
+  const isApiRequest = requestUrl.pathname.startsWith("/api/")
+  const acceptsJson = request.headers.get("accept")?.includes("application/json")
+
+  if (!isSameOrigin || isApiRequest || acceptsJson) {
+    return
+  }
+
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) {

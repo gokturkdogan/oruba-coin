@@ -54,7 +54,10 @@ export function Navbar() {
   }
 
   const fetchUser = () => {
-    fetch('/api/user/profile')
+    fetch('/api/user/profile', {
+      credentials: 'include',
+      cache: 'no-store',
+    })
       .then((res) => res.json())
       .then((data) => {
         if (data.user) {
@@ -91,7 +94,10 @@ export function Navbar() {
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' })
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      })
       setUser(null)
       // Trigger navbar update for other components
       window.dispatchEvent(new Event('auth:change'))
