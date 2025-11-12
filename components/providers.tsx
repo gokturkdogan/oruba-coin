@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { createBinanceEventSource } from '@/lib/binance-stream'
+import { registerPushSubscription, requestPushPermission } from '@/lib/push-client'
 
 type ExtendedWindow = Window & {
   __BINANCE_PROXY_INSTALLED__?: boolean
@@ -184,7 +185,18 @@ export function Providers() {
           .catch((error) => {
             console.error("Service worker registration failed", error)
           })
+          .then(() => {
+            if (typeof window !== "undefined" && "Notification" in window) {
+              if (Notification.permission === "granted") {
+                registerPushSubscription()
+              }
+            }
+          })
       }
+    }
+
+    if (typeof window !== "undefined") {
+      ;(window as any).orubaRequestPushPermission = requestPushPermission
     }
   }, [])
 
