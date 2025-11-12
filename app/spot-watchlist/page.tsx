@@ -892,12 +892,12 @@ export default function SpotWatchlistPage() {
 
       <div className="relative z-10">
         <div className="mb-8">
-          <div className="flex items-start justify-between gap-4">
-            <div>
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+            <div className="flex-1">
               <h1 className="text-4xl font-bold gradient-text mb-2">Spot Takip Listesi</h1>
               <p className="text-muted-foreground">Spot takip listesindeki coinlerin güncel fiyatları ve hacimleri</p>
             </div>
-            <div className="flex items-start gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-start gap-4">
               {watchlist.length > 0 && (
                 <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/30">
                   {watchlist.length} / 10
@@ -905,7 +905,7 @@ export default function SpotWatchlistPage() {
               )}
               {/* Info Kutusu - Sağ Üst */}
               {pageOpenTime && (
-                <Card className="glass-effect border-white/10 min-w-[280px]">
+                <Card className="glass-effect border-white/10 w-full sm:w-auto">
                   <CardContent className="pt-3 pb-3">
                     <div className="flex items-start gap-2">
                       <div className="flex-shrink-0 mt-0.5">
@@ -1051,18 +1051,18 @@ export default function SpotWatchlistPage() {
                           maximumFractionDigits: 0,
                         })}
                       </p>
-                      <div className="flex flex-col gap-1 text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="text-green-400/80">Alış:</span>
-                          <span className="text-green-400 font-semibold">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs">
+                        <div className="flex items-center justify-between sm:justify-start sm:gap-3 rounded-md border border-green-500/20 bg-green-500/5 px-3 py-2">
+                          <span className="text-green-400/90 font-medium">Alış</span>
+                          <span className="text-green-300 font-semibold">
                             ${parseFloat(coin.hourlySpotBuyVolume || '0').toLocaleString('tr-TR', {
                               maximumFractionDigits: 0,
                             })}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-red-400/80">Satış:</span>
-                          <span className="text-red-400 font-semibold">
+                        <div className="flex items-center justify-between sm:justify-start sm:gap-3 rounded-md border border-red-500/20 bg-red-500/5 px-3 py-2">
+                          <span className="text-red-400/90 font-medium">Satış</span>
+                          <span className="text-red-300 font-semibold">
                             ${parseFloat(coin.hourlySpotSellVolume || '0').toLocaleString('tr-TR', {
                               maximumFractionDigits: 0,
                             })}
