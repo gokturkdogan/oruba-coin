@@ -1160,6 +1160,23 @@ export default function CoinDetailPage() {
     { label: '1 Yıl', value: '1Y' },
   ]
 
+  const volumeChange = (() => {
+    if (!chartDataBottom.length) return 0
+    const first = chartDataBottom[0]
+    const last = chartDataBottom[chartDataBottom.length - 1]
+
+    const initialVolume = (first.volume ?? 0) + (first.futuresVolume ?? 0)
+    const finalVolume = (last.volume ?? 0) + (last.futuresVolume ?? 0)
+
+    if (initialVolume === 0) {
+      if (finalVolume === 0) return 0
+      return finalVolume > 0 ? 100 : -100
+    }
+
+    return ((finalVolume - initialVolume) / initialVolume) * 100
+  })()
+  const isBottomChartPositive = volumeChange >= 0
+
   return (
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       {/* Premium Uyarı Kartı - Premium olmayan kullanıcılar için */}
@@ -1244,7 +1261,7 @@ export default function CoinDetailPage() {
         )}
 
         <div className={`mb-8 p-6 rounded-xl transition-all duration-300 flash-soft ${flashAnimations.price === 'up' ? 'flash-soft-up' : flashAnimations.price === 'down' ? 'flash-soft-down' : ''}`}>
-        <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
+        <h1 className="text-3xl font-bold mb-4 flex flex-col sm:flex-row sm:items-center gap-2">
           {isPositive ? (
             <TrendingUp className="h-8 w-8 text-green-400" />
           ) : (
@@ -1252,7 +1269,7 @@ export default function CoinDetailPage() {
           )}
           {coinData.symbol}
         </h1>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
           <div className={`text-3xl font-bold ${
             flashAnimations.price === 'up' ? 'text-green-300' : 
             flashAnimations.price === 'down' ? 'text-red-300' : 
@@ -1282,7 +1299,7 @@ export default function CoinDetailPage() {
       {/* Bilgi Kartı */}
       <Card className="mb-6 bg-gradient-to-br from-background/95 to-background/80 border-border/50 shadow-lg">
         <CardContent className="pt-6">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6">
             {/* 24s En Yüksek */}
             <div className="flex flex-col gap-2 p-4 rounded-lg bg-gradient-to-br from-green-500/10 to-green-500/5 border border-green-500/20">
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">24s En Yüksek</span>
@@ -1349,8 +1366,8 @@ export default function CoinDetailPage() {
 
           <Card className="bg-gradient-to-br from-background to-background/80 border-border/50">
             <CardHeader>
-              <div className="flex items-center justify-between flex-wrap gap-4">
-                <div>
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div className="flex-1 min-w-0">
                   <CardTitle className="text-2xl mb-1">Fiyat Grafiği</CardTitle>
                   <CardDescription>
                     {timeRangeTop === '5M' && 'Son 5 dakika fiyat hareketleri'}
@@ -1363,23 +1380,38 @@ export default function CoinDetailPage() {
                     {timeRangeTop === '1Y' && '1 yıllık fiyat hareketleri'}
                   </CardDescription>
                 </div>
-                <div className="flex items-center gap-4 flex-wrap">
-                  <div className="flex gap-2 bg-background/50 p-1 rounded-lg border border-border/50">
-                    {timeRangeOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        onClick={() => setTimeRangeTop(option.value)}
-                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all cursor-pointer ${
-                          timeRangeTop === option.value
-                            ? 'bg-primary text-primary-foreground shadow-sm'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
-                        }`}
+                <div className="flex flex-col md:flex-row md:items-center gap-4 w-full lg:w-auto">
+                  <div className="w-full md:w-auto">
+                    <div className="md:hidden">
+                      <select
+                        value={timeRangeTop}
+                        onChange={(event) => setTimeRangeTop(event.target.value as typeof timeRangeTop)}
+                        className="w-full rounded-lg border border-border/50 bg-background/70 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                       >
-                        {option.label}
-                      </button>
-                    ))}
+                        {timeRangeOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="hidden md:flex gap-2 bg-background/50 p-1 rounded-lg border border-border/50">
+                      {timeRangeOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => setTimeRangeTop(option.value)}
+                          className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all cursor-pointer ${
+                            timeRangeTop === option.value
+                              ? 'bg-primary text-primary-foreground shadow-sm'
+                              : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right md:text-left md:min-w-[120px]">
                     <div className={`text-2xl font-bold ${isChartPositive ? 'text-green-400' : 'text-red-400'}`}>
                       {isChartPositive ? '+' : ''}{priceChange.toFixed(2)}%
                     </div>
@@ -1388,7 +1420,7 @@ export default function CoinDetailPage() {
                 </div>
               </div>
               <div className="mt-4 pt-4 border-t border-border/50">
-                <div className="flex items-center gap-6 flex-wrap">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 flex-wrap">
                   <Label className="text-sm font-medium text-muted-foreground cursor-pointer flex items-center gap-2">
                     <Checkbox
                       checked={showPrice}
@@ -1583,26 +1615,47 @@ export default function CoinDetailPage() {
                     {timeRangeBottom === '1Y' && '1 yıllık hacim dağılımı'}
                   </CardDescription>
                 </div>
-                <div className="flex items-center gap-4 flex-wrap">
-                  <div className="flex gap-2 bg-background/50 p-1 rounded-lg border border-border/50">
-                    {timeRangeOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        onClick={() => setTimeRangeBottom(option.value)}
-                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all cursor-pointer ${
-                          timeRangeBottom === option.value
-                            ? 'bg-primary text-primary-foreground shadow-sm'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
-                        }`}
+                <div className="flex flex-col md:flex-row md:items-center gap-4 w-full lg:w-auto">
+                  <div className="w-full md:w-auto">
+                    <div className="md:hidden">
+                      <select
+                        value={timeRangeBottom}
+                        onChange={(event) => setTimeRangeBottom(event.target.value as typeof timeRangeBottom)}
+                        className="w-full rounded-lg border border-border/50 bg-background/70 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                       >
-                        {option.label}
-                      </button>
-                    ))}
+                        {timeRangeOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="hidden md:flex gap-2 bg-background/50 p-1 rounded-lg border border-border/50">
+                      {timeRangeOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => setTimeRangeBottom(option.value)}
+                          className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all cursor-pointer ${
+                            timeRangeBottom === option.value
+                              ? 'bg-primary text-primary-foreground shadow-sm'
+                              : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="text-right md:text-left md:min-w-[120px]">
+                    <div className={`text-2xl font-bold ${isBottomChartPositive ? 'text-green-400' : 'text-red-400'}`}>
+                      {isBottomChartPositive ? '+' : ''}{volumeChange.toFixed(2)}%
+                    </div>
+                    <div className="text-sm text-muted-foreground">Hacim Değişimi</div>
                   </div>
                 </div>
               </div>
               <div className="mt-4 pt-4 border-t border-border/50">
-                <div className="flex items-center gap-6 flex-wrap">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 flex-wrap">
                   <Label className="text-sm font-medium text-muted-foreground cursor-pointer flex items-center gap-2">
                     <Checkbox
                       checked={showSpotVolumeBottom}
@@ -1641,7 +1694,7 @@ export default function CoinDetailPage() {
               {/* Toplam Hacim Bilgileri */}
               {chartKlinesBottom.length > 0 && (
                 <div className="mt-4 pt-4 border-t border-border/50">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="bg-background/50 p-3 rounded-lg border border-border/30">
                       <div className="text-xs text-muted-foreground mb-1">Spot Toplam Alış</div>
                       <div className="text-sm font-semibold text-green-400">
