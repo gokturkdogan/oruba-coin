@@ -18,7 +18,7 @@ import {
   Area,
   ComposedChart
 } from 'recharts'
-import { TrendingUp, TrendingDown, Lock, Crown, Sparkles } from 'lucide-react'
+import { TrendingUp, TrendingDown, Lock, Crown, Sparkles, Maximize2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { formatNumberTR } from '@/lib/utils'
@@ -138,6 +138,7 @@ export default function CoinDetailPage() {
   const [showFuturesVolumeBottom, setShowFuturesVolumeBottom] = useState(true)
   const [showBuyVolume, setShowBuyVolume] = useState(true)
   const [showSellVolume, setShowSellVolume] = useState(true)
+  const [isChartModalOpen, setIsChartModalOpen] = useState(false)
 
   // Calculate total volumes for the selected time range - must be before useEffect hooks
   const totalVolumes = useMemo(() => {
@@ -1366,10 +1367,10 @@ export default function CoinDetailPage() {
 
           <Card className="bg-gradient-to-br from-background to-background/80 border-border/50">
             <CardHeader>
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <div className="flex-1 min-w-0">
+              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                <div className="flex-1">
                   <CardTitle className="text-2xl mb-1">Fiyat Grafiği</CardTitle>
-                  <CardDescription>
+                  <CardDescription className="max-w-2xl">
                     {timeRangeTop === '5M' && 'Son 5 dakika fiyat hareketleri'}
                     {timeRangeTop === '15M' && 'Son 15 dakika fiyat hareketleri'}
                     {timeRangeTop === '30M' && 'Son 30 dakika fiyat hareketleri'}
@@ -1411,11 +1412,22 @@ export default function CoinDetailPage() {
                       ))}
                     </div>
                   </div>
-                  <div className="text-right md:text-left md:min-w-[120px]">
-                    <div className={`text-2xl font-bold ${isChartPositive ? 'text-green-400' : 'text-red-400'}`}>
-                      {isChartPositive ? '+' : ''}{priceChange.toFixed(2)}%
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 w-full md:w-auto">
+                    <div className="text-right sm:text-left md:min-w-[120px]">
+                      <div className={`text-2xl font-bold ${isChartPositive ? 'text-green-400' : 'text-red-400'}`}>
+                        {isChartPositive ? '+' : ''}{priceChange.toFixed(2)}%
+                      </div>
+                      <div className="text-sm text-muted-foreground">Dönem Değişimi</div>
                     </div>
-                    <div className="text-sm text-muted-foreground">Dönem Değişimi</div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="md:hidden"
+                      onClick={() => setIsChartModalOpen(true)}
+                    >
+                      <Maximize2 className="h-4 w-4" />
+                      <span className="ml-2 text-xs font-semibold">Tam ekran</span>
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -1601,10 +1613,10 @@ export default function CoinDetailPage() {
 
       <Card className="mt-6 bg-gradient-to-br from-background to-background/80 border-border/50">
             <CardHeader>
-              <div className="flex items-center justify-between flex-wrap gap-4">
-                <div>
+              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                <div className="flex-1">
                   <CardTitle className="text-xl">İşlem Hacmi</CardTitle>
-                  <CardDescription>
+                  <CardDescription className="max-w-2xl">
                     {timeRangeBottom === '5M' && 'Son 5 dakika hacim dağılımı'}
                     {timeRangeBottom === '15M' && 'Son 15 dakika hacim dağılımı'}
                     {timeRangeBottom === '30M' && 'Son 30 dakika hacim dağılımı'}
@@ -1693,8 +1705,8 @@ export default function CoinDetailPage() {
               
               {/* Toplam Hacim Bilgileri */}
               {chartKlinesBottom.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-border/50">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="mt-4 pt-4 border-top border-border/50">
+                  <div className="space-y-3">
                     <div className="bg-background/50 p-3 rounded-lg border border-border/30">
                       <div className="text-xs text-muted-foreground mb-1">Spot Toplam Alış</div>
                       <div className="text-sm font-semibold text-green-400">

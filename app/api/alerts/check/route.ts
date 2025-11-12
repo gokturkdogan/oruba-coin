@@ -234,7 +234,8 @@ export async function POST(request: NextRequest) {
     const userSubscriptions = subscriptionsByUser.get(alert.userId)
     if (!userSubscriptions?.length) continue
 
-    const marketLabel = alert.market === "spot" ? "spot" : "vadeli"
+    const marketLabel = alert.market === "spot" ? "Spot" : "Vadeli"
+    const marketBodyLabel = alert.market === "spot" ? "spot" : "vadeli"
     const directionLabel = alert.type === "above" ? "üstüne çıktı" : "altına düştü"
 
     const { failed } = await sendBulkNotifications(
@@ -246,8 +247,8 @@ export async function POST(request: NextRequest) {
         },
       })),
       {
-        title: "Fiyat alarmı tetiklendi",
-        body: `${alert.symbol} ${marketLabel} fiyatı ${formatPrice(price)} ${directionLabel}. (Hedef: ${formatPrice(alert.targetPrice)})`,
+        title: `${marketLabel} fiyat alarmı tetiklendi`,
+        body: `${alert.symbol} ${marketBodyLabel} piyasası fiyatı ${formatPrice(price)} ${directionLabel}. (Hedef: ${formatPrice(alert.targetPrice)})`,
         url: `/coins/${alert.symbol}`,
       }
     )
