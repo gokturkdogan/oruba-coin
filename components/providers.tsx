@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { createBinanceEventSource } from '@/lib/binance-stream'
+import { registerPushSubscription, requestPushPermission } from '@/lib/push-client'
 
 type ExtendedWindow = Window & {
   __BINANCE_PROXY_INSTALLED__?: boolean
@@ -173,6 +174,30 @@ if (typeof window !== 'undefined') {
 export function Providers() {
   useEffect(() => {
     installBinanceProxy()
+
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+      const isSecureContext = window.location.protocol === "https:" || isLocalhost
+
+      if (isSecureContext) {
+        navigator.serviceWorker
+          .register("/sw.js")
+          .catch((error) => {
+            console.error("Service worker registration failed", error)
+          })
+          .then(() => {
+            if (typeof window !== "undefined" && "Notification" in window) {
+              if (Notification.permission === "granted") {
+                registerPushSubscription()
+              }
+            }
+          })
+      }
+    }
+
+    if (typeof window !== "undefined") {
+      ;(window as any).orubaRequestPushPermission = requestPushPermission
+    }
   }, [])
 
   return null

@@ -17,7 +17,8 @@ import { Badge } from '@/components/ui/badge'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import { Menu, X, Shield, LogOut, ShieldCheck, DollarSign, Home, Building2, CreditCard, User, ListChecks, CandlestickChart } from 'lucide-react'
+import { Menu, X, Shield, LogOut, ShieldCheck, DollarSign, Home, Building2, CreditCard, User, ListChecks, CandlestickChart, BellRing } from 'lucide-react'
+import { requestPushPermission } from '@/lib/push-client'
 
 interface User {
   id: string
@@ -34,6 +35,23 @@ export function Navbar() {
   const [loading, setLoading] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const isAdminPage = pathname?.startsWith('/admin')
+
+  const enableNotifications = async () => {
+    if (typeof window === 'undefined') return
+    if (!('Notification' in window)) {
+      toast.error('Tarayıcınız bildirimleri desteklemiyor')
+      return
+    }
+
+    const permission = await requestPushPermission()
+    if (permission === 'granted') {
+      toast.success('Bildirimler açıldı')
+    } else if (permission === 'denied') {
+      toast.error('Bildirim izni reddedildi')
+    } else {
+      toast.info('Bildirim izni isteği gönderildi')
+    }
+  }
 
   const fetchUser = () => {
     fetch('/api/user/profile')
@@ -100,7 +118,7 @@ export function Navbar() {
                 }}
                 className="flex items-center space-x-2 group cursor-pointer"
               >
-                <span className="font-bold text-xl gradient-text">Oruba Coin</span>
+                <span className="font-bold text-xl gradient-text">Oruba Coin Test</span>
                 <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">₿</span>
               </a>
               <div className="flex items-center gap-2">
@@ -206,7 +224,7 @@ export function Navbar() {
                   unoptimized
                 />
               </div>
-              <span className="font-bold text-xl gradient-text">Oruba Coin</span>
+              <span className="font-bold text-xl gradient-text">Oruba Coin Test</span>
               <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">₿</span>
             </a>
           </div>
@@ -375,6 +393,16 @@ export function Navbar() {
                         <CandlestickChart className="h-4 w-4 text-primary/80" />
                         Vadeli Takip Listesi
                       </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={async (e) => {
+                          e.preventDefault()
+                          await enableNotifications()
+                        }}
+                        className="cursor-pointer flex items-center gap-2"
+                      >
+                        <BellRing className="h-4 w-4 text-primary/80" />
+                        Bildirimleri Aç
+                      </DropdownMenuItem>
                       {user.isAdmin && (
                         <>
                           <DropdownMenuSeparator />
@@ -497,6 +525,17 @@ export function Navbar() {
             >
               Vadeli Coin Listesi
             </a>
+            <button
+              onClick={async (e) => {
+                e.preventDefault()
+                setMobileMenuOpen(false)
+                await enableNotifications()
+              }}
+              className="w-full text-left block px-4 py-2 rounded-lg text-foreground/70 hover:bg-white/5 transition-all cursor-pointer flex items-center gap-2"
+            >
+              <BellRing className="h-4 w-4 text-primary/80" />
+              Bildirimleri Aç
+            </button>
             {user && (
               <>
                 <a
