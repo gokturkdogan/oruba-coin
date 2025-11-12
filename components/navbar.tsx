@@ -124,7 +124,7 @@ export function Navbar() {
                 }}
                 className="flex items-center space-x-2 group cursor-pointer"
               >
-                <span className="font-bold text-xl gradient-text">Oruba Coin Test</span>
+                <span className="font-bold text-xl gradient-text">Oruba Coin</span>
                 <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">₿</span>
               </a>
               <div className="flex items-center gap-2">
@@ -230,7 +230,7 @@ export function Navbar() {
                   unoptimized
                 />
               </div>
-              <span className="font-bold text-xl gradient-text">Oruba Coin Test</span>
+              <span className="font-bold text-xl gradient-text">Oruba Coin</span>
               <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">₿</span>
             </a>
           </div>
