@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/middleware'
 import { prisma } from '@/lib/prisma'
 import { sendPremiumWelcomeEmail } from '@/lib/resend'
+import { sendBulkNotifications } from '@/lib/web-push'
 import { z } from 'zod'
 
 const approvePaymentSchema = z.object({
@@ -100,6 +101,42 @@ export async function PUT(
       } catch (emailError) {
         // Log error but don't fail the approval
         console.error('[Payment Approval] Failed to send welcome email:', emailError)
+      }
+
+      // Send push notification if user has subscriptions
+      try {
+        const subscriptions = await prisma.pushSubscription.findMany({
+          where: { userId: pendingPayment.userId },
+        })
+
+        if (subscriptions.length > 0) {
+          const { failed } = await sendBulkNotifications(
+            subscriptions.map((subscription) => ({
+              endpoint: subscription.endpoint,
+              keys: {
+                auth: subscription.auth,
+                p256dh: subscription.p256dh,
+              },
+            })),
+            {
+              title: 'Premium üyeliğiniz aktif edildi',
+              body: `${planName} paketiniz onaylandı. Premium avantajlarınızı hemen kullanmaya başlayabilirsiniz.`,
+              url: '/membership',
+            }
+          )
+
+          if (failed.length > 0) {
+            await prisma.pushSubscription.deleteMany({
+              where: {
+                endpoint: {
+                  in: failed.map((subscription) => subscription.endpoint),
+                },
+              },
+            })
+          }
+        }
+      } catch (pushError) {
+        console.error('[Payment Approval] Failed to send push notification:', pushError)
       }
 
       return NextResponse.json({
