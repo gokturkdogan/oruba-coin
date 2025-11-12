@@ -7,7 +7,7 @@ import { sendBulkNotifications } from "@/lib/web-push"
 export const runtime = "nodejs"
 
 const requestSchema = z.object({
-  title: z.string().min(1).max(100).default("Oruba Coin"),
+  title: z.string().min(1).max(100).default("Yeni bildirimin var"),
   body: z.string().max(280).optional(),
   url: z.string().url().optional(),
 })

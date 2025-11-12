@@ -72,9 +72,9 @@ self.addEventListener("push", (event) => {
   try {
     const data = event.data ? event.data.json() : {}
 
-    const title = data.title || "Oruba Coin"
+    const title = data.title || "Yeni bildirimin var"
     const options = {
-      body: data.body || "Güncel piyasa gelişmelerini kaçırmayın",
+      body: data.body || "Son gelişmeleri görmek için uygulamayı açın.",
       icon: data.icon || DEFAULT_ICON,
       badge: data.badge || DEFAULT_ICON,
       data: {
