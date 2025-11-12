@@ -149,10 +149,6 @@ export async function POST(request: NextRequest) {
   })
 
   if (subscriptions.length > 0) {
-    const marketLabel = updatedAlert.market === "spot" ? "spot" : "vadeli"
-    const directionLabel =
-      updatedAlert.type === "above" ? "üstüne çıktı" : "altına düştü"
-
     try {
       const { failed } = await sendBulkNotifications(
         subscriptions.map((subscription) => ({
@@ -163,10 +159,8 @@ export async function POST(request: NextRequest) {
           },
         })),
         {
-          title: "Fiyat alarmı",
-          body: `${updatedAlert.symbol} ${marketLabel} fiyatı ${formatPrice(price)} ${directionLabel}. Hedef fiyat: ${formatPrice(
-            updatedAlert.targetPrice
-          )}.`,
+          title: "Fiyat Alarmı",
+          body: `${updatedAlert.symbol} fiyatı ${formatPrice(price)} ${updatedAlert.type === "above" ? "üstüne çıktı" : "altına düştü"}.`,
           url: `/coins/${updatedAlert.symbol}`,
         }
       )
