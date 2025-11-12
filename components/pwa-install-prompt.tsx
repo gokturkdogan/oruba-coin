@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Download, Smartphone } from "lucide-react"
+import { Smartphone } from "lucide-react"
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[]
@@ -71,9 +71,12 @@ export function PwaInstallPrompt() {
       const installEvent = event as BeforeInstallPromptEvent
       installEvent.preventDefault()
 
+      console.info("[PWA] beforeinstallprompt event fired")
+
       const userAgent = window.navigator.userAgent.toLowerCase()
       const isMobile = /iphone|ipad|ipod|android/.test(userAgent)
       if (!isMobile || dismissed || isStandalone()) {
+        console.info("[PWA] beforeinstallprompt ignored", { isMobile, dismissed, standalone: isStandalone() })
         return
       }
 
@@ -111,31 +114,32 @@ export function PwaInstallPrompt() {
     }
   }, [])
 
-  const handleInstall = useCallback(async () => {
+  const handleInstall = useCallback(() => {
     if (deferredPrompt) {
       deferredPrompt.prompt()
-      try {
-        const choice = await deferredPrompt.userChoice
-        if (choice?.outcome === "accepted") {
-          handleClose()
+      deferredPrompt.userChoice.then((choice) => {
+        if (choice.outcome === "accepted") {
+          setDismissed(true)
+          if (typeof window !== "undefined") {
+            localStorage.setItem(STORAGE_KEY, "true")
+          }
         }
-      } catch {
-        // ignore errors from user cancelling the prompt
-      }
-      setDeferredPrompt(null)
-      return
+      })
     }
-
-    if (isIos) {
-      // iOS instructions modal stays open so user can follow steps
-      return
-    }
-    // For Android devices where beforeinstallprompt was not fired, keep modal open.
-  }, [deferredPrompt, handleClose, isIos])
+  }, [deferredPrompt])
 
   const showModal = useMemo(() => {
     if (dismissed) return false
     if (isStandalone()) return false
+
+    const shouldShow = eligible || Boolean(deferredPrompt)
+    if (shouldShow) {
+      console.info("[PWA] Showing install prompt modal", {
+        eligible,
+        hasDeferredPrompt: Boolean(deferredPrompt),
+        dismissed,
+      })
+    }
     return eligible || Boolean(deferredPrompt)
   }, [eligible, deferredPrompt, dismissed])
 
@@ -170,17 +174,23 @@ export function PwaInstallPrompt() {
             </div>
             <div>
               <DialogTitle className="text-2xl font-semibold tracking-tight">
-                Oruba Coin'i ana ekrana ekle
+                {isIos ? "Oruba Coin'i ana ekrana ekle" : "Uygulamayı indir"}
               </DialogTitle>
-              <DialogDescription className="text-sm text-slate-300">
-                Daha hızlı erişim, tek dokunuşla açılış ve bildirimler için uygulamamızı cihazınıza ekleyin.
-              </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="space-y-4 rounded-lg border border-primary/20 bg-slate-900/40 p-4 text-sm text-slate-200">
-          {isIos ? (
+        {!isIos && deferredPrompt && (
+          <Button
+            className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/30 cursor-pointer"
+            onClick={handleInstall}
+          >
+            Uygulamayı indir
+          </Button>
+        )}
+
+        {isIos && (
+          <div className="space-y-4 rounded-lg border border-primary/20 bg-slate-900/40 p-4 text-sm text-slate-200">
             <ol className="list-decimal space-y-2 pl-5">
               <li>
                 Safari'de alt bardaki <span className="font-semibold">Paylaş</span> ikonuna dokunun.
@@ -192,39 +202,16 @@ export function PwaInstallPrompt() {
                 Açılan pencerede <span className="font-semibold">"Ekle"</span> diyerek işlemi tamamlayın.
               </li>
             </ol>
-          ) : deferredPrompt ? (
-            <p>
-              "Uygulamayı Yükle" butonuna basarak Oruba Coin'i ana ekranınıza ekleyebilir ve tek dokunuşla
-              açabilirsiniz.
-            </p>
-          ) : (
-            <ol className="list-decimal space-y-2 pl-5">
-              <li>
-                Tarayıcınızın menüsünü açarak <span className="font-semibold">"Ana ekranınıza ekleyin"</span> seçeneğini
-                bulun.
-              </li>
-              <li>
-                Onayladıktan sonra Oruba Coin uygulaması ana ekranınızda görünecektir.
-              </li>
-            </ol>
-          )}
-        </div>
+          </div>
+        )}
 
         <DialogFooter className="flex-col gap-2 sm:flex-row">
-          <Button
-            className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white shadow-lg shadow-primary/30 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={!isIos && !deferredPrompt}
-            onClick={handleInstall}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            {isIos ? "Ana ekrana ekle" : "Uygulamayı yükle"}
-          </Button>
           <Button
             variant="ghost"
             className="w-full text-slate-300 hover:text-slate-100 hover:bg-slate-800/60 cursor-pointer"
             onClick={handleClose}
           >
-            Daha sonra
+            Kapat
           </Button>
         </DialogFooter>
 
