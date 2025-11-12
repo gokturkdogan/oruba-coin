@@ -20,6 +20,20 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Oruba Coin - Crypto Analysis Platform",
   description: "Real-time cryptocurrency prices, analysis, and insights",
+  manifest: "/manifest.json",
+  themeColor: "#0f172a",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black",
+    title: "Oruba Coin",
+  },
+  icons: {
+    icon: [
+      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/icon-192x192.png", sizes: "192x192" }],
+  },
 };
 
 export default function RootLayout({
