@@ -163,10 +163,10 @@ export async function POST(request: NextRequest) {
           },
         })),
         {
-          title: "Fiyat alarmı tetiklendi",
-          body: `${updatedAlert.symbol} ${marketLabel} fiyatı ${formatPrice(price)} ${directionLabel}. (Hedef: ${formatPrice(
+          title: "Fiyat alarmı",
+          body: `${updatedAlert.symbol} ${marketLabel} fiyatı ${formatPrice(price)} ${directionLabel}. Hedef fiyat: ${formatPrice(
             updatedAlert.targetPrice
-          )})`,
+          )}.`,
           url: `/coins/${updatedAlert.symbol}`,
         }
       )
