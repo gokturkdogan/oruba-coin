@@ -8,7 +8,7 @@ Oruba Coin is a sleek crypto market companion built to keep traders on top of sp
 - 📱 PWA installable on mobile with offline support
 - 🔔 Push notifications even when the app is closed
 - 🧭 Responsive UX tailored for desktop, tablet, and mobile
-
+ 
 ## 🛠️ Core Features
 - 📈 Interactive charts with quick range selectors and full-screen modal on mobile
 - 📊 Buy/sell volume breakdowns and hourly liquidity signals
