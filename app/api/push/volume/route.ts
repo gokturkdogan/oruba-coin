@@ -58,7 +58,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
-  const subscriptions = await prisma.pushSubscription.findMany()
+  const subscriptions = await prisma.pushSubscription.findMany({
+    include: {
+      user: {
+        select: {
+          email: true,
+        },
+      },
+    },
+  })
   if (!subscriptions.length) {
     return NextResponse.json({ success: false, message: "No subscriptions registered" })
   }
@@ -72,6 +80,13 @@ export async function POST(request: NextRequest) {
     endpoint: sub.endpoint,
     keys: { auth: sub.auth, p256dh: sub.p256dh },
   }))
+  
+  // Map endpoint to email for tracking
+  const endpointToEmail = new Map(
+    subscriptions
+      .filter((sub) => sub.user?.email)
+      .map((sub) => [sub.endpoint, sub.user!.email])
+  )
 
   const title = "Spot Volume Alert"
   const body = `${params.symbol.toUpperCase()} 15m spot volume: $${formatNumber(params.volumeUsd)}`
@@ -83,6 +98,15 @@ export async function POST(request: NextRequest) {
   })
 
   const successful = subscriptions.length - failed.length
+  
+  // Get successful subscription endpoints (not in failed list)
+  const failedEndpoints = new Set(failed.map((f) => f.endpoint))
+  const successfulSubscriptions = subscriptions.filter(
+    (sub) => !failedEndpoints.has(sub.endpoint)
+  )
+  const successfulEmails = successfulSubscriptions
+    .map((sub) => sub.user?.email)
+    .filter((email): email is string => !!email)
 
   console.log(`[volume-alert] Push results`, {
     symbol: params.symbol,
@@ -91,6 +115,7 @@ export async function POST(request: NextRequest) {
     failed: failed.length,
     errors: errors?.length || 0,
     failedEndpoints: failed.map((f) => f.endpoint.substring(0, 50) + "..."),
+    successfulEmails,
   })
 
   if (failed.length) {
@@ -110,6 +135,7 @@ export async function POST(request: NextRequest) {
     successful,
     failed: failed.length,
     removed: failed.length,
+    successfulEmails,
   })
 }
 
