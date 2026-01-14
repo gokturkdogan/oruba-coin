@@ -63,33 +63,52 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "No subscriptions registered" })
   }
 
+  console.log(`[volume-alert] Broadcasting to ${subscriptions.length} subscriptions`, {
+    symbol: params.symbol,
+    volumeUsd: params.volumeUsd,
+  })
+
   const formatted = subscriptions.map((sub) => ({
     endpoint: sub.endpoint,
     keys: { auth: sub.auth, p256dh: sub.p256dh },
   }))
 
-  const title = "Volume Alert"
-  const body = `${params.symbol.toUpperCase()} 15m volume: $${formatNumber(params.volumeUsd)}`
+  const title = "Spot Volume Alert"
+  const body = `${params.symbol.toUpperCase()} 15m spot volume: $${formatNumber(params.volumeUsd)}`
 
-  const { failed } = await sendBulkNotifications(formatted, {
+  const { failed, errors } = await sendBulkNotifications(formatted, {
     title,
     body,
     url: `/coins/${params.symbol.toUpperCase()}`,
   })
 
+  const successful = subscriptions.length - failed.length
+
+  console.log(`[volume-alert] Push results`, {
+    symbol: params.symbol,
+    total: subscriptions.length,
+    successful,
+    failed: failed.length,
+    errors: errors?.length || 0,
+    failedEndpoints: failed.map((f) => f.endpoint.substring(0, 50) + "..."),
+  })
+
   if (failed.length) {
-    await prisma.pushSubscription.deleteMany({
+    const deleted = await prisma.pushSubscription.deleteMany({
       where: {
         endpoint: {
           in: failed.map((subscription) => subscription.endpoint),
         },
       },
     })
+    console.log(`[volume-alert] Removed ${deleted.count} invalid subscriptions`)
   }
 
   return NextResponse.json({
     success: true,
     total: subscriptions.length,
+    successful,
+    failed: failed.length,
     removed: failed.length,
   })
 }

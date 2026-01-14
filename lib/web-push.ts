@@ -67,17 +67,40 @@ export async function sendBulkNotifications(
   )
 
   const failed: PushSubscription[] = []
+  const errors: Array<{ subscription: PushSubscription; error: unknown }> = []
 
   results.forEach((result, index) => {
     if (result.status === "rejected") {
       const reason = result.reason
+      const subscription = subscriptions[index]
+      
+      // 410 (Gone) ve 404 (Not Found) -> subscription geçersiz, silinmeli
       if (reason?.statusCode === 410 || reason?.statusCode === 404) {
-        failed.push(subscriptions[index])
-      } else {
-        console.error("[push] Failed to send notification", reason)
+        failed.push(subscription)
+        console.warn(`[push] Invalid subscription (${reason?.statusCode}): ${subscription.endpoint.substring(0, 50)}...`)
+      } 
+      // 403 (Forbidden) -> VAPID key sorunu veya permission denied
+      // 429 (Too Many Requests) -> Rate limit
+      // Diğer hatalar -> Network, timeout, vs.
+      else {
+        errors.push({ subscription, error: reason })
+        console.error(`[push] Failed to send notification (${reason?.statusCode || 'unknown'}):`, {
+          endpoint: subscription.endpoint.substring(0, 50) + "...",
+          error: reason?.message || String(reason),
+          statusCode: reason?.statusCode,
+        })
+        // Geçici hatalar için de failed'e ekle (silinmesin ama tekrar denenmesin)
+        // Sadece kalıcı hatalar için failed'e ekle
+        if (reason?.statusCode && reason.statusCode >= 400 && reason.statusCode < 500) {
+          failed.push(subscription)
+        }
       }
     }
   })
 
-  return { failed }
+  if (errors.length > 0) {
+    console.warn(`[push] ${errors.length} notifications failed (non-410/404 errors)`)
+  }
+
+  return { failed, errors }
 }
