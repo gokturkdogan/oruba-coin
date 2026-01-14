@@ -88,8 +88,8 @@ export async function POST(request: NextRequest) {
       .map((sub) => [sub.endpoint, sub.user!.email])
   )
 
-  const title = "Futures Volume Alert"
-  const body = `${params.symbol.toUpperCase()} 15m futures volume: $${formatNumber(params.volumeUsd)}`
+  const title = "Vadeli Hacim Uyarısı"
+  const body = `${params.symbol.toUpperCase()} 15dk vadeli hacim: $${formatNumber(params.volumeUsd)}`
 
   const { failed, errors } = await sendBulkNotifications(formatted, {
     title,

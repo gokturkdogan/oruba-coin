@@ -88,8 +88,8 @@ export async function POST(request: NextRequest) {
       .map((sub) => [sub.endpoint, sub.user!.email])
   )
 
-  const title = "Spot Volume Alert"
-  const body = `${params.symbol.toUpperCase()} 15m spot volume: $${formatNumber(params.volumeUsd)}`
+  const title = "Spot Hacim Uyarısı"
+  const body = `${params.symbol.toUpperCase()} 15dk spot hacim: $${formatNumber(params.volumeUsd)}`
 
   const { failed, errors } = await sendBulkNotifications(formatted, {
     title,
