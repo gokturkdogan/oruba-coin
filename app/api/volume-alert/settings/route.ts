@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       spotVolumeThreshold: settings.spotVolumeThreshold,
       futuresVolumeThreshold: settings.futuresVolumeThreshold,
+      updatedAt: settings.updatedAt.toISOString(),
     })
   } catch (error) {
     console.error('Error fetching volume alert settings:', error)
