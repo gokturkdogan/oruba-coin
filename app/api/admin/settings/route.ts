@@ -111,6 +111,9 @@ export async function PUT(request: NextRequest) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
       
+      console.log('📤 Sending fetch request to worker...');
+      const fetchStartTime = Date.now();
+      
       fetch(fullUrl, {
         method: 'POST',
         headers: {
@@ -121,11 +124,13 @@ export async function PUT(request: NextRequest) {
       })
         .then(async (response) => {
           clearTimeout(timeoutId);
+          const fetchDuration = Date.now() - fetchStartTime;
           console.log('📡 Worker response received:', {
             status: response.status,
             statusText: response.statusText,
             ok: response.ok,
             url: fullUrl,
+            duration: `${fetchDuration}ms`,
           });
           
           if (response.ok) {
@@ -143,6 +148,16 @@ export async function PUT(request: NextRequest) {
         })
         .catch((error) => {
           clearTimeout(timeoutId);
+          const fetchDuration = Date.now() - fetchStartTime;
+          console.error('❌ Fetch error caught:', {
+            errorName: error.name,
+            errorMessage: error.message,
+            errorCode: error.code,
+            errorStack: error.stack?.substring(0, 500),
+            workerUrl: fullUrl,
+            duration: `${fetchDuration}ms`,
+          });
+          
           if (error.name === 'AbortError') {
             console.error('❌ Worker settings refresh timeout (10s)', {
               workerUrl: fullUrl,
@@ -157,6 +172,9 @@ export async function PUT(request: NextRequest) {
               errorCode: error.code,
             });
           }
+        })
+        .finally(() => {
+          console.log('🏁 Fetch request completed (finally block)');
         });
     } else {
       if (!workerApiToken) {
