@@ -80,6 +80,34 @@ export async function PUT(request: NextRequest) {
       },
     })
 
+    // Trigger worker to refresh settings (fire and forget)
+    const workerUrl = process.env.WORKER_URL || 'https://oruba-coin-worker.fly.dev';
+    const workerApiToken = process.env.WORKER_API_TOKEN;
+    
+    if (workerApiToken) {
+      console.log('Triggering worker settings refresh', { workerUrl });
+      fetch(`${workerUrl}/refresh-settings`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${workerApiToken}`,
+          'Content-Type': 'application/json',
+        },
+      })
+        .then((response) => {
+          if (response.ok) {
+            console.log('Worker settings refresh triggered successfully');
+          } else {
+            console.warn('Worker settings refresh returned non-OK status', { status: response.status });
+          }
+        })
+        .catch((error) => {
+          // Silently fail - worker will eventually get the new settings
+          console.error('Failed to trigger worker settings refresh (non-critical):', error);
+        });
+    } else {
+      console.warn('WORKER_API_TOKEN not configured, worker settings refresh skipped');
+    }
+
     return NextResponse.json({ settings })
   } catch (error) {
     if (error instanceof Error && error.message === 'Admin access required') {
