@@ -144,21 +144,23 @@ export async function PUT(request: NextRequest) {
             url: fullUrl,
           });
         }
-      } catch (error: any) {
-        clearTimeout(timeoutId);
-        const fetchDuration = Date.now() - fetchStartTime;
-        if (error.message === 'Timeout' || error.name === 'AbortError') {
-          console.log('⏰ Worker refresh request sent (timeout, but request may have reached worker)');
-        } else {
-          console.error('❌ Failed to trigger worker settings refresh:', {
-            errorName: error.name,
-            errorMessage: error.message,
-            errorCode: error.code,
-            duration: `${fetchDuration}ms`,
-            url: fullUrl,
-          });
+        } catch (error: any) {
+          clearTimeout(timeoutId);
+          const fetchDuration = Date.now() - fetchStartTime;
+          if (error.message === 'Timeout' || error.name === 'AbortError') {
+            console.log('⏰ Worker refresh request sent (timeout, but request may have reached worker)');
+          } else {
+            console.error('❌ Failed to trigger worker settings refresh:', {
+              errorName: error.name,
+              errorMessage: error.message,
+              errorCode: error.code,
+              errorCause: error.cause?.message || error.cause,
+              errorStack: error.stack?.substring(0, 500),
+              duration: `${fetchDuration}ms`,
+              url: fullUrl,
+            });
+          }
         }
-      }
     } else {
       if (!workerApiToken) {
         console.warn('⚠️ WORKER_API_TOKEN not configured, worker settings refresh skipped');
