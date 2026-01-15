@@ -83,9 +83,17 @@ export async function PUT(request: NextRequest) {
     // Trigger worker to refresh settings (fire and forget)
     const workerUrl = process.env.WORKER_URL || 'https://oruba-coin-worker.fly.dev';
     const workerApiToken = process.env.WORKER_API_TOKEN;
+    const pushTriggerToken = process.env.ALERT_TRIGGER_TOKEN;
     
+    console.log('🔔 Triggering worker settings refresh', { 
+      workerUrl, 
+      hasToken: !!workerApiToken,
+      newSpotThreshold: spotVolumeThreshold,
+      newFuturesThreshold: futuresVolumeThreshold,
+    });
+    
+    // Trigger worker refresh
     if (workerApiToken) {
-      console.log('Triggering worker settings refresh', { workerUrl });
       fetch(`${workerUrl}/refresh-settings`, {
         method: 'POST',
         headers: {
@@ -93,19 +101,61 @@ export async function PUT(request: NextRequest) {
           'Content-Type': 'application/json',
         },
       })
-        .then((response) => {
+        .then(async (response) => {
           if (response.ok) {
-            console.log('Worker settings refresh triggered successfully');
+            const result = await response.json().catch(() => ({}));
+            console.log('✅ Worker settings refresh triggered successfully', result);
           } else {
-            console.warn('Worker settings refresh returned non-OK status', { status: response.status });
+            const errorText = await response.text().catch(() => 'Unknown error');
+            console.warn('⚠️ Worker settings refresh returned non-OK status', { 
+              status: response.status,
+              statusText: response.statusText,
+              error: errorText,
+            });
           }
         })
         .catch((error) => {
-          // Silently fail - worker will eventually get the new settings
-          console.error('Failed to trigger worker settings refresh (non-critical):', error);
+          console.error('❌ Failed to trigger worker settings refresh:', error.message);
         });
     } else {
-      console.warn('WORKER_API_TOKEN not configured, worker settings refresh skipped');
+      console.warn('⚠️ WORKER_API_TOKEN not configured, worker settings refresh skipped');
+    }
+
+    // Send push notification to all users about the update
+    if (pushTriggerToken) {
+      const baseUrl = process.env.VERCEL_BASE_URL || 'https://orubacoin.com';
+      
+      fetch(`${baseUrl}/api/push/admin-settings-update`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${pushTriggerToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          spotThreshold: settings.spotVolumeThreshold,
+          futuresThreshold: settings.futuresVolumeThreshold,
+        }),
+      })
+        .then(async (response) => {
+          if (response.ok) {
+            const result = await response.json().catch(() => ({}));
+            console.log('✅ Settings update notification sent successfully', {
+              sentTo: result.successful || 0,
+              total: result.total || 0,
+            });
+          } else {
+            const errorText = await response.text().catch(() => 'Unknown error');
+            console.warn('⚠️ Settings update notification failed', { 
+              status: response.status,
+              error: errorText,
+            });
+          }
+        })
+        .catch((error) => {
+          console.error('❌ Failed to send settings update notification:', error.message);
+        });
+    } else {
+      console.warn('⚠️ ALERT_TRIGGER_TOKEN not configured, settings update notification skipped');
     }
 
     return NextResponse.json({ settings })
