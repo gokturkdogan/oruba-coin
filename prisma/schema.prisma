@@ -213,3 +213,12 @@ model PriceAlert {
   @@index([isActive, market])
   @@map("price_alerts")
 }
+
+model Settings {
+  id                      String   @id @default("singleton")
+  spotVolumeThreshold     Float    @default(400000) @map("spot_volume_threshold")
+  futuresVolumeThreshold  Float    @default(600000) @map("futures_volume_threshold")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+  
+  @@map("settings")
+}

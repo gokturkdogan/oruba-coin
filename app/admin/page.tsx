@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Users, Shield, TrendingUp, UserCheck, Mail } from 'lucide-react'
+import { Users, Shield, TrendingUp, UserCheck, Mail, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { formatNumberTR } from '@/lib/utils'
 
@@ -156,6 +156,12 @@ export default function AdminDashboardPage() {
               <Link href="/admin/users">
                 <Users className="mr-2 h-4 w-4" />
                 Kullanıcı Yönetimi
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="justify-start">
+              <Link href="/admin/settings">
+                <Settings className="mr-2 h-4 w-4" />
+                Sistem Ayarları
               </Link>
             </Button>
           </CardContent>
