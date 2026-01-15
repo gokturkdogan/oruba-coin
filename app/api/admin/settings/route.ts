@@ -92,46 +92,64 @@ export async function PUT(request: NextRequest) {
       newFuturesThreshold: futuresVolumeThreshold,
     });
     
-    // Trigger worker refresh with timeout to ensure it completes before response
+    // Trigger worker refresh - wait for it to complete (with timeout)
     if (workerApiToken && workerUrl) {
       const fullUrl = `${workerUrl}/refresh-settings`;
       console.log('📤 Sending fetch request to worker...', { fullUrl });
       
       const fetchStartTime = Date.now();
       
-      // Start fetch request (fire and forget, but log immediately)
-      fetch(fullUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${workerApiToken}`,
-          'Content-Type': 'application/json',
-        },
-      })
-        .then(async (response) => {
-          const fetchDuration = Date.now() - fetchStartTime;
-          console.log('📡 Worker response received:', {
+      // Use AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        console.log('⏰ Worker refresh timeout after 2s, continuing anyway...');
+        controller.abort();
+      }, 2000);
+      
+      try {
+        // Wait for fetch to complete (with timeout)
+        const response = await Promise.race([
+          fetch(fullUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${workerApiToken}`,
+              'Content-Type': 'application/json',
+            },
+            signal: controller.signal,
+          }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout')), 2000)
+          ),
+        ]) as Response;
+        
+        clearTimeout(timeoutId);
+        const fetchDuration = Date.now() - fetchStartTime;
+        console.log('📡 Worker response received:', {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
+          duration: `${fetchDuration}ms`,
+          url: fullUrl,
+        });
+        
+        if (response.ok) {
+          const result = await response.json().catch(() => ({}));
+          console.log('✅ Worker settings refresh triggered successfully', result);
+        } else {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          console.warn('⚠️ Worker settings refresh returned non-OK status', { 
             status: response.status,
             statusText: response.statusText,
-            ok: response.ok,
-            duration: `${fetchDuration}ms`,
-          url: fullUrl,
+            error: errorText,
+            url: fullUrl,
           });
-          
-          if (response.ok) {
-            const result = await response.json().catch(() => ({}));
-            console.log('✅ Worker settings refresh triggered successfully', result);
-          } else {
-            const errorText = await response.text().catch(() => 'Unknown error');
-            console.warn('⚠️ Worker settings refresh returned non-OK status', { 
-              status: response.status,
-              statusText: response.statusText,
-              error: errorText,
-              url: fullUrl,
-            });
-          }
-        })
-        .catch((error: any) => {
-          const fetchDuration = Date.now() - fetchStartTime;
+        }
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        const fetchDuration = Date.now() - fetchStartTime;
+        if (error.message === 'Timeout' || error.name === 'AbortError') {
+          console.log('⏰ Worker refresh request sent (timeout, but request may have reached worker)');
+        } else {
           console.error('❌ Failed to trigger worker settings refresh:', {
             errorName: error.name,
             errorMessage: error.message,
@@ -139,7 +157,8 @@ export async function PUT(request: NextRequest) {
             duration: `${fetchDuration}ms`,
             url: fullUrl,
           });
-        });
+        }
+      }
     } else {
       if (!workerApiToken) {
         console.warn('⚠️ WORKER_API_TOKEN not configured, worker settings refresh skipped');
