@@ -81,7 +81,19 @@ export async function PUT(request: NextRequest) {
     })
 
     // Trigger worker to refresh settings (with timeout to ensure logs are written)
-    const workerUrl = process.env.WORKER_URL || 'https://oruba-coin-worker.fly.dev';
+    // Try multiple URL formats if WORKER_URL is not set
+    let workerUrl = process.env.WORKER_URL || 'https://oruba-coin-worker.fly.dev';
+    
+    // Remove trailing slash if present
+    workerUrl = workerUrl.replace(/\/$/, '');
+    
+    // Log the URL being used for debugging
+    console.log('🔍 Worker URL check:', {
+      workerUrl,
+      hasEnvVar: !!process.env.WORKER_URL,
+      envVarValue: process.env.WORKER_URL,
+      nodeEnv: process.env.NODE_ENV,
+    });
     const workerApiToken = process.env.WORKER_API_TOKEN;
     const pushTriggerToken = process.env.ALERT_TRIGGER_TOKEN;
     
