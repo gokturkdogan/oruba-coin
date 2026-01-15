@@ -93,15 +93,41 @@ export async function PUT(request: NextRequest) {
     });
     
     // Trigger worker refresh
-    if (workerApiToken) {
-      fetch(`${workerUrl}/refresh-settings`, {
+    console.log('🔍 Worker refresh check:', {
+      hasWorkerUrl: !!workerUrl,
+      workerUrl,
+      hasWorkerApiToken: !!workerApiToken,
+      tokenLength: workerApiToken?.length || 0,
+    });
+    
+    if (workerApiToken && workerUrl) {
+      const fullUrl = `${workerUrl}/refresh-settings`;
+      console.log('🔔 Triggering worker settings refresh', { 
+        fullUrl,
+        method: 'POST',
+      });
+      
+      // Use AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      fetch(fullUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${workerApiToken}`,
           'Content-Type': 'application/json',
         },
+        signal: controller.signal,
       })
         .then(async (response) => {
+          clearTimeout(timeoutId);
+          console.log('📡 Worker response received:', {
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok,
+            url: fullUrl,
+          });
+          
           if (response.ok) {
             const result = await response.json().catch(() => ({}));
             console.log('✅ Worker settings refresh triggered successfully', result);
@@ -111,14 +137,34 @@ export async function PUT(request: NextRequest) {
               status: response.status,
               statusText: response.statusText,
               error: errorText,
+              workerUrl: fullUrl,
             });
           }
         })
         .catch((error) => {
-          console.error('❌ Failed to trigger worker settings refresh:', error.message);
+          clearTimeout(timeoutId);
+          if (error.name === 'AbortError') {
+            console.error('❌ Worker settings refresh timeout (10s)', {
+              workerUrl: fullUrl,
+              error: 'Request timeout',
+            });
+          } else {
+            console.error('❌ Failed to trigger worker settings refresh:', {
+              message: error.message,
+              stack: error.stack,
+              workerUrl: fullUrl,
+              errorName: error.name,
+              errorCode: error.code,
+            });
+          }
         });
     } else {
-      console.warn('⚠️ WORKER_API_TOKEN not configured, worker settings refresh skipped');
+      if (!workerApiToken) {
+        console.warn('⚠️ WORKER_API_TOKEN not configured, worker settings refresh skipped');
+      }
+      if (!workerUrl) {
+        console.warn('⚠️ WORKER_URL not configured, worker settings refresh skipped');
+      }
     }
 
     // Send push notification to all users about the update
