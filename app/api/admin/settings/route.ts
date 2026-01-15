@@ -80,7 +80,7 @@ export async function PUT(request: NextRequest) {
       },
     })
 
-    // Trigger worker to refresh settings (fire and forget)
+    // Trigger worker to refresh settings (with timeout to ensure logs are written)
     const workerUrl = process.env.WORKER_URL || 'https://oruba-coin-worker.fly.dev';
     const workerApiToken = process.env.WORKER_API_TOKEN;
     const pushTriggerToken = process.env.ALERT_TRIGGER_TOKEN;
@@ -92,51 +92,29 @@ export async function PUT(request: NextRequest) {
       newFuturesThreshold: futuresVolumeThreshold,
     });
     
-    // Trigger worker refresh (fire and forget, but with proper error handling)
-    console.log('🔍 Worker refresh check:', {
-      hasWorkerUrl: !!workerUrl,
-      workerUrl,
-      hasWorkerApiToken: !!workerApiToken,
-      tokenLength: workerApiToken?.length || 0,
-    });
-    
+    // Trigger worker refresh with timeout to ensure it completes before response
     if (workerApiToken && workerUrl) {
       const fullUrl = `${workerUrl}/refresh-settings`;
-      console.log('🔔 Triggering worker settings refresh', { 
-        fullUrl,
-        method: 'POST',
-      });
+      console.log('📤 Sending fetch request to worker...', { fullUrl });
       
-      // Use AbortController for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        console.log('⏰ Timeout triggered, aborting request after 3s...');
-        controller.abort();
-      }, 3000); // 3 second timeout (shorter for faster feedback)
-      
-      console.log('📤 Sending fetch request to worker...');
       const fetchStartTime = Date.now();
       
-      // Use async IIFE to properly handle the promise
-      (async () => {
-        try {
-          const response = await fetch(fullUrl, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${workerApiToken}`,
-              'Content-Type': 'application/json',
-            },
-            signal: controller.signal,
-          });
-          
-          clearTimeout(timeoutId);
+      // Start fetch request (fire and forget, but log immediately)
+      fetch(fullUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${workerApiToken}`,
+          'Content-Type': 'application/json',
+        },
+      })
+        .then(async (response) => {
           const fetchDuration = Date.now() - fetchStartTime;
           console.log('📡 Worker response received:', {
             status: response.status,
             statusText: response.statusText,
             ok: response.ok,
-            url: fullUrl,
             duration: `${fetchDuration}ms`,
+          url: fullUrl,
           });
           
           if (response.ok) {
@@ -148,39 +126,20 @@ export async function PUT(request: NextRequest) {
               status: response.status,
               statusText: response.statusText,
               error: errorText,
-              workerUrl: fullUrl,
+              url: fullUrl,
             });
           }
-        } catch (error: any) {
-          clearTimeout(timeoutId);
+        })
+        .catch((error: any) => {
           const fetchDuration = Date.now() - fetchStartTime;
-          console.error('❌ Fetch error caught:', {
+          console.error('❌ Failed to trigger worker settings refresh:', {
             errorName: error.name,
             errorMessage: error.message,
             errorCode: error.code,
-            errorStack: error.stack?.substring(0, 500),
-            workerUrl: fullUrl,
             duration: `${fetchDuration}ms`,
+            url: fullUrl,
           });
-          
-          if (error.name === 'AbortError') {
-            console.error('❌ Worker settings refresh timeout (5s)', {
-              workerUrl: fullUrl,
-              error: 'Request timeout',
-            });
-          } else {
-            console.error('❌ Failed to trigger worker settings refresh:', {
-              message: error.message,
-              stack: error.stack,
-              workerUrl: fullUrl,
-              errorName: error.name,
-              errorCode: error.code,
-            });
-          }
-        } finally {
-          console.log('🏁 Fetch request completed (finally block)');
-        }
-      })();
+        });
     } else {
       if (!workerApiToken) {
         console.warn('⚠️ WORKER_API_TOKEN not configured, worker settings refresh skipped');
