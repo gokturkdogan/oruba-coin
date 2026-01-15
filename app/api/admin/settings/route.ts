@@ -92,7 +92,7 @@ export async function PUT(request: NextRequest) {
       newFuturesThreshold: futuresVolumeThreshold,
     });
     
-    // Trigger worker refresh
+    // Trigger worker refresh (fire and forget, but with proper error handling)
     console.log('🔍 Worker refresh check:', {
       hasWorkerUrl: !!workerUrl,
       workerUrl,
@@ -109,20 +109,26 @@ export async function PUT(request: NextRequest) {
       
       // Use AbortController for timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      const timeoutId = setTimeout(() => {
+        console.log('⏰ Timeout triggered, aborting request after 3s...');
+        controller.abort();
+      }, 3000); // 3 second timeout (shorter for faster feedback)
       
       console.log('📤 Sending fetch request to worker...');
       const fetchStartTime = Date.now();
       
-      fetch(fullUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${workerApiToken}`,
-          'Content-Type': 'application/json',
-        },
-        signal: controller.signal,
-      })
-        .then(async (response) => {
+      // Use async IIFE to properly handle the promise
+      (async () => {
+        try {
+          const response = await fetch(fullUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${workerApiToken}`,
+              'Content-Type': 'application/json',
+            },
+            signal: controller.signal,
+          });
+          
           clearTimeout(timeoutId);
           const fetchDuration = Date.now() - fetchStartTime;
           console.log('📡 Worker response received:', {
@@ -145,8 +151,7 @@ export async function PUT(request: NextRequest) {
               workerUrl: fullUrl,
             });
           }
-        })
-        .catch((error) => {
+        } catch (error: any) {
           clearTimeout(timeoutId);
           const fetchDuration = Date.now() - fetchStartTime;
           console.error('❌ Fetch error caught:', {
@@ -159,7 +164,7 @@ export async function PUT(request: NextRequest) {
           });
           
           if (error.name === 'AbortError') {
-            console.error('❌ Worker settings refresh timeout (10s)', {
+            console.error('❌ Worker settings refresh timeout (5s)', {
               workerUrl: fullUrl,
               error: 'Request timeout',
             });
@@ -172,10 +177,10 @@ export async function PUT(request: NextRequest) {
               errorCode: error.code,
             });
           }
-        })
-        .finally(() => {
+        } finally {
           console.log('🏁 Fetch request completed (finally block)');
-        });
+        }
+      })();
     } else {
       if (!workerApiToken) {
         console.warn('⚠️ WORKER_API_TOKEN not configured, worker settings refresh skipped');
