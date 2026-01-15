@@ -115,92 +115,165 @@ export function Navbar() {
       <nav className="border-b border-white/10 glass-effect-dark sticky top-0 z-50">
         <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2 sm:gap-4 lg:gap-6 min-w-0 flex-1">
               <a 
                 href="/" 
                 onClick={(e) => {
                   e.preventDefault()
                   window.location.href = '/'
                 }}
-                className="flex items-center space-x-2 group cursor-pointer"
+                className="flex items-center space-x-2 group cursor-pointer flex-shrink-0"
               >
-                <span className="font-bold text-xl gradient-text">Oruba Coin</span>
-                <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">₿</span>
+                <span className="font-bold text-lg sm:text-xl gradient-text">Oruba Coin</span>
+                <span className="hidden sm:inline text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">₿</span>
               </a>
-              <div className="flex items-center gap-2">
+              <div className="hidden md:flex items-center gap-1 lg:gap-2 overflow-x-auto">
                 <Link
                   href="/admin"
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
+                  className={`flex items-center gap-1 lg:gap-2 px-2 lg:px-3 py-1.5 rounded-md text-xs lg:text-sm transition-colors whitespace-nowrap ${
                     pathname === '/admin'
                       ? 'bg-primary/20 text-primary'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   }`}
                 >
-                  <Home className="h-4 w-4" />
-                  Dashboard
+                  <Home className="h-3 w-3 lg:h-4 lg:w-4" />
+                  <span className="hidden lg:inline">Dashboard</span>
                 </Link>
                 <Link
                   href="/admin/users"
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
+                  className={`flex items-center gap-1 lg:gap-2 px-2 lg:px-3 py-1.5 rounded-md text-xs lg:text-sm transition-colors whitespace-nowrap ${
                     pathname === '/admin/users'
                       ? 'bg-primary/20 text-primary'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   }`}
                 >
-                  <Shield className="h-4 w-4" />
-                  Kullanıcılar
+                  <Shield className="h-3 w-3 lg:h-4 lg:w-4" />
+                  <span className="hidden lg:inline">Kullanıcılar</span>
                 </Link>
                 <Link
                   href="/admin/payments"
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
+                  className={`flex items-center gap-1 lg:gap-2 px-2 lg:px-3 py-1.5 rounded-md text-xs lg:text-sm transition-colors whitespace-nowrap ${
                     pathname === '/admin/payments'
                       ? 'bg-primary/20 text-primary'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   }`}
                 >
-                  <DollarSign className="h-4 w-4" />
-                  Ödemeler
+                  <DollarSign className="h-3 w-3 lg:h-4 lg:w-4" />
+                  <span className="hidden lg:inline">Ödemeler</span>
                 </Link>
                 <Link
                   href="/admin/bank-account"
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
+                  className={`flex items-center gap-1 lg:gap-2 px-2 lg:px-3 py-1.5 rounded-md text-xs lg:text-sm transition-colors whitespace-nowrap ${
                     pathname === '/admin/bank-account'
                       ? 'bg-primary/20 text-primary'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   }`}
                 >
-                  <Building2 className="h-4 w-4" />
-                  IBAN Bilgileri
+                  <Building2 className="h-3 w-3 lg:h-4 lg:w-4" />
+                  <span className="hidden lg:inline">IBAN</span>
                 </Link>
                 <Link
                   href="/admin/plans"
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
+                  className={`flex items-center gap-1 lg:gap-2 px-2 lg:px-3 py-1.5 rounded-md text-xs lg:text-sm transition-colors whitespace-nowrap ${
                     pathname === '/admin/plans'
                       ? 'bg-primary/20 text-primary'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   }`}
                 >
-                  <CreditCard className="h-4 w-4" />
-                  Planlar
+                  <CreditCard className="h-3 w-3 lg:h-4 lg:w-4" />
+                  <span className="hidden lg:inline">Planlar</span>
                 </Link>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5 text-primary" />
-                <span className="font-bold text-lg gradient-text">Admin</span>
+            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              >
+                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              </Button>
+              <div className="hidden md:flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 lg:h-5 lg:w-5 text-primary" />
+                <span className="font-bold text-base lg:text-lg gradient-text">Admin</span>
               </div>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleLogout}
-                className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                className="text-red-400 hover:text-red-300 hover:bg-red-500/10 text-xs sm:text-sm"
               >
-                <LogOut className="mr-2 h-4 w-4" />
-                Çıkış
+                <LogOut className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Çıkış</span>
               </Button>
             </div>
           </div>
+          {/* Mobile menu for admin */}
+          {mobileMenuOpen && (
+            <div className="md:hidden border-t border-white/10 py-4 space-y-2">
+              <Link
+                href="/admin"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                  pathname === '/admin'
+                    ? 'text-primary bg-primary/10'
+                    : 'text-foreground/70 hover:bg-white/5'
+                }`}
+              >
+                <Home className="h-4 w-4" />
+                Dashboard
+              </Link>
+              <Link
+                href="/admin/users"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                  pathname === '/admin/users'
+                    ? 'text-primary bg-primary/10'
+                    : 'text-foreground/70 hover:bg-white/5'
+                }`}
+              >
+                <Shield className="h-4 w-4" />
+                Kullanıcılar
+              </Link>
+              <Link
+                href="/admin/payments"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                  pathname === '/admin/payments'
+                    ? 'text-primary bg-primary/10'
+                    : 'text-foreground/70 hover:bg-white/5'
+                }`}
+              >
+                <DollarSign className="h-4 w-4" />
+                Ödemeler
+              </Link>
+              <Link
+                href="/admin/bank-account"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                  pathname === '/admin/bank-account'
+                    ? 'text-primary bg-primary/10'
+                    : 'text-foreground/70 hover:bg-white/5'
+                }`}
+              >
+                <Building2 className="h-4 w-4" />
+                IBAN Bilgileri
+              </Link>
+              <Link
+                href="/admin/plans"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                  pathname === '/admin/plans'
+                    ? 'text-primary bg-primary/10'
+                    : 'text-foreground/70 hover:bg-white/5'
+                }`}
+              >
+                <CreditCard className="h-4 w-4" />
+                Planlar
+              </Link>
+            </div>
+          )}
         </div>
       </nav>
     )
