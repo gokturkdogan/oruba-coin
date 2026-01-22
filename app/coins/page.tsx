@@ -34,11 +34,11 @@ export default function CoinsPage() {
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<SortBy>('volume')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
-  const wsRef = useRef<WebSocket | null>(null)
-  const futuresWsRef = useRef<WebSocket | null>(null)
+  const wsRef = useRef<WebSocket[]>([])
   const coinsMapRef = useRef<Map<string, Coin>>(new Map())
   const previousPricesRef = useRef<Map<string, number>>(new Map())
   const [flashAnimations, setFlashAnimations] = useState<Record<string, 'up' | 'down'>>({})
+  const [wsConnectedSymbols, setWsConnectedSymbols] = useState<Set<string>>(new Set())
   const sortByRef = useRef<SortBy>(sortBy)
   const sortOrderRef = useRef<SortOrder>(sortOrder)
   const searchRef = useRef<string>(search)
@@ -78,28 +78,31 @@ export default function CoinsPage() {
 
   const subscribeToWebSocket = (symbols: string[]) => {
     // Close existing connections
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.close()
-      wsRef.current = null
-    }
-    if (futuresWsRef.current && futuresWsRef.current.readyState === WebSocket.OPEN) {
-      futuresWsRef.current.close()
-      futuresWsRef.current = null
-    }
+    wsRef.current.forEach(ws => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close()
+      }
+    })
+    wsRef.current = []
 
     if (symbols.length === 0) return
 
     // Binance allows up to 200 streams in a single connection
-    // We'll subscribe to top 200 symbols (Binance limit)
-    const limitedSymbols = symbols.slice(0, 200).map((s) => s.toUpperCase())
-    const streams = limitedSymbols
-      .map((s) => `${s.toLowerCase()}@ticker`)
-      .join('/')
+    // Coinleri 200'lük gruplara böl ve her grup için ayrı WebSocket bağlantısı aç (maksimum 3)
+    const BATCH_SIZE = 200
+    const MAX_SOCKETS = 3
+    const symbolBatches: string[][] = []
+    
+    for (let i = 0; i < symbols.length && symbolBatches.length < MAX_SOCKETS; i += BATCH_SIZE) {
+      symbolBatches.push(symbols.slice(i, i + BATCH_SIZE))
+    }
 
-    // Spot WebSocket
-    const spotWsUrl = `wss://stream.binance.com:9443/stream?streams=${streams}`
-    // Futures WebSocket
-    const futuresWsUrl = `wss://fstream.binance.com/stream?streams=${streams}`
+    // Tüm socket'lere dahil edilen coinleri topla
+    const allConnectedSymbols = new Set<string>()
+    symbolBatches.forEach(batch => {
+      batch.forEach(s => allConnectedSymbols.add(s.toUpperCase()))
+    })
+    setWsConnectedSymbols(allConnectedSymbols)
 
     // Helper function to update coins and trigger re-render
     const updateCoinsDisplay = () => {
@@ -111,161 +114,110 @@ export default function CoinsPage() {
       setCoins(filtered)
     }
 
-    // Spot WebSocket
-    try {
-      const spotWs = new WebSocket(spotWsUrl)
+    // Her batch için WebSocket bağlantısı oluştur
+    symbolBatches.forEach((batch, batchIndex) => {
+      const limitedSymbols = batch.map((s) => s.toUpperCase())
+      const streams = limitedSymbols
+        .map((s) => `${s.toLowerCase()}@ticker`)
+        .join('/')
 
-      spotWs.onopen = () => {
-        console.log('Spot WebSocket connected')
-      }
+      // Spot WebSocket
+      const spotWsUrl = `wss://stream.binance.com:9443/stream?streams=${streams}`
 
-      spotWs.onmessage = (event) => {
-        // Component unmount edilmişse mesaj işleme
-        if (!isMountedRef.current) return
-        
-        try {
-          const message = JSON.parse(event.data)
-          if (message.stream && message.data) {
-            const stream = message.stream
-            const data = message.data
-            const symbol = stream.split('@')[0].toUpperCase()
+      try {
+        const spotWs = new WebSocket(spotWsUrl)
 
-            // Only update if this symbol is in our map and component is mounted
-            if (isMountedRef.current && coinsMapRef.current.has(symbol)) {
-              const existingCoin = coinsMapRef.current.get(symbol)!
-              const previousPrice = previousPricesRef.current.get(symbol)
-              const currentPrice = parseFloat(data.c || data.lastPrice || '0')
+        spotWs.onopen = () => {
+          console.log(`Spot WebSocket connected (socket ${batchIndex + 1}/${symbolBatches.length}, ${limitedSymbols.length} symbols)`)
+        }
 
-              // Update coin data, preserving futures data
-              const updatedCoin: Coin = {
-                symbol,
-                price: data.c || data.lastPrice || '0',
-                priceChangePercent: data.P || data.priceChangePercent || '0',
-                volume: data.v || data.volume || '0',
-                quoteVolume: data.q || data.quoteVolume || '0',
-                futuresVolume: existingCoin.futuresVolume,
-                futuresQuoteVolume: existingCoin.futuresQuoteVolume,
-              }
-              
-              // Check if price changed and trigger flash animation
-              if (isMountedRef.current && previousPrice !== undefined && previousPrice !== 0 && currentPrice !== 0 && currentPrice !== previousPrice) {
-                const priceDiff = Math.abs(currentPrice - previousPrice)
-                const priceChangePercent = (priceDiff / previousPrice) * 100
+        spotWs.onmessage = (event) => {
+          // Component unmount edilmişse mesaj işleme
+          if (!isMountedRef.current) return
+          
+          try {
+            const message = JSON.parse(event.data)
+            if (message.stream && message.data) {
+              const stream = message.stream
+              const data = message.data
+              const symbol = stream.split('@')[0].toUpperCase()
+
+              // Only update if this symbol is in our map and component is mounted
+              if (isMountedRef.current && coinsMapRef.current.has(symbol)) {
+                const existingCoin = coinsMapRef.current.get(symbol)!
+                const previousPrice = previousPricesRef.current.get(symbol)
+                const currentPrice = parseFloat(data.c || data.lastPrice || '0')
+
+                // Update coin data
+                const updatedCoin: Coin = {
+                  symbol,
+                  price: data.c || data.lastPrice || '0',
+                  priceChangePercent: data.P || data.priceChangePercent || '0',
+                  volume: data.v || data.volume || '0',
+                  quoteVolume: data.q || data.quoteVolume || '0',
+                  futuresVolume: existingCoin.futuresVolume || '0',
+                  futuresQuoteVolume: existingCoin.futuresQuoteVolume || '0',
+                }
                 
-                if (priceChangePercent >= 0.001 || priceDiff >= 0.00000001) {
-                  const flashType = currentPrice > previousPrice ? 'up' : 'down'
+                // Check if price changed and trigger flash animation
+                if (isMountedRef.current && previousPrice !== undefined && previousPrice !== 0 && currentPrice !== 0 && currentPrice !== previousPrice) {
+                  const priceDiff = Math.abs(currentPrice - previousPrice)
+                  const priceChangePercent = (priceDiff / previousPrice) * 100
                   
-                  if (isMountedRef.current) {
-                    setFlashAnimations(prev => ({
-                      ...prev,
-                      [symbol]: flashType
-                    }))
+                  if (priceChangePercent >= 0.001 || priceDiff >= 0.00000001) {
+                    const flashType = currentPrice > previousPrice ? 'up' : 'down'
                     
-                    setTimeout(() => {
-                      if (isMountedRef.current) {
-                        setFlashAnimations(prev => {
-                          const { [symbol]: _, ...rest } = prev
-                          return rest
-                        })
-                      }
-                    }, 1200)
+                    if (isMountedRef.current) {
+                      setFlashAnimations(prev => ({
+                        ...prev,
+                        [symbol]: flashType
+                      }))
+                      
+                      setTimeout(() => {
+                        if (isMountedRef.current) {
+                          setFlashAnimations(prev => {
+                            const { [symbol]: _, ...rest } = prev
+                            return rest
+                          })
+                        }
+                      }, 1200)
+                    }
                   }
                 }
+                
+                // Update previous price
+                previousPricesRef.current.set(symbol, currentPrice)
+                coinsMapRef.current.set(symbol, updatedCoin)
+                updateCoinsDisplay()
               }
-              
-              // Update previous price
-              previousPricesRef.current.set(symbol, currentPrice)
-              coinsMapRef.current.set(symbol, updatedCoin)
-              updateCoinsDisplay()
             }
+          } catch (error) {
+            console.error('Error parsing Spot WebSocket message:', error)
           }
-        } catch (error) {
-          console.error('Error parsing Spot WebSocket message:', error)
         }
-      }
 
-      spotWs.onerror = (error) => {
-        console.error('Spot WebSocket error:', error)
-      }
-
-      spotWs.onclose = () => {
-        // Component unmount edilmişse yeniden bağlanma
-        if (isMountedRef.current && wsRef.current === spotWs) {
-          console.log('Spot WebSocket disconnected, reconnecting...')
-          setTimeout(() => {
-            const currentSymbols = Array.from(coinsMapRef.current.keys())
-            if (isMountedRef.current && currentSymbols.length > 0 && wsRef.current === spotWs) {
-              subscribeToWebSocket(currentSymbols)
-            }
-          }, 3000)
+        spotWs.onerror = (error) => {
+          console.error(`Spot WebSocket error (socket ${batchIndex + 1}):`, error)
         }
-      }
 
-      wsRef.current = spotWs
-    } catch (error) {
-      console.error('Failed to create Spot WebSocket:', error)
-    }
-
-    // Futures WebSocket
-    try {
-      const futuresWs = new WebSocket(futuresWsUrl)
-
-      futuresWs.onopen = () => {
-        console.log('Futures WebSocket connected')
-      }
-
-      futuresWs.onmessage = (event) => {
-        // Component unmount edilmişse mesaj işleme
-        if (!isMountedRef.current) return
-        
-        try {
-          const message = JSON.parse(event.data)
-          if (message.stream && message.data) {
-            const stream = message.stream
-            const data = message.data
-            const symbol = stream.split('@')[0].toUpperCase()
-
-            // Only update if this symbol is in our map and component is mounted
-            if (isMountedRef.current && coinsMapRef.current.has(symbol)) {
-              const existingCoin = coinsMapRef.current.get(symbol)!
-              
-              // Update coin data, preserving spot data and updating only futures volume
-              const updatedCoin: Coin = {
-                ...existingCoin,
-                futuresVolume: data.v || data.volume || existingCoin.futuresVolume || '0',
-                futuresQuoteVolume: data.q || data.quoteVolume || existingCoin.futuresQuoteVolume || '0',
+        spotWs.onclose = () => {
+          // Component unmount edilmişse yeniden bağlanma
+          if (isMountedRef.current && wsRef.current.includes(spotWs)) {
+            console.log(`Spot WebSocket disconnected (socket ${batchIndex + 1}), reconnecting...`)
+            setTimeout(() => {
+              const currentSymbols = Array.from(coinsMapRef.current.keys())
+              if (isMountedRef.current && currentSymbols.length > 0 && wsRef.current.includes(spotWs)) {
+                subscribeToWebSocket(currentSymbols)
               }
-              
-              coinsMapRef.current.set(symbol, updatedCoin)
-              updateCoinsDisplay()
-            }
+            }, 3000)
           }
-        } catch (error) {
-          console.error('Error parsing Futures WebSocket message:', error)
         }
-      }
 
-      futuresWs.onerror = (error) => {
-        console.error('Futures WebSocket error:', error)
+        wsRef.current.push(spotWs)
+      } catch (error) {
+        console.error(`Failed to create Spot WebSocket (socket ${batchIndex + 1}):`, error)
       }
-
-      futuresWs.onclose = () => {
-        // Component unmount edilmişse yeniden bağlanma
-        if (isMountedRef.current && futuresWsRef.current === futuresWs) {
-          console.log('Futures WebSocket disconnected, reconnecting...')
-          setTimeout(() => {
-            const currentSymbols = Array.from(coinsMapRef.current.keys())
-            if (isMountedRef.current && currentSymbols.length > 0 && futuresWsRef.current === futuresWs) {
-              subscribeToWebSocket(currentSymbols)
-            }
-          }, 3000)
-        }
-      }
-
-      futuresWsRef.current = futuresWs
-    } catch (error) {
-      console.error('Failed to create Futures WebSocket:', error)
-    }
+    })
   }
 
   const sortCoins = useCallback((coinList: Coin[], by: SortBy, order: SortOrder): Coin[] => {
@@ -327,34 +279,22 @@ export default function CoinsPage() {
       isMountedRef.current = false
       
       // Tüm event handler'ları kaldır ve WebSocket'leri kapat
-      if (wsRef.current) {
-        try {
-          wsRef.current.onmessage = null
-          wsRef.current.onerror = null
-          wsRef.current.onclose = null
-          wsRef.current.onopen = null
-          if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
-            wsRef.current.close()
+      wsRef.current.forEach(ws => {
+        if (ws) {
+          try {
+            ws.onmessage = null
+            ws.onerror = null
+            ws.onclose = null
+            ws.onopen = null
+            if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+              ws.close()
+            }
+          } catch (error) {
+            console.error('Error closing WebSocket:', error)
           }
-        } catch (error) {
-          console.error('Error closing spot WebSocket:', error)
         }
-        wsRef.current = null
-      }
-      if (futuresWsRef.current) {
-        try {
-          futuresWsRef.current.onmessage = null
-          futuresWsRef.current.onerror = null
-          futuresWsRef.current.onclose = null
-          futuresWsRef.current.onopen = null
-          if (futuresWsRef.current.readyState === WebSocket.OPEN || futuresWsRef.current.readyState === WebSocket.CONNECTING) {
-            futuresWsRef.current.close()
-          }
-        } catch (error) {
-          console.error('Error closing futures WebSocket:', error)
-        }
-        futuresWsRef.current = null
-      }
+      })
+      wsRef.current = []
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -499,15 +439,22 @@ export default function CoinsPage() {
             {/* Custom Table - Pixel Perfect */}
                 <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto', minWidth: '800px' }}>
                   <colgroup>
+                    <col className="md:w-[60px] w-[50px]" />
                     <col className="md:w-[180px] w-[120px]" />
                     <col className="md:w-auto w-[140px]" />
                     <col className="md:w-[180px] w-[140px]" />
-                    <col className="md:w-auto w-[130px]" />
-                    <col className="md:w-auto w-[130px]" />
-                    <col className="md:w-[150px] w-[120px]" />
+                    <col className="md:w-[200px] w-[120px]" />
                   </colgroup>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', backgroundColor: 'rgba(255, 255, 255, 0.05)' }}>
+                  <th className="md:w-[60px] md:min-w-[60px] md:max-w-[60px] w-[50px] min-w-[50px]" style={{ 
+                    textAlign: 'center', 
+                    padding: '8px 12px',
+                    fontWeight: 600, 
+                    color: 'var(--muted-foreground)',
+                  }}>
+                    <span>#</span>
+                  </th>
                   <th className="md:w-[180px] md:min-w-[180px] md:max-w-[180px] w-[120px] min-w-[120px]" style={{ 
                     textAlign: 'left', 
                     padding: '8px 12px',
@@ -595,62 +542,6 @@ export default function CoinsPage() {
                       <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
                     </button>
                   </th>
-                  <th className="md:w-auto w-[130px] min-w-[130px]" style={{ 
-                    textAlign: 'left', 
-                    padding: '8px 12px',
-                    fontWeight: 600, 
-                    color: 'var(--muted-foreground)'
-                  }}>
-                    <button
-                      onClick={() => handleSort('volume')}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        width: '100%',
-                        textAlign: 'left',
-                        background: 'transparent',
-                        border: 'none',
-                        padding: 0,
-                        margin: 0,
-                        cursor: 'pointer',
-                        color: 'inherit'
-                      }}
-                      onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
-                      onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}
-                    >
-                      <span>Spot Hacim</span>
-                      <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
-                    </button>
-                  </th>
-                  <th className="md:w-auto w-[130px] min-w-[130px]" style={{ 
-                    textAlign: 'left', 
-                    padding: '8px 12px',
-                    fontWeight: 600, 
-                    color: 'var(--muted-foreground)'
-                  }}>
-                    <button
-                      onClick={() => handleSort('futuresVolume')}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        width: '100%',
-                        textAlign: 'left',
-                        background: 'transparent',
-                        border: 'none',
-                        padding: 0,
-                        margin: 0,
-                        cursor: 'pointer',
-                        color: 'inherit'
-                      }}
-                      onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
-                      onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}
-                    >
-                      <span>Vadeli Hacim</span>
-                      <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
-                    </button>
-                  </th>
                   <th className="md:w-[200px] md:min-w-[200px] md:max-w-[200px] w-[120px] min-w-[120px]" style={{ 
                     textAlign: 'left', 
                     padding: '8px 12px',
@@ -670,7 +561,7 @@ export default function CoinsPage() {
                     </td>
                   </tr>
                 ) : (
-                  coins.map((coin) => {
+                  coins.map((coin, index) => {
                     const change = parseFloat(coin.priceChangePercent)
                     const isPositive = change >= 0
                     const changePercent = Math.abs(change)
@@ -678,6 +569,7 @@ export default function CoinsPage() {
                     const flashClass = flashType
                       ? `flash-soft ${flashType === 'up' ? 'flash-soft-up' : 'flash-soft-down'}`
                       : 'flash-soft'
+                    const isWsConnected = wsConnectedSymbols.has(coin.symbol.toUpperCase())
                     
                     return (
                       <tr 
@@ -701,6 +593,15 @@ export default function CoinsPage() {
                           }
                         }}
                       >
+                        <td className="md:w-[60px] md:min-w-[60px] md:max-w-[60px] w-[50px] min-w-[50px]" style={{ 
+                          padding: '8px 12px',
+                          textAlign: 'center',
+                          fontWeight: 500,
+                          color: 'var(--muted-foreground)',
+                          fontSize: '14px',
+                        }}>
+                          <span>{index + 1}</span>
+                        </td>
                         <td className="md:w-[180px] md:min-w-[180px] md:max-w-[180px] w-[120px] min-w-[120px]" style={{ 
                           padding: '8px 12px',
                           fontWeight: 700, 
@@ -714,7 +615,11 @@ export default function CoinsPage() {
                                 <TrendingDown style={{ width: '16px', height: '16px', color: '#ef4444' }} />
                               )}
                             </span>
-                            <span>{coin.symbol}</span>
+                            <span style={{ 
+                              color: isWsConnected ? '#3b82f6' : 'inherit' 
+                            }}>
+                              {coin.symbol}
+                            </span>
                           </div>
                         </td>
                         
@@ -757,30 +662,6 @@ export default function CoinsPage() {
                           </div>
                         </td>
                         
-                        <td className="md:w-auto w-[130px] min-w-[130px]" style={{ 
-                          padding: '8px 12px',
-                          color: 'var(--muted-foreground)',
-                          fontSize: '12px',
-                          whiteSpace: 'nowrap'
-                        }}>
-                          <span className="md:hidden">${(parseFloat(coin.quoteVolume || '0') / 1000000).toFixed(1)}M</span>
-                          <span className="hidden md:inline">${parseFloat(coin.quoteVolume || '0').toLocaleString('tr-TR', {
-                            maximumFractionDigits: 0,
-                          })}</span>
-                        </td>
-                        
-                        <td className="md:w-auto w-[130px] min-w-[130px]" style={{ 
-                          padding: '8px 12px',
-                          color: 'var(--muted-foreground)',
-                          fontSize: '12px',
-                          whiteSpace: 'nowrap'
-                        }}>
-                          <span className="md:hidden">${(parseFloat(coin.futuresQuoteVolume || '0') / 1000000).toFixed(1)}M</span>
-                          <span className="hidden md:inline">${parseFloat(coin.futuresQuoteVolume || '0').toLocaleString('tr-TR', {
-                            maximumFractionDigits: 0,
-                          })}</span>
-                        </td>
-                        
                         <td className="md:w-[200px] md:min-w-[200px] md:max-w-[200px] w-[120px] min-w-[120px]" style={{ 
                           padding: '8px 12px',
                           position: 'relative',
@@ -792,14 +673,12 @@ export default function CoinsPage() {
                               onClick={(e) => {
                                 e.stopPropagation()
                                 // WebSocket'leri temizle
-                                if (wsRef.current) {
-                                  wsRef.current.close()
-                                  wsRef.current = null
-                                }
-                                if (futuresWsRef.current) {
-                                  futuresWsRef.current.close()
-                                  futuresWsRef.current = null
-                                }
+                                wsRef.current.forEach(ws => {
+                                  if (ws) {
+                                    ws.close()
+                                  }
+                                })
+                                wsRef.current = []
                               }}
                               className="inline-flex items-center justify-center text-center rounded-md md:text-sm text-xs font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-primary/30 bg-background hover:bg-primary/10 hover:border-primary/50 md:h-9 md:px-4 h-8 px-2 py-2 relative z-10 cursor-pointer w-full"
                               style={{ position: 'relative', zIndex: 10 }}
