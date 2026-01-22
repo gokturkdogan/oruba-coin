@@ -439,7 +439,6 @@ export default function CoinsPage() {
             {/* Custom Table - Pixel Perfect */}
                 <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto', minWidth: '800px' }}>
                   <colgroup>
-                    <col className="md:w-[60px] w-[50px]" />
                     <col className="md:w-[180px] w-[120px]" />
                     <col className="md:w-auto w-[140px]" />
                     <col className="md:w-[180px] w-[140px]" />
@@ -447,14 +446,6 @@ export default function CoinsPage() {
                   </colgroup>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', backgroundColor: 'rgba(255, 255, 255, 0.05)' }}>
-                  <th className="md:w-[60px] md:min-w-[60px] md:max-w-[60px] w-[50px] min-w-[50px]" style={{ 
-                    textAlign: 'center', 
-                    padding: '8px 12px',
-                    fontWeight: 600, 
-                    color: 'var(--muted-foreground)',
-                  }}>
-                    <span>#</span>
-                  </th>
                   <th className="md:w-[180px] md:min-w-[180px] md:max-w-[180px] w-[120px] min-w-[120px]" style={{ 
                     textAlign: 'left', 
                     padding: '8px 12px',
@@ -556,12 +547,12 @@ export default function CoinsPage() {
               <tbody>
                 {coins.length === 0 ? (
                   <tr>
-                    <td colSpan={5} style={{ textAlign: 'center', padding: '64px 16px', color: 'var(--muted-foreground)' }}>
+                    <td colSpan={4} style={{ textAlign: 'center', padding: '64px 16px', color: 'var(--muted-foreground)' }}>
                       Coin bulunamadı
                     </td>
                   </tr>
                 ) : (
-                  coins.map((coin, index) => {
+                  coins.map((coin) => {
                     const change = parseFloat(coin.priceChangePercent)
                     const isPositive = change >= 0
                     const changePercent = Math.abs(change)
@@ -593,15 +584,6 @@ export default function CoinsPage() {
                           }
                         }}
                       >
-                        <td className="md:w-[60px] md:min-w-[60px] md:max-w-[60px] w-[50px] min-w-[50px]" style={{ 
-                          padding: '8px 12px',
-                          textAlign: 'center',
-                          fontWeight: 500,
-                          color: 'var(--muted-foreground)',
-                          fontSize: '14px',
-                        }}>
-                          <span>{index + 1}</span>
-                        </td>
                         <td className="md:w-[180px] md:min-w-[180px] md:max-w-[180px] w-[120px] min-w-[120px]" style={{ 
                           padding: '8px 12px',
                           fontWeight: 700, 
@@ -615,11 +597,7 @@ export default function CoinsPage() {
                                 <TrendingDown style={{ width: '16px', height: '16px', color: '#ef4444' }} />
                               )}
                             </span>
-                            <span style={{ 
-                              color: isWsConnected ? '#3b82f6' : 'inherit' 
-                            }}>
-                              {coin.symbol}
-                            </span>
+                            <span>{coin.symbol}</span>
                           </div>
                         </td>
                         
