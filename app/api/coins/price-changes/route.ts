@@ -206,11 +206,18 @@ export async function GET(request: NextRequest) {
       })
     }
     
-    return NextResponse.json({
+    const response = NextResponse.json({
       priceChanges: priceChangesMap,
       total: Object.keys(priceChangesMap).length,
       cached: cached ? (now - cached.timestamp) < CACHE_TTL : false
     })
+    
+    // Cache-Control header'ı ekle (tarayıcı cache'ini önle)
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+    response.headers.set('Pragma', 'no-cache')
+    response.headers.set('Expires', '0')
+    
+    return response
   } catch (error) {
     console.error('Price changes API error:', error)
     return NextResponse.json(

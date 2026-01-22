@@ -1,29 +1,45 @@
-const CACHE_NAME = "oruba-static-v1"
+// Cache name'i version ile güncelle (her deploy'da cache temizlensin)
+const CACHE_NAME = "oruba-static-v2"
 const PRECACHE_URLS = ["/"]
 const DEFAULT_ICON = "/icons/icon-192x192.png"
 const DEFAULT_URL = "/"
 
 self.addEventListener("install", (event) => {
+  // Development modunda cache'i atla, production'da cache'le
+  const isDevelopment = self.location.hostname === "localhost" || self.location.hostname === "127.0.0.1"
+  
+  if (isDevelopment) {
+    // Development: Cache'i atla, hemen aktif et
+    self.skipWaiting()
+    return
+  }
+  
   event.waitUntil(
     caches
       .open(CACHE_NAME)
       .then((cache) => cache.addAll(PRECACHE_URLS))
       .catch((error) => console.error("SW install cache error", error))
+      .then(() => self.skipWaiting()) // Yeni service worker'ı hemen aktif et
   )
 })
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((key) => key !== CACHE_NAME)
-            .map((key) => caches.delete(key))
+    Promise.all([
+      // Eski cache'leri temizle
+      caches
+        .keys()
+        .then((keys) =>
+          Promise.all(
+            keys
+              .filter((key) => key !== CACHE_NAME)
+              .map((key) => caches.delete(key))
+          )
         )
-      )
-      .catch((error) => console.error("SW activate cleanup error", error))
+        .catch((error) => console.error("SW activate cleanup error", error)),
+      // Tüm client'ları kontrol et ve yeni service worker'ı aktif et
+      self.clients.claim()
+    ])
   )
 })
 
@@ -34,12 +50,20 @@ self.addEventListener("fetch", (event) => {
   }
 
   const requestUrl = new URL(request.url)
+  const isDevelopment = self.location.hostname === "localhost" || self.location.hostname === "127.0.0.1"
 
   const isSameOrigin = requestUrl.origin === self.location.origin
   const isApiRequest = requestUrl.pathname.startsWith("/api/")
   const acceptsJson = request.headers.get("accept")?.includes("application/json")
+  const isNextData = requestUrl.pathname.startsWith("/_next/")
 
-  if (!isSameOrigin || isApiRequest || acceptsJson) {
+  // Development modunda hiçbir şeyi cache'leme
+  if (isDevelopment) {
+    return
+  }
+
+  // API istekleri ve Next.js data istekleri cache'lenmesin
+  if (!isSameOrigin || isApiRequest || acceptsJson || isNextData) {
     return
   }
 

@@ -52,10 +52,17 @@ export async function GET(request: NextRequest) {
     // Apply limit if provided
     const limited = limit ? filtered.slice(0, limit) : filtered
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       coins: limited,
       total: filtered.length,
     })
+    
+    // Cache-Control header'ı ekle (tarayıcı cache'ini önle)
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+    response.headers.set('Pragma', 'no-cache')
+    response.headers.set('Expires', '0')
+    
+    return response
   } catch (error) {
     console.error('Coins API error:', error)
     return NextResponse.json(
