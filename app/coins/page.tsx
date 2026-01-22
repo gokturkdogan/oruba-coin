@@ -12,7 +12,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { TrendingUp, TrendingDown, ArrowUpDown } from 'lucide-react'
+import { TrendingUp, TrendingDown, ArrowUpDown, Minus } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface Coin {
@@ -37,6 +37,9 @@ export default function CoinsPage() {
   const wsRef = useRef<WebSocket[]>([])
   const coinsMapRef = useRef<Map<string, Coin>>(new Map())
   const previousPricesRef = useRef<Map<string, number>>(new Map())
+  const price15MinAgoRef = useRef<Map<string, { price: number; timestamp: number }>>(new Map())
+  const [price15MinChange, setPrice15MinChange] = useState<Record<string, 'up' | 'down' | 'equal' | null>>({})
+  const [loading15Min, setLoading15Min] = useState(true)
   const [flashAnimations, setFlashAnimations] = useState<Record<string, 'up' | 'down'>>({})
   const [wsConnectedSymbols, setWsConnectedSymbols] = useState<Set<string>>(new Set())
   const sortByRef = useRef<SortBy>(sortBy)
@@ -48,7 +51,7 @@ export default function CoinsPage() {
   // Initial fetch - only called once on mount
   const fetchCoins = async () => {
     try {
-      // Fetch all coins without filters (we'll filter/sort client-side)
+      // Fetch all coins
       const res = await fetch(`/api/coins`)
       const data = await res.json()
       const coinsData = data.coins || []
@@ -73,6 +76,49 @@ export default function CoinsPage() {
     } catch (error) {
       console.error('Failed to fetch coins:', error)
       setLoading(false)
+    }
+  }
+
+  // Fetch 15min ago prices separately (doesn't block page load)
+  const fetch15MinPrices = async () => {
+    try {
+      setLoading15Min(true)
+      const res = await fetch(`/api/coins/15min-prices`)
+      const data = await res.json()
+      const prices15Min = data.prices15Min || {}
+      
+      const now = Date.now()
+      
+      // Update 15min prices for all coins
+      coinsMapRef.current.forEach((coin, symbol) => {
+        const price = parseFloat(coin.price)
+        const price15MinAgo = prices15Min[symbol]
+        
+        if (price15MinAgo && price15MinAgo > 0) {
+          price15MinAgoRef.current.set(symbol, { 
+            price: price15MinAgo, 
+            timestamp: now - (15 * 60 * 1000) 
+          })
+          
+          // İlk karşılaştırmayı yap
+          if (price > 0 && price15MinAgo > 0) {
+            const changeDirection = price > price15MinAgo ? 'up' : 
+                                   price < price15MinAgo ? 'down' : 'equal'
+            setPrice15MinChange(prev => ({
+              ...prev,
+              [symbol]: changeDirection
+            }))
+          }
+        } else {
+          // 15dk önceki fiyat bulunamadıysa, şu anki fiyatı kaydet (15dk sonra gerçek karşılaştırma başlayacak)
+          price15MinAgoRef.current.set(symbol, { price, timestamp: now })
+        }
+      })
+      
+      setLoading15Min(false)
+    } catch (error) {
+      console.error('Failed to fetch 15min prices:', error)
+      setLoading15Min(false)
     }
   }
 
@@ -147,6 +193,48 @@ export default function CoinsPage() {
                 const existingCoin = coinsMapRef.current.get(symbol)!
                 const previousPrice = previousPricesRef.current.get(symbol)
                 const currentPrice = parseFloat(data.c || data.lastPrice || '0')
+                const now = Date.now()
+
+                // 15 dakika önceki fiyat kontrolü
+                const price15MinData = price15MinAgoRef.current.get(symbol)
+                const FIFTEEN_MINUTES = 15 * 60 * 1000 // 15 dakika milisaniye cinsinden
+                
+                if (price15MinData) {
+                  const timeDiff = now - price15MinData.timestamp
+                  
+                  // 15 dakika geçtiyse, şu anki fiyatı 15 dakika önceki fiyat olarak kaydet
+                  // Ama önce son karşılaştırmayı yap
+                  if (timeDiff >= FIFTEEN_MINUTES) {
+                    // Son karşılaştırma: eski 15dk önceki fiyat ile şu anki fiyat
+                    if (currentPrice > 0 && price15MinData.price > 0) {
+                      const changeDirection = currentPrice > price15MinData.price ? 'up' : 
+                                             currentPrice < price15MinData.price ? 'down' : 'equal'
+                      if (isMountedRef.current) {
+                        setPrice15MinChange(prev => ({
+                          ...prev,
+                          [symbol]: changeDirection
+                        }))
+                      }
+                    }
+                    // Yeni 15dk önceki fiyat olarak şu anki fiyatı kaydet
+                    price15MinAgoRef.current.set(symbol, { price: currentPrice, timestamp: now })
+                  } else {
+                    // 15 dakika geçmediyse, 15 dakika önceki fiyatla karşılaştır
+                    if (currentPrice > 0 && price15MinData.price > 0) {
+                      const changeDirection = currentPrice > price15MinData.price ? 'up' : 
+                                             currentPrice < price15MinData.price ? 'down' : 'equal'
+                      if (isMountedRef.current) {
+                        setPrice15MinChange(prev => ({
+                          ...prev,
+                          [symbol]: changeDirection
+                        }))
+                      }
+                    }
+                  }
+                } else {
+                  // İlk kez görülen coin için başlangıç değeri
+                  price15MinAgoRef.current.set(symbol, { price: currentPrice, timestamp: now })
+                }
 
                 // Update coin data
                 const updatedCoin: Coin = {
@@ -273,6 +361,8 @@ export default function CoinsPage() {
   useEffect(() => {
     isMountedRef.current = true
     fetchCoins()
+    // 15min prices'ı ayrı bir istek olarak al (sayfa beklemesin)
+    fetch15MinPrices()
 
     // Cleanup function - WebSocket'leri kapat
     return () => {
@@ -440,6 +530,7 @@ export default function CoinsPage() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto', minWidth: '800px' }}>
                   <colgroup>
                     <col className="md:w-[180px] w-[120px]" />
+                    <col className="md:w-[100px] w-[80px]" />
                     <col className="md:w-auto w-[140px]" />
                     <col className="md:w-[180px] w-[140px]" />
                     <col className="md:w-[200px] w-[120px]" />
@@ -476,6 +567,14 @@ export default function CoinsPage() {
                       <span>Sembol</span>
                       <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
                     </button>
+                  </th>
+                  <th className="md:w-[100px] md:min-w-[100px] md:max-w-[100px] w-[80px] min-w-[80px]" style={{ 
+                    textAlign: 'center', 
+                    padding: '8px 12px',
+                    fontWeight: 600, 
+                    color: 'var(--muted-foreground)',
+                  }}>
+                    <span>15dk</span>
                   </th>
                   <th className="md:w-auto w-[140px] min-w-[140px]" style={{ 
                     textAlign: 'left', 
@@ -547,7 +646,7 @@ export default function CoinsPage() {
               <tbody>
                 {coins.length === 0 ? (
                   <tr>
-                    <td colSpan={4} style={{ textAlign: 'center', padding: '64px 16px', color: 'var(--muted-foreground)' }}>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '64px 16px', color: 'var(--muted-foreground)' }}>
                       Coin bulunamadı
                     </td>
                   </tr>
@@ -561,6 +660,7 @@ export default function CoinsPage() {
                       ? `flash-soft ${flashType === 'up' ? 'flash-soft-up' : 'flash-soft-down'}`
                       : 'flash-soft'
                     const isWsConnected = wsConnectedSymbols.has(coin.symbol.toUpperCase())
+                    const price15MinDirection = price15MinChange[coin.symbol]
                     
                     return (
                       <tr 
@@ -599,6 +699,38 @@ export default function CoinsPage() {
                             </span>
                             <span>{coin.symbol}</span>
                           </div>
+                        </td>
+                        
+                        <td className="md:w-[100px] md:min-w-[100px] md:max-w-[100px] w-[80px] min-w-[80px]" style={{ 
+                          padding: '8px 12px',
+                          textAlign: 'center',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {loading15Min ? (
+                            <div className="flex items-center justify-center">
+                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
+                            </div>
+                          ) : price15MinDirection === 'up' ? (
+                            <div className="flex items-center justify-center">
+                              <div className="rounded-full bg-green-500/20 border-2 border-green-400 p-1.5">
+                                <TrendingUp className="h-4 w-4 text-green-400" />
+                              </div>
+                            </div>
+                          ) : price15MinDirection === 'down' ? (
+                            <div className="flex items-center justify-center">
+                              <div className="rounded-full bg-red-500/20 border-2 border-red-500 p-1.5">
+                                <TrendingDown className="h-4 w-4" style={{ color: '#ef4444' }} />
+                              </div>
+                            </div>
+                          ) : price15MinDirection === 'equal' ? (
+                            <div className="flex items-center justify-center">
+                              <div className="rounded-full bg-gray-500/20 border-2 border-gray-400 p-1.5">
+                                <Minus className="h-4 w-4 text-gray-400" />
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
                         </td>
                         
                         <td className="md:w-auto w-[140px] min-w-[140px]" style={{ padding: '8px 12px', fontWeight: 500, whiteSpace: 'nowrap' }}>
