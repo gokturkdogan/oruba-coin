@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAllTickers } from '@/lib/binance'
 import { prisma } from '@/lib/prisma'
 
+// Disable caching for this route (data is too large for Next.js cache)
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams

@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { getAllTickers } from '@/lib/binance'
 
+// Disable caching for this route (data is too large for Next.js cache)
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET() {
   try {
     const tickers = await getAllTickers()

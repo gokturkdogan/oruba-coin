@@ -102,12 +102,14 @@ export async function getAllTickers(): Promise<BinanceTicker[]> {
     const [spotResult, futuresResult] = await Promise.allSettled([
       fetch('https://api.binance.com/api/v3/ticker/24hr', {
         signal: controller.signal,
+        cache: 'no-store', // Disable Next.js cache (data is too large)
         headers: {
           'Accept': 'application/json',
         },
       }),
       fetch('https://fapi.binance.com/fapi/v1/ticker/24hr', {
         signal: controller.signal,
+        cache: 'no-store', // Disable Next.js cache (data is too large)
         headers: {
           'Accept': 'application/json',
         },
