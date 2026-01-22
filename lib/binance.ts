@@ -94,124 +94,151 @@ export async function getTicker(symbol: string): Promise<BinanceTicker | null> {
 }
 
 export async function getAllTickers(): Promise<BinanceTicker[]> {
-  try {
-    // Fetch both spot and futures tickers in parallel with timeout
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 saniye timeout (artırıldı)
-    
-    const [spotResult, futuresResult] = await Promise.allSettled([
-      fetch('https://api.binance.com/api/v3/ticker/24hr', {
-        signal: controller.signal,
-        cache: 'no-store', // Disable Next.js cache (data is too large)
-        headers: {
-          'Accept': 'application/json',
-        },
-      }),
-      fetch('https://fapi.binance.com/fapi/v1/ticker/24hr', {
-        signal: controller.signal,
-        cache: 'no-store', // Disable Next.js cache (data is too large)
-        headers: {
-          'Accept': 'application/json',
-        },
-      }),
-    ])
-    
-    clearTimeout(timeoutId)
-    
-    // Handle spot response
-    let spotResponse: Response | null = null
-    if (spotResult.status === 'fulfilled') {
-      spotResponse = spotResult.value
-    } else {
-      if (spotResult.reason?.name === 'AbortError') {
-        console.error('Spot tickers fetch timeout')
+  const MAX_RETRIES = 3
+  let retries = 0
+  
+  while (retries < MAX_RETRIES) {
+    try {
+      // Fetch both spot and futures tickers in parallel with timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 saniye timeout (artırıldı)
+      
+      const [spotResult, futuresResult] = await Promise.allSettled([
+        fetch('https://api.binance.com/api/v3/ticker/24hr', {
+          signal: controller.signal,
+          cache: 'no-store', // Disable Next.js cache (data is too large)
+          headers: {
+            'Accept': 'application/json',
+          },
+        }),
+        fetch('https://fapi.binance.com/fapi/v1/ticker/24hr', {
+          signal: controller.signal,
+          cache: 'no-store', // Disable Next.js cache (data is too large)
+          headers: {
+            'Accept': 'application/json',
+          },
+        }),
+      ])
+      
+      clearTimeout(timeoutId)
+      
+      // Handle spot response
+      let spotResponse: Response | null = null
+      if (spotResult.status === 'fulfilled') {
+        spotResponse = spotResult.value
       } else {
-        console.error('Spot tickers fetch error:', spotResult.reason)
-      }
-    }
-    
-    // Handle futures response
-    let futuresResponse: Response | null = null
-    if (futuresResult.status === 'fulfilled') {
-      futuresResponse = futuresResult.value
-    } else {
-      // Futures başarısız olursa devam et, sadece spot ile çalış
-      if (futuresResult.reason?.name !== 'AbortError') {
-        console.error('Futures tickers fetch error:', futuresResult.reason)
-      }
-    }
-    
-    if (!spotResponse || !spotResponse.ok) {
-      console.error('Failed to fetch spot tickers:', spotResponse?.status, spotResponse?.statusText)
-      // Hata durumunda boş array döndür, exception fırlatma
-      return []
-    }
-    
-    const spotTickers = await spotResponse.json()
-    let futuresTickers: any[] = []
-    
-    if (futuresResponse && futuresResponse.ok) {
-      futuresTickers = await futuresResponse.json()
-    }
-    
-    // Create a map of futures data by symbol
-    const futuresMap = new Map<string, any>()
-    for (const ticker of futuresTickers) {
-      if (ticker.symbol.endsWith('USDT')) {
-        futuresMap.set(ticker.symbol, ticker)
-      }
-    }
-    
-    const result: BinanceTicker[] = []
-    
-    for (const ticker of spotTickers) {
-      if (ticker.symbol.endsWith('USDT')) {
-        // Get price from multiple possible fields
-        const price = ticker.lastPrice || ticker.price || ticker.closePrice || '0'
-        const priceNum = parseFloat(price)
-        
-        // Filter out coins with zero or invalid price
-        // Also filter out coins that haven't traded recently (volume is 0)
-        if (priceNum > 0 && parseFloat(ticker.quoteVolume || '0') > 0) {
-          const futuresData = futuresMap.get(ticker.symbol)
-          
-          // Calculate spot buy/sell volumes
-          const spotQuoteVolume = parseFloat(ticker.quoteVolume || '0')
-          const spotBuyVolume = parseFloat(ticker.takerBuyQuoteVolume || '0')
-          const spotSellVolume = spotQuoteVolume - spotBuyVolume
-          
-          // Calculate futures buy/sell volumes
-          const futuresQuoteVolume = parseFloat(futuresData?.quoteVolume || '0')
-          const futuresBuyVolume = parseFloat(futuresData?.takerBuyQuoteVolume || '0')
-          const futuresSellVolume = futuresQuoteVolume - futuresBuyVolume
-          
-          result.push({
-            symbol: ticker.symbol,
-            price: price,
-            priceChangePercent: ticker.priceChangePercent || '0',
-            volume: ticker.volume || '0',
-            quoteVolume: ticker.quoteVolume || '0',
-            futuresVolume: futuresData?.volume || '0',
-            futuresQuoteVolume: futuresData?.quoteVolume || '0',
-            spotBuyVolume: spotBuyVolume > 0 ? spotBuyVolume.toString() : '0',
-            spotSellVolume: spotSellVolume > 0 ? spotSellVolume.toString() : '0',
-            futuresBuyVolume: futuresBuyVolume > 0 ? futuresBuyVolume.toString() : '0',
-            futuresSellVolume: futuresSellVolume > 0 ? futuresSellVolume.toString() : '0',
-            highPrice: ticker.highPrice || '0',
-            lowPrice: ticker.lowPrice || '0',
-            openPrice: ticker.openPrice || '0',
-            prevClosePrice: ticker.prevClosePrice || '0',
-            count: ticker.count || 0,
-          })
+        if (spotResult.reason?.name === 'AbortError') {
+          console.error('Spot tickers fetch timeout')
+        } else {
+          console.error('Spot tickers fetch error:', spotResult.reason)
         }
       }
+      
+      // Handle futures response
+      let futuresResponse: Response | null = null
+      if (futuresResult.status === 'fulfilled') {
+        futuresResponse = futuresResult.value
+      } else {
+        // Futures başarısız olursa devam et, sadece spot ile çalış
+        if (futuresResult.reason?.name !== 'AbortError') {
+          console.error('Futures tickers fetch error:', futuresResult.reason)
+        }
+      }
+      
+      // Rate limit hatası durumunda retry
+      if (spotResponse && (spotResponse.status === 418 || spotResponse.status === 429)) {
+        retries++
+        if (retries < MAX_RETRIES) {
+          const waitTime = Math.pow(2, retries) * 1000 // Exponential backoff: 2s, 4s, 8s
+          console.warn(`Rate limit hit (${spotResponse.status}), retrying in ${waitTime}ms... (attempt ${retries}/${MAX_RETRIES})`)
+          await new Promise(resolve => setTimeout(resolve, waitTime))
+          continue
+        }
+      }
+      
+      if (!spotResponse || !spotResponse.ok) {
+        console.error('Failed to fetch spot tickers:', spotResponse?.status, spotResponse?.statusText)
+        // Hata durumunda boş array döndür, exception fırlatma
+        return []
+      }
+      
+      // Başarılı, devam et
+      const spotTickers = await spotResponse.json()
+      let futuresTickers: any[] = []
+      
+      if (futuresResponse && futuresResponse.ok) {
+        futuresTickers = await futuresResponse.json()
+      }
+      
+      // Create a map of futures data by symbol
+      const futuresMap = new Map<string, any>()
+      for (const ticker of futuresTickers) {
+        if (ticker.symbol.endsWith('USDT')) {
+          futuresMap.set(ticker.symbol, ticker)
+        }
+      }
+      
+      const result: BinanceTicker[] = []
+      
+      for (const ticker of spotTickers) {
+        if (ticker.symbol.endsWith('USDT')) {
+          // Get price from multiple possible fields
+          const price = ticker.lastPrice || ticker.price || ticker.closePrice || '0'
+          const priceNum = parseFloat(price)
+          
+          // Filter out coins with zero or invalid price
+          // Also filter out coins that haven't traded recently (volume is 0)
+          if (priceNum > 0 && parseFloat(ticker.quoteVolume || '0') > 0) {
+            const futuresData = futuresMap.get(ticker.symbol)
+            
+            // Calculate spot buy/sell volumes
+            const spotQuoteVolume = parseFloat(ticker.quoteVolume || '0')
+            const spotBuyVolume = parseFloat(ticker.takerBuyQuoteVolume || '0')
+            const spotSellVolume = spotQuoteVolume - spotBuyVolume
+            
+            // Calculate futures buy/sell volumes
+            const futuresQuoteVolume = parseFloat(futuresData?.quoteVolume || '0')
+            const futuresBuyVolume = parseFloat(futuresData?.takerBuyQuoteVolume || '0')
+            const futuresSellVolume = futuresQuoteVolume - futuresBuyVolume
+            
+            result.push({
+              symbol: ticker.symbol,
+              price: price,
+              priceChangePercent: ticker.priceChangePercent || '0',
+              volume: ticker.volume || '0',
+              quoteVolume: ticker.quoteVolume || '0',
+              futuresVolume: futuresData?.volume || '0',
+              futuresQuoteVolume: futuresData?.quoteVolume || '0',
+              spotBuyVolume: spotBuyVolume > 0 ? spotBuyVolume.toString() : '0',
+              spotSellVolume: spotSellVolume > 0 ? spotSellVolume.toString() : '0',
+              futuresBuyVolume: futuresBuyVolume > 0 ? futuresBuyVolume.toString() : '0',
+              futuresSellVolume: futuresSellVolume > 0 ? futuresSellVolume.toString() : '0',
+              highPrice: ticker.highPrice || '0',
+              lowPrice: ticker.lowPrice || '0',
+              openPrice: ticker.openPrice || '0',
+              prevClosePrice: ticker.prevClosePrice || '0',
+              count: ticker.count || 0,
+            })
+          }
+        }
+      }
+      
+      return result.sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
+    } catch (error) {
+      retries++
+      if (retries < MAX_RETRIES) {
+        const waitTime = Math.pow(2, retries) * 1000
+        console.warn(`Error fetching tickers, retrying in ${waitTime}ms... (attempt ${retries}/${MAX_RETRIES})`, error)
+        await new Promise(resolve => setTimeout(resolve, waitTime))
+      } else {
+        console.error('Failed to fetch tickers after retries:', error)
+        return []
+      }
     }
-    
-    return result.sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
-  } catch (error) {
-    console.error('Error fetching all tickers:', error)
-    return []
   }
+  
+  // Tüm retry'lar başarısız olduysa boş array döndür
+  return []
 }
 
 export async function getKlines(symbol: string, interval: string = '1h', limit: number = 24) {

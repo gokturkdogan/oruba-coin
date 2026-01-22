@@ -37,9 +37,20 @@ export default function CoinsPage() {
   const wsRef = useRef<WebSocket[]>([])
   const coinsMapRef = useRef<Map<string, Coin>>(new Map())
   const previousPricesRef = useRef<Map<string, number>>(new Map())
-  const price15MinAgoRef = useRef<Map<string, { price: number; timestamp: number }>>(new Map())
-  const [price15MinChange, setPrice15MinChange] = useState<Record<string, 'up' | 'down' | 'equal' | null>>({})
-  const [loading15Min, setLoading15Min] = useState(true)
+  // Price changes for all periods
+  const priceChangesRef = useRef<Map<string, {
+    '30min': number | null
+    '1h': number | null
+    '2h': number | null
+    '4h': number | null
+  }>>(new Map())
+  const [priceChanges, setPriceChanges] = useState<Record<string, {
+    '30min': 'up' | 'down' | 'equal' | null
+    '1h': 'up' | 'down' | 'equal' | null
+    '2h': 'up' | 'down' | 'equal' | null
+    '4h': 'up' | 'down' | 'equal' | null
+  }>>({})
+  const [loadingPriceChanges, setLoadingPriceChanges] = useState(true)
   const [flashAnimations, setFlashAnimations] = useState<Record<string, 'up' | 'down'>>({})
   const [wsConnectedSymbols, setWsConnectedSymbols] = useState<Set<string>>(new Set())
   const sortByRef = useRef<SortBy>(sortBy)
@@ -79,46 +90,77 @@ export default function CoinsPage() {
     }
   }
 
-  // Fetch 15min ago prices separately (doesn't block page load)
-  const fetch15MinPrices = async () => {
+  // Fetch price changes for all periods (30min, 1h, 2h, 4h)
+  // Progressive loading: İlk yüklemede sadece görünen coinler için istek at
+  const fetchPriceChanges = async (prioritySymbols?: string[]) => {
     try {
-      setLoading15Min(true)
-      const res = await fetch(`/api/coins/15min-prices`)
+      setLoadingPriceChanges(true)
+      
+      // İlk yüklemede görünen coinler (ilk 100 veya priority symbols)
+      const symbolsToFetch = prioritySymbols || Array.from(coinsMapRef.current.keys()).slice(0, 100)
+      const priorityParam = symbolsToFetch.join(',')
+      
+      const res = await fetch(`/api/coins/price-changes?prioritySymbols=${encodeURIComponent(priorityParam)}`)
       const data = await res.json()
-      const prices15Min = data.prices15Min || {}
+      const priceChangesData = data.priceChanges || {}
       
-      const now = Date.now()
-      
-      // Update 15min prices for all coins
+      // Update price changes for all coins
       coinsMapRef.current.forEach((coin, symbol) => {
-        const price = parseFloat(coin.price)
-        const price15MinAgo = prices15Min[symbol]
+        const currentPrice = parseFloat(coin.price)
+        const changes = priceChangesData[symbol]
         
-        if (price15MinAgo && price15MinAgo > 0) {
-          price15MinAgoRef.current.set(symbol, { 
-            price: price15MinAgo, 
-            timestamp: now - (15 * 60 * 1000) 
-          })
+        if (changes) {
+          // Store historical prices
+          priceChangesRef.current.set(symbol, changes)
           
-          // İlk karşılaştırmayı yap
-          if (price > 0 && price15MinAgo > 0) {
-            const changeDirection = price > price15MinAgo ? 'up' : 
-                                   price < price15MinAgo ? 'down' : 'equal'
-            setPrice15MinChange(prev => ({
-              ...prev,
-              [symbol]: changeDirection
-            }))
+          // Calculate change directions
+          const changeDirections: {
+            '30min': 'up' | 'down' | 'equal' | null
+            '1h': 'up' | 'down' | 'equal' | null
+            '2h': 'up' | 'down' | 'equal' | null
+            '4h': 'up' | 'down' | 'equal' | null
+          } = {
+            '30min': null,
+            '1h': null,
+            '2h': null,
+            '4h': null,
           }
-        } else {
-          // 15dk önceki fiyat bulunamadıysa, şu anki fiyatı kaydet (15dk sonra gerçek karşılaştırma başlayacak)
-          price15MinAgoRef.current.set(symbol, { price, timestamp: now })
+          
+          // 30min
+          if (changes['30min'] && changes['30min'] > 0 && currentPrice > 0) {
+            changeDirections['30min'] = currentPrice > changes['30min'] ? 'up' : 
+                                        currentPrice < changes['30min'] ? 'down' : 'equal'
+          }
+          
+          // 1h
+          if (changes['1h'] && changes['1h'] > 0 && currentPrice > 0) {
+            changeDirections['1h'] = currentPrice > changes['1h'] ? 'up' : 
+                                     currentPrice < changes['1h'] ? 'down' : 'equal'
+          }
+          
+          // 2h
+          if (changes['2h'] && changes['2h'] > 0 && currentPrice > 0) {
+            changeDirections['2h'] = currentPrice > changes['2h'] ? 'up' : 
+                                     currentPrice < changes['2h'] ? 'down' : 'equal'
+          }
+          
+          // 4h
+          if (changes['4h'] && changes['4h'] > 0 && currentPrice > 0) {
+            changeDirections['4h'] = currentPrice > changes['4h'] ? 'up' : 
+                                     currentPrice < changes['4h'] ? 'down' : 'equal'
+          }
+          
+          setPriceChanges(prev => ({
+            ...prev,
+            [symbol]: changeDirections
+          }))
         }
       })
       
-      setLoading15Min(false)
+      setLoadingPriceChanges(false)
     } catch (error) {
-      console.error('Failed to fetch 15min prices:', error)
-      setLoading15Min(false)
+      console.error('Failed to fetch price changes:', error)
+      setLoadingPriceChanges(false)
     }
   }
 
@@ -193,47 +235,52 @@ export default function CoinsPage() {
                 const existingCoin = coinsMapRef.current.get(symbol)!
                 const previousPrice = previousPricesRef.current.get(symbol)
                 const currentPrice = parseFloat(data.c || data.lastPrice || '0')
-                const now = Date.now()
 
-                // 15 dakika önceki fiyat kontrolü
-                const price15MinData = price15MinAgoRef.current.get(symbol)
-                const FIFTEEN_MINUTES = 15 * 60 * 1000 // 15 dakika milisaniye cinsinden
-                
-                if (price15MinData) {
-                  const timeDiff = now - price15MinData.timestamp
-                  
-                  // 15 dakika geçtiyse, şu anki fiyatı 15 dakika önceki fiyat olarak kaydet
-                  // Ama önce son karşılaştırmayı yap
-                  if (timeDiff >= FIFTEEN_MINUTES) {
-                    // Son karşılaştırma: eski 15dk önceki fiyat ile şu anki fiyat
-                    if (currentPrice > 0 && price15MinData.price > 0) {
-                      const changeDirection = currentPrice > price15MinData.price ? 'up' : 
-                                             currentPrice < price15MinData.price ? 'down' : 'equal'
-                      if (isMountedRef.current) {
-                        setPrice15MinChange(prev => ({
-                          ...prev,
-                          [symbol]: changeDirection
-                        }))
-                      }
-                    }
-                    // Yeni 15dk önceki fiyat olarak şu anki fiyatı kaydet
-                    price15MinAgoRef.current.set(symbol, { price: currentPrice, timestamp: now })
-                  } else {
-                    // 15 dakika geçmediyse, 15 dakika önceki fiyatla karşılaştır
-                    if (currentPrice > 0 && price15MinData.price > 0) {
-                      const changeDirection = currentPrice > price15MinData.price ? 'up' : 
-                                             currentPrice < price15MinData.price ? 'down' : 'equal'
-                      if (isMountedRef.current) {
-                        setPrice15MinChange(prev => ({
-                          ...prev,
-                          [symbol]: changeDirection
-                        }))
-                      }
-                    }
+                // Update price changes based on WebSocket price updates
+                const historicalPrices = priceChangesRef.current.get(symbol)
+                if (historicalPrices && currentPrice > 0) {
+                  const changeDirections: {
+                    '30min': 'up' | 'down' | 'equal' | null
+                    '1h': 'up' | 'down' | 'equal' | null
+                    '2h': 'up' | 'down' | 'equal' | null
+                    '4h': 'up' | 'down' | 'equal' | null
+                  } = {
+                    '30min': null,
+                    '1h': null,
+                    '2h': null,
+                    '4h': null,
                   }
-                } else {
-                  // İlk kez görülen coin için başlangıç değeri
-                  price15MinAgoRef.current.set(symbol, { price: currentPrice, timestamp: now })
+                  
+                  // 30min
+                  if (historicalPrices['30min'] && historicalPrices['30min'] > 0) {
+                    changeDirections['30min'] = currentPrice > historicalPrices['30min'] ? 'up' : 
+                                                currentPrice < historicalPrices['30min'] ? 'down' : 'equal'
+                  }
+                  
+                  // 1h
+                  if (historicalPrices['1h'] && historicalPrices['1h'] > 0) {
+                    changeDirections['1h'] = currentPrice > historicalPrices['1h'] ? 'up' : 
+                                             currentPrice < historicalPrices['1h'] ? 'down' : 'equal'
+                  }
+                  
+                  // 2h
+                  if (historicalPrices['2h'] && historicalPrices['2h'] > 0) {
+                    changeDirections['2h'] = currentPrice > historicalPrices['2h'] ? 'up' : 
+                                             currentPrice < historicalPrices['2h'] ? 'down' : 'equal'
+                  }
+                  
+                  // 4h
+                  if (historicalPrices['4h'] && historicalPrices['4h'] > 0) {
+                    changeDirections['4h'] = currentPrice > historicalPrices['4h'] ? 'up' : 
+                                             currentPrice < historicalPrices['4h'] ? 'down' : 'equal'
+                  }
+                  
+                  if (isMountedRef.current) {
+                    setPriceChanges(prev => ({
+                      ...prev,
+                      [symbol]: changeDirections
+                    }))
+                  }
                 }
 
                 // Update coin data
@@ -361,8 +408,17 @@ export default function CoinsPage() {
   useEffect(() => {
     isMountedRef.current = true
     fetchCoins()
-    // 15min prices'ı ayrı bir istek olarak al (sayfa beklemesin)
-    fetch15MinPrices()
+    // Price changes'ı ayrı bir istek olarak al (sayfa beklemesin)
+    // İlk yüklemede sadece görünen coinler için istek at (hızlı yükleme)
+    fetchPriceChanges()
+    
+    // Arka planda tüm coinler için yükle (progressive loading)
+    setTimeout(() => {
+      if (isMountedRef.current) {
+        const allSymbols = Array.from(coinsMapRef.current.keys())
+        fetchPriceChanges(allSymbols)
+      }
+    }, 2000) // 2 saniye sonra tüm coinler için yükle
 
     // Cleanup function - WebSocket'leri kapat
     return () => {
@@ -527,10 +583,13 @@ export default function CoinsPage() {
         <div className="glass-effect border border-white/10 rounded-xl overflow-hidden bg-card shadow-xl">
           <div className="overflow-x-auto">
             {/* Custom Table - Pixel Perfect */}
-                <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto', minWidth: '800px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto', minWidth: '1000px' }}>
                   <colgroup>
                     <col className="md:w-[180px] w-[120px]" />
-                    <col className="md:w-[100px] w-[80px]" />
+                    <col className="md:w-[80px] w-[60px]" />
+                    <col className="md:w-[80px] w-[60px]" />
+                    <col className="md:w-[80px] w-[60px]" />
+                    <col className="md:w-[80px] w-[60px]" />
                     <col className="md:w-auto w-[140px]" />
                     <col className="md:w-[180px] w-[140px]" />
                     <col className="md:w-[200px] w-[120px]" />
@@ -568,13 +627,37 @@ export default function CoinsPage() {
                       <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
                     </button>
                   </th>
-                  <th className="md:w-[100px] md:min-w-[100px] md:max-w-[100px] w-[80px] min-w-[80px]" style={{ 
+                  <th className="md:w-[80px] md:min-w-[80px] md:max-w-[80px] w-[60px] min-w-[60px]" style={{ 
                     textAlign: 'center', 
                     padding: '8px 12px',
                     fontWeight: 600, 
                     color: 'var(--muted-foreground)',
                   }}>
-                    <span>15dk</span>
+                    <span>30dk</span>
+                  </th>
+                  <th className="md:w-[80px] md:min-w-[80px] md:max-w-[80px] w-[60px] min-w-[60px]" style={{ 
+                    textAlign: 'center', 
+                    padding: '8px 12px',
+                    fontWeight: 600, 
+                    color: 'var(--muted-foreground)',
+                  }}>
+                    <span>1s</span>
+                  </th>
+                  <th className="md:w-[80px] md:min-w-[80px] md:max-w-[80px] w-[60px] min-w-[60px]" style={{ 
+                    textAlign: 'center', 
+                    padding: '8px 12px',
+                    fontWeight: 600, 
+                    color: 'var(--muted-foreground)',
+                  }}>
+                    <span>2s</span>
+                  </th>
+                  <th className="md:w-[80px] md:min-w-[80px] md:max-w-[80px] w-[60px] min-w-[60px]" style={{ 
+                    textAlign: 'center', 
+                    padding: '8px 12px',
+                    fontWeight: 600, 
+                    color: 'var(--muted-foreground)',
+                  }}>
+                    <span>4s</span>
                   </th>
                   <th className="md:w-auto w-[140px] min-w-[140px]" style={{ 
                     textAlign: 'left', 
@@ -646,7 +729,7 @@ export default function CoinsPage() {
               <tbody>
                 {coins.length === 0 ? (
                   <tr>
-                    <td colSpan={5} style={{ textAlign: 'center', padding: '64px 16px', color: 'var(--muted-foreground)' }}>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '64px 16px', color: 'var(--muted-foreground)' }}>
                       Coin bulunamadı
                     </td>
                   </tr>
@@ -660,7 +743,12 @@ export default function CoinsPage() {
                       ? `flash-soft ${flashType === 'up' ? 'flash-soft-up' : 'flash-soft-down'}`
                       : 'flash-soft'
                     const isWsConnected = wsConnectedSymbols.has(coin.symbol.toUpperCase())
-                    const price15MinDirection = price15MinChange[coin.symbol]
+                    const coinPriceChanges = priceChanges[coin.symbol] || {
+                      '30min': null,
+                      '1h': null,
+                      '2h': null,
+                      '4h': null,
+                    }
                     
                     return (
                       <tr 
@@ -701,28 +789,128 @@ export default function CoinsPage() {
                           </div>
                         </td>
                         
-                        <td className="md:w-[100px] md:min-w-[100px] md:max-w-[100px] w-[80px] min-w-[80px]" style={{ 
+                        {/* 30dk */}
+                        <td className="md:w-[80px] md:min-w-[80px] md:max-w-[80px] w-[60px] min-w-[60px]" style={{ 
                           padding: '8px 12px',
                           textAlign: 'center',
                           whiteSpace: 'nowrap'
                         }}>
-                          {loading15Min ? (
+                          {loadingPriceChanges ? (
                             <div className="flex items-center justify-center">
                               <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
                             </div>
-                          ) : price15MinDirection === 'up' ? (
+                          ) : coinPriceChanges['30min'] === 'up' ? (
                             <div className="flex items-center justify-center">
                               <div className="rounded-full bg-green-500/20 border-2 border-green-400 p-1.5">
                                 <TrendingUp className="h-4 w-4 text-green-400" />
                               </div>
                             </div>
-                          ) : price15MinDirection === 'down' ? (
+                          ) : coinPriceChanges['30min'] === 'down' ? (
                             <div className="flex items-center justify-center">
                               <div className="rounded-full bg-red-500/20 border-2 border-red-500 p-1.5">
                                 <TrendingDown className="h-4 w-4" style={{ color: '#ef4444' }} />
                               </div>
                             </div>
-                          ) : price15MinDirection === 'equal' ? (
+                          ) : coinPriceChanges['30min'] === 'equal' ? (
+                            <div className="flex items-center justify-center">
+                              <div className="rounded-full bg-gray-500/20 border-2 border-gray-400 p-1.5">
+                                <Minus className="h-4 w-4 text-gray-400" />
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
+                        </td>
+                        
+                        {/* 1s */}
+                        <td className="md:w-[80px] md:min-w-[80px] md:max-w-[80px] w-[60px] min-w-[60px]" style={{ 
+                          padding: '8px 12px',
+                          textAlign: 'center',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {loadingPriceChanges ? (
+                            <div className="flex items-center justify-center">
+                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
+                            </div>
+                          ) : coinPriceChanges['1h'] === 'up' ? (
+                            <div className="flex items-center justify-center">
+                              <div className="rounded-full bg-green-500/20 border-2 border-green-400 p-1.5">
+                                <TrendingUp className="h-4 w-4 text-green-400" />
+                              </div>
+                            </div>
+                          ) : coinPriceChanges['1h'] === 'down' ? (
+                            <div className="flex items-center justify-center">
+                              <div className="rounded-full bg-red-500/20 border-2 border-red-500 p-1.5">
+                                <TrendingDown className="h-4 w-4" style={{ color: '#ef4444' }} />
+                              </div>
+                            </div>
+                          ) : coinPriceChanges['1h'] === 'equal' ? (
+                            <div className="flex items-center justify-center">
+                              <div className="rounded-full bg-gray-500/20 border-2 border-gray-400 p-1.5">
+                                <Minus className="h-4 w-4 text-gray-400" />
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
+                        </td>
+                        
+                        {/* 2s */}
+                        <td className="md:w-[80px] md:min-w-[80px] md:max-w-[80px] w-[60px] min-w-[60px]" style={{ 
+                          padding: '8px 12px',
+                          textAlign: 'center',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {loadingPriceChanges ? (
+                            <div className="flex items-center justify-center">
+                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
+                            </div>
+                          ) : coinPriceChanges['2h'] === 'up' ? (
+                            <div className="flex items-center justify-center">
+                              <div className="rounded-full bg-green-500/20 border-2 border-green-400 p-1.5">
+                                <TrendingUp className="h-4 w-4 text-green-400" />
+                              </div>
+                            </div>
+                          ) : coinPriceChanges['2h'] === 'down' ? (
+                            <div className="flex items-center justify-center">
+                              <div className="rounded-full bg-red-500/20 border-2 border-red-500 p-1.5">
+                                <TrendingDown className="h-4 w-4" style={{ color: '#ef4444' }} />
+                              </div>
+                            </div>
+                          ) : coinPriceChanges['2h'] === 'equal' ? (
+                            <div className="flex items-center justify-center">
+                              <div className="rounded-full bg-gray-500/20 border-2 border-gray-400 p-1.5">
+                                <Minus className="h-4 w-4 text-gray-400" />
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
+                        </td>
+                        
+                        {/* 4s */}
+                        <td className="md:w-[80px] md:min-w-[80px] md:max-w-[80px] w-[60px] min-w-[60px]" style={{ 
+                          padding: '8px 12px',
+                          textAlign: 'center',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {loadingPriceChanges ? (
+                            <div className="flex items-center justify-center">
+                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
+                            </div>
+                          ) : coinPriceChanges['4h'] === 'up' ? (
+                            <div className="flex items-center justify-center">
+                              <div className="rounded-full bg-green-500/20 border-2 border-green-400 p-1.5">
+                                <TrendingUp className="h-4 w-4 text-green-400" />
+                              </div>
+                            </div>
+                          ) : coinPriceChanges['4h'] === 'down' ? (
+                            <div className="flex items-center justify-center">
+                              <div className="rounded-full bg-red-500/20 border-2 border-red-500 p-1.5">
+                                <TrendingDown className="h-4 w-4" style={{ color: '#ef4444' }} />
+                              </div>
+                            </div>
+                          ) : coinPriceChanges['4h'] === 'equal' ? (
                             <div className="flex items-center justify-center">
                               <div className="rounded-full bg-gray-500/20 border-2 border-gray-400 p-1.5">
                                 <Minus className="h-4 w-4 text-gray-400" />
