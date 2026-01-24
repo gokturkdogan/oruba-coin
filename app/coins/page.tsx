@@ -39,12 +39,14 @@ export default function CoinsPage() {
   const previousPricesRef = useRef<Map<string, number>>(new Map())
   // Price changes for all periods
   const priceChangesRef = useRef<Map<string, {
+    '15min': number | null
     '30min': number | null
     '1h': number | null
     '2h': number | null
     '4h': number | null
   }>>(new Map())
   const [priceChanges, setPriceChanges] = useState<Record<string, {
+    '15min': 'up' | 'down' | 'equal' | null
     '30min': 'up' | 'down' | 'equal' | null
     '1h': 'up' | 'down' | 'equal' | null
     '2h': 'up' | 'down' | 'equal' | null
@@ -115,15 +117,23 @@ export default function CoinsPage() {
           
           // Calculate change directions
           const changeDirections: {
+            '15min': 'up' | 'down' | 'equal' | null
             '30min': 'up' | 'down' | 'equal' | null
             '1h': 'up' | 'down' | 'equal' | null
             '2h': 'up' | 'down' | 'equal' | null
             '4h': 'up' | 'down' | 'equal' | null
           } = {
+            '15min': null,
             '30min': null,
             '1h': null,
             '2h': null,
             '4h': null,
+          }
+          
+          // 15min
+          if (changes['15min'] && changes['15min'] > 0 && currentPrice > 0) {
+            changeDirections['15min'] = currentPrice > changes['15min'] ? 'up' : 
+                                        currentPrice < changes['15min'] ? 'down' : 'equal'
           }
           
           // 30min
@@ -240,15 +250,23 @@ export default function CoinsPage() {
                 const historicalPrices = priceChangesRef.current.get(symbol)
                 if (historicalPrices && currentPrice > 0) {
                   const changeDirections: {
+                    '15min': 'up' | 'down' | 'equal' | null
                     '30min': 'up' | 'down' | 'equal' | null
                     '1h': 'up' | 'down' | 'equal' | null
                     '2h': 'up' | 'down' | 'equal' | null
                     '4h': 'up' | 'down' | 'equal' | null
                   } = {
+                    '15min': null,
                     '30min': null,
                     '1h': null,
                     '2h': null,
                     '4h': null,
+                  }
+                  
+                  // 15min
+                  if (historicalPrices['15min'] && historicalPrices['15min'] > 0) {
+                    changeDirections['15min'] = currentPrice > historicalPrices['15min'] ? 'up' : 
+                                                 currentPrice < historicalPrices['15min'] ? 'down' : 'equal'
                   }
                   
                   // 30min
@@ -590,6 +608,7 @@ export default function CoinsPage() {
                     <col className="md:w-[80px] w-[60px]" />
                     <col className="md:w-[80px] w-[60px]" />
                     <col className="md:w-[80px] w-[60px]" />
+                    <col className="md:w-[80px] w-[60px]" />
                     <col className="md:w-auto w-[140px]" />
                     <col className="md:w-[180px] w-[140px]" />
                     <col className="md:w-[200px] w-[120px]" />
@@ -626,6 +645,14 @@ export default function CoinsPage() {
                       <span>Sembol</span>
                       <ArrowUpDown style={{ width: '16px', height: '16px', flexShrink: 0, marginLeft: 'auto' }} />
                     </button>
+                  </th>
+                  <th className="md:w-[80px] md:min-w-[80px] md:max-w-[80px] w-[60px] min-w-[60px]" style={{ 
+                    textAlign: 'center', 
+                    padding: '8px 12px',
+                    fontWeight: 600, 
+                    color: 'var(--muted-foreground)',
+                  }}>
+                    <span>15dk</span>
                   </th>
                   <th className="md:w-[80px] md:min-w-[80px] md:max-w-[80px] w-[60px] min-w-[60px]" style={{ 
                     textAlign: 'center', 
@@ -729,7 +756,7 @@ export default function CoinsPage() {
               <tbody>
                 {coins.length === 0 ? (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: '64px 16px', color: 'var(--muted-foreground)' }}>
+                    <td colSpan={9} style={{ textAlign: 'center', padding: '64px 16px', color: 'var(--muted-foreground)' }}>
                       Coin bulunamadı
                     </td>
                   </tr>
@@ -744,6 +771,7 @@ export default function CoinsPage() {
                       : 'flash-soft'
                     const isWsConnected = wsConnectedSymbols.has(coin.symbol.toUpperCase())
                     const coinPriceChanges = priceChanges[coin.symbol] || {
+                      '15min': null,
                       '30min': null,
                       '1h': null,
                       '2h': null,
@@ -787,6 +815,39 @@ export default function CoinsPage() {
                             </span>
                             <span>{coin.symbol}</span>
                           </div>
+                        </td>
+                        
+                        {/* 15dk */}
+                        <td className="md:w-[80px] md:min-w-[80px] md:max-w-[80px] w-[60px] min-w-[60px]" style={{ 
+                          padding: '8px 12px',
+                          textAlign: 'center',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {loadingPriceChanges ? (
+                            <div className="flex items-center justify-center">
+                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
+                            </div>
+                          ) : coinPriceChanges['15min'] === 'up' ? (
+                            <div className="flex items-center justify-center">
+                              <div className="rounded-full bg-green-500/20 border-2 border-green-400 p-1.5">
+                                <TrendingUp className="h-4 w-4 text-green-400" />
+                              </div>
+                            </div>
+                          ) : coinPriceChanges['15min'] === 'down' ? (
+                            <div className="flex items-center justify-center">
+                              <div className="rounded-full bg-red-500/20 border-2 border-red-500 p-1.5">
+                                <TrendingDown className="h-4 w-4" style={{ color: '#ef4444' }} />
+                              </div>
+                            </div>
+                          ) : coinPriceChanges['15min'] === 'equal' ? (
+                            <div className="flex items-center justify-center">
+                              <div className="rounded-full bg-gray-500/20 border-2 border-gray-400 p-1.5">
+                                <Minus className="h-4 w-4 text-gray-400" />
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
                         </td>
                         
                         {/* 30dk */}

@@ -8,6 +8,7 @@ export const revalidate = 0
 // In-memory cache for price changes (5 minutes TTL)
 const priceChangesCache = new Map<string, {
   data: Record<string, {
+    '15min': number | null
     '30min': number | null
     '1h': number | null
     '2h': number | null
@@ -20,8 +21,9 @@ const CACHE_TTL = 5 * 60 * 1000 // 5 dakika
 
 // Helper function to fetch price changes for multiple periods
 // Optimized: Uses only 1 API call per coin (1m interval with limit=240 to get all periods)
-// 240 dakika = 4 saat, bu tek istekle 30dk, 1h, 2h, 4h önceki fiyatları alabiliriz
+// 240 dakika = 4 saat, bu tek istekle 15dk, 30dk, 1h, 2h, 4h önceki fiyatları alabiliriz
 async function getPriceChanges(symbol: string): Promise<{
+  '15min': number | null
   '30min': number | null
   '1h': number | null
   '2h': number | null
@@ -54,7 +56,8 @@ async function getPriceChanges(symbol: string): Promise<{
     }
     
     // Binance klines API: klines[0] = en eski, klines[length-1] = en yeni
-    // limit=240 ile: klines[0]=240dk (4h) önce, klines[210]=30dk önce, klines[180]=60dk (1h) önce, klines[120]=120dk (2h) önce
+    // limit=240 ile: klines[0]=240dk (4h) önce, klines[225]=15dk önce, klines[210]=30dk önce, klines[180]=60dk (1h) önce, klines[120]=120dk (2h) önce
+    let price15Min: number | null = null
     let price30Min: number | null = null
     let price1H: number | null = null
     let price2H: number | null = null
@@ -82,7 +85,13 @@ async function getPriceChanges(symbol: string): Promise<{
       price30Min = parseFloat(klines[totalKlines - 30][4])
     }
     
+    // 15 dakika önceki (15. mum - 15 dakika önce)
+    if (totalKlines > 15) {
+      price15Min = parseFloat(klines[totalKlines - 15][4])
+    }
+    
     return {
+      '15min': price15Min,
       '30min': price30Min,
       '1h': price1H,
       '2h': price2H,
@@ -111,6 +120,7 @@ export async function GET(request: NextRequest) {
     
     // Cache'den al (5 dakika içindeyse)
     let priceChangesMap: Record<string, {
+      '15min': number | null
       '30min': number | null
       '1h': number | null
       '2h': number | null
@@ -127,7 +137,7 @@ export async function GET(request: NextRequest) {
     if (prioritySymbols.length > 0) {
       for (const symbol of prioritySymbols) {
         const cachedSymbol = priceChangesMap[symbol]
-        if (!cachedSymbol || !cachedSymbol['30min']) {
+        if (!cachedSymbol || !cachedSymbol['15min'] || !cachedSymbol['30min']) {
           symbolsToFetch.push(symbol)
         }
       }
@@ -136,7 +146,7 @@ export async function GET(request: NextRequest) {
       const first100Symbols = allSymbols.slice(0, 100)
       for (const symbol of first100Symbols) {
         const cachedSymbol = priceChangesMap[symbol]
-        if (!cachedSymbol || !cachedSymbol['30min']) {
+        if (!cachedSymbol || !cachedSymbol['15min'] || !cachedSymbol['30min']) {
           symbolsToFetch.push(symbol)
         }
       }
