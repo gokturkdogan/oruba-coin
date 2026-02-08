@@ -16,13 +16,14 @@ export interface SpotCoin {
   count: number
 }
 
-// Get spot klines from Binance
-async function getSpotKlines(symbol: string, interval: string = '1h', limit: number = 24) {
+// Get spot klines from Binance (endTime = son mumun "şu ana" göre gelmesi için)
+async function getSpotKlines(symbol: string, interval: string = '1h', limit: number = 24, endTime?: number) {
   try {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 20000)
+    const endParam = endTime != null ? `&endTime=${endTime}` : ''
     const response = await fetch(
-      `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+      `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}${endParam}`,
       { signal: controller.signal }
     )
     clearTimeout(timeoutId)
@@ -103,17 +104,16 @@ export async function GET(request: NextRequest) {
     // Sort by quote volume (descending)
     coins.sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
     
-    // Calculate hourly volumes for top 200 coins (to avoid rate limiting)
-    const topCoins = coins.slice(0, 200)
+    // Calculate hourly volumes for all coins (batched to respect Binance rate limit)
+    const topCoins = coins
     const hourlyVolumePromises = topCoins.map(async (coin) => {
       try {
         // Get current time and 1 hour ago
         const now = Date.now()
         const oneHourAgo = now - (60 * 60 * 1000)
         
-        // Fetch 1-minute klines for the last hour (60 minutes)
-        // We'll fetch more than needed to ensure we cover the full hour
-        const klines = await getSpotKlines(coin.symbol, '1m', 120)
+        // Son 120 dakikanın mumlarını "şu ana" göre iste (24s hacim geliyorsa saatlik de doğru gelsin)
+        const klines = await getSpotKlines(coin.symbol, '1m', 120, now)
         
         if (!klines || klines.length === 0) {
           return { 
@@ -163,10 +163,10 @@ export async function GET(request: NextRequest) {
       }
     })
     
-    // Process in batches to avoid rate limiting (10 coins per batch, 200ms delay)
+    // Process in batches to avoid rate limiting (~1200/min: 10 per batch, 500ms between batches)
     const hourlyVolumes: Record<string, { volume: string, buyVolume: string, sellVolume: string }> = {}
     const batchSize = 10
-    const delayBetweenBatches = 200
+    const delayBetweenBatches = 500
     
     for (let i = 0; i < hourlyVolumePromises.length; i += batchSize) {
       const batch = hourlyVolumePromises.slice(i, i + batchSize)

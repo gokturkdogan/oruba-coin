@@ -129,8 +129,8 @@ export default function SpotCoinsPage() {
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<SortBy>('volume')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
-  const wsRef = useRef<WebSocket | null>(null) // Ticker WebSocket
-  const tradesWsRef = useRef<WebSocket | null>(null) // Trade WebSocket
+  const wsRef = useRef<WebSocket[]>([]) // Ticker WebSocket(s) - 200'lük batch'ler, tüm coinler kapanana kadar
+  const tradesWsRef = useRef<WebSocket[]>([]) // Trade WebSocket(s) - aynı mantık
   const coinsMapRef = useRef<Map<string, SpotCoin>>(new Map())
   const previousPricesRef = useRef<Map<string, number>>(new Map())
   const hourlyVolumeStartTimeRef = useRef<Map<string, number>>(new Map()) // Her coin için saatlik hacim başlangıç zamanı
@@ -144,6 +144,8 @@ export default function SpotCoinsPage() {
   const sortOrderRef = useRef<SortOrder>(sortOrder)
   const searchRef = useRef<string>(search)
   const isMountedRef = useRef<boolean>(true)
+  // API'de klines isteği atılan semboller (mavi gösterilir)
+  const symbolsWithKlinesRequestedRef = useRef<Set<string>>(new Set())
 
   // Initial fetch - only called once on mount
   const fetchCoins = async () => {
@@ -151,6 +153,11 @@ export default function SpotCoinsPage() {
       const res = await fetch('/api/coins/spot')
       const data = await res.json()
       const coinsData = data.coins || []
+      
+      // API tüm coinler için klines isteği atıyor; atılanların sembolü mavi
+      symbolsWithKlinesRequestedRef.current = new Set(
+        coinsData.map((c: SpotCoin) => c.symbol)
+      )
       
       // Update map with all coins
       coinsMapRef.current.clear()
@@ -191,46 +198,35 @@ export default function SpotCoinsPage() {
   }
 
   const subscribeToTradeWebSocket = (symbols: string[]) => {
-    // Close existing trade WebSocket
-    if (tradesWsRef.current) {
-      if (tradesWsRef.current.readyState === WebSocket.OPEN || tradesWsRef.current.readyState === WebSocket.CONNECTING) {
-        try {
-          tradesWsRef.current.onopen = null
-          tradesWsRef.current.onerror = null
-          tradesWsRef.current.onclose = null
-          tradesWsRef.current.onmessage = null
-          tradesWsRef.current.close()
-        } catch (e) {
-          console.error('Error closing Spot Trade WebSocket:', e)
+    tradesWsRef.current.forEach((ws) => {
+      try {
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          ws.onmessage = null
+          ws.onerror = null
+          ws.onclose = null
+          ws.onopen = null
+          ws.close()
         }
+      } catch (e) {
+        console.error('Error closing Spot Trade WebSocket:', e)
       }
-      tradesWsRef.current = null
-    }
+    })
+    tradesWsRef.current = []
 
     if (symbols.length === 0) return
 
-    // Binance allows up to 200 streams in a single connection
-    const limitedSymbols = symbols.slice(0, 200).map((s) => s.toUpperCase())
-    const tradeStreams = limitedSymbols
-      .map((s) => `${s.toLowerCase()}@trade`)
-      .join('/')
+    const BATCH_SIZE = 200
+    const MAX_SOCKETS = 3
+    const symbolBatches: string[][] = []
+    for (let i = 0; i < symbols.length && symbolBatches.length < MAX_SOCKETS; i += BATCH_SIZE) {
+      symbolBatches.push(symbols.slice(i, i + BATCH_SIZE))
+    }
 
-    // Spot Trade WebSocket
-    const spotTradeWsUrl = `wss://stream.binance.com/stream?streams=${tradeStreams}`
-
-    // Helper function to update coins and trigger re-render (throttled for performance)
     let lastUpdateTime = 0
     const updateCoinsDisplay = () => {
       if (!isMountedRef.current) return
-      
       const now = Date.now()
-      const timeSinceLastUpdate = now - lastUpdateTime
-      
-      // Throttle: Maksimum 300ms'de bir güncelle (3-4 FPS - smooth)
-      if (timeSinceLastUpdate < 300) {
-        return
-      }
-      
+      if (now - lastUpdateTime < 300) return
       const updatedCoins = Array.from(coinsMapRef.current.values())
       const sorted = sortCoins(updatedCoins, sortByRef.current, sortOrderRef.current)
       const filtered = searchCoins(sorted, searchRef.current)
@@ -238,35 +234,31 @@ export default function SpotCoinsPage() {
       lastUpdateTime = now
     }
 
-    try {
-      const spotTradeWs = new WebSocket(spotTradeWsUrl)
-      
-      const wsTimeout = setTimeout(() => {
-        if (spotTradeWs.readyState === WebSocket.CONNECTING) {
-          console.warn('Spot Trade WebSocket connection timeout, closing...')
-          try {
-            spotTradeWs.close()
-          } catch (e) {
-            console.error('Error closing timed-out Spot Trade WebSocket:', e)
+    symbolBatches.forEach((batch, batchIndex) => {
+      const limitedSymbols = batch.map((s) => s.toUpperCase())
+      const tradeStreams = limitedSymbols.map((s) => `${s.toLowerCase()}@trade`).join('/')
+      const spotTradeWsUrl = `wss://stream.binance.com/stream?streams=${tradeStreams}`
+
+      try {
+        const spotTradeWs = new WebSocket(spotTradeWsUrl)
+        const wsTimeout = setTimeout(() => {
+          if (spotTradeWs.readyState === WebSocket.CONNECTING) {
+            try { spotTradeWs.close() } catch (e) { /* ignore */ }
+            if (isMountedRef.current && tradesWsRef.current.includes(spotTradeWs)) {
+              setTimeout(() => {
+                const currentSymbols = Array.from(coinsMapRef.current.keys())
+                if (isMountedRef.current && currentSymbols.length > 0) subscribeToTradeWebSocket(currentSymbols)
+              }, 2000)
+            }
           }
-          
-          if (isMountedRef.current && tradesWsRef.current === spotTradeWs) {
-            setTimeout(() => {
-              const currentSymbols = Array.from(coinsMapRef.current.keys())
-              if (isMountedRef.current && currentSymbols.length > 0) {
-                subscribeToTradeWebSocket(currentSymbols)
-              }
-            }, 2000)
-          }
+        }, 10000)
+
+        spotTradeWs.onopen = () => {
+          clearTimeout(wsTimeout)
+          console.log(`Spot Trade WebSocket connected (socket ${batchIndex + 1}/${symbolBatches.length}, ${limitedSymbols.length} symbols)`)
         }
-      }, 10000)
 
-      spotTradeWs.onopen = () => {
-        clearTimeout(wsTimeout)
-        console.log('Spot Trade WebSocket connected')
-      }
-
-      spotTradeWs.onmessage = (event) => {
+        spotTradeWs.onmessage = (event) => {
         if (!isMountedRef.current) return
         
         try {
@@ -332,58 +324,49 @@ export default function SpotCoinsPage() {
         }
       }
 
-      spotTradeWs.onerror = (error) => {
-        clearTimeout(wsTimeout)
-        console.error('Spot Trade WebSocket error:', error)
-      }
+        spotTradeWs.onerror = () => { clearTimeout(wsTimeout) }
 
-      spotTradeWs.onclose = (event) => {
-        clearTimeout(wsTimeout)
-        if (isMountedRef.current && tradesWsRef.current === spotTradeWs) {
-          console.log('Spot Trade WebSocket disconnected, reconnecting...', event.code, event.reason)
-          setTimeout(() => {
-            const currentSymbols = Array.from(coinsMapRef.current.keys())
-            if (isMountedRef.current && currentSymbols.length > 0 && tradesWsRef.current === spotTradeWs) {
-              subscribeToTradeWebSocket(currentSymbols)
-            }
-          }, 3000)
+        spotTradeWs.onclose = () => {
+          clearTimeout(wsTimeout)
+          if (isMountedRef.current && tradesWsRef.current.includes(spotTradeWs)) {
+            setTimeout(() => {
+              const currentSymbols = Array.from(coinsMapRef.current.keys())
+              if (isMountedRef.current && currentSymbols.length > 0) subscribeToTradeWebSocket(currentSymbols)
+            }, 3000)
+          }
         }
-      }
 
-      tradesWsRef.current = spotTradeWs
-    } catch (error) {
-      console.error('Failed to create Spot Trade WebSocket:', error)
-    }
+        tradesWsRef.current.push(spotTradeWs)
+      } catch (error) {
+        console.error('Failed to create Spot Trade WebSocket:', error)
+      }
+    })
   }
 
   const subscribeToWebSocket = (symbols: string[]) => {
-    // Close existing connections
-    if (wsRef.current) {
-      if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
-        try {
-          wsRef.current.onopen = null
-          wsRef.current.onerror = null
-          wsRef.current.onclose = null
-          wsRef.current.onmessage = null
-          wsRef.current.close()
-        } catch (e) {
-          console.error('Error closing Spot WebSocket:', e)
+    wsRef.current.forEach((ws) => {
+      try {
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          ws.onmessage = null
+          ws.onerror = null
+          ws.onclose = null
+          ws.onopen = null
+          ws.close()
         }
+      } catch (e) {
+        console.error('Error closing Spot WebSocket:', e)
       }
-      wsRef.current = null
-    }
+    })
+    wsRef.current = []
 
     if (symbols.length === 0) return
 
-    // Binance allows up to 200 streams in a single connection
-    // We'll subscribe to top 200 symbols (Binance limit)
-    const limitedSymbols = symbols.slice(0, 200).map((s) => s.toUpperCase())
-    const streams = limitedSymbols
-      .map((s) => `${s.toLowerCase()}@ticker`)
-      .join('/')
-
-    // Spot WebSocket
-    const spotWsUrl = `wss://stream.binance.com/stream?streams=${streams}`
+    const BATCH_SIZE = 200
+    const MAX_SOCKETS = 3
+    const symbolBatches: string[][] = []
+    for (let i = 0; i < symbols.length && symbolBatches.length < MAX_SOCKETS; i += BATCH_SIZE) {
+      symbolBatches.push(symbols.slice(i, i + BATCH_SIZE))
+    }
 
     // Helper function to update coins and trigger re-render
     const updateCoinsDisplay = () => {
@@ -395,36 +378,31 @@ export default function SpotCoinsPage() {
       setCoins(filtered)
     }
 
-    // Spot WebSocket
-    try {
-      const spotWs = new WebSocket(spotWsUrl)
-      
-      const wsTimeout = setTimeout(() => {
-        if (spotWs.readyState === WebSocket.CONNECTING) {
-          console.warn('Spot WebSocket connection timeout, closing...')
-          try {
-            spotWs.close()
-          } catch (e) {
-            console.error('Error closing timed-out Spot WebSocket:', e)
+    symbolBatches.forEach((batch, batchIndex) => {
+      const limitedSymbols = batch.map((s) => s.toUpperCase())
+      const streams = limitedSymbols.map((s) => `${s.toLowerCase()}@ticker`).join('/')
+      const spotWsUrl = `wss://stream.binance.com/stream?streams=${streams}`
+
+      try {
+        const spotWs = new WebSocket(spotWsUrl)
+        const wsTimeout = setTimeout(() => {
+          if (spotWs.readyState === WebSocket.CONNECTING) {
+            try { spotWs.close() } catch (e) { /* ignore */ }
+            if (isMountedRef.current && wsRef.current.includes(spotWs)) {
+              setTimeout(() => {
+                const currentSymbols = Array.from(coinsMapRef.current.keys())
+                if (isMountedRef.current && currentSymbols.length > 0) subscribeToWebSocket(currentSymbols)
+              }, 2000)
+            }
           }
-          
-          if (isMountedRef.current && wsRef.current === spotWs) {
-            setTimeout(() => {
-              const currentSymbols = Array.from(coinsMapRef.current.keys())
-              if (isMountedRef.current && currentSymbols.length > 0) {
-                subscribeToWebSocket(currentSymbols)
-              }
-            }, 2000)
-          }
+        }, 10000)
+
+        spotWs.onopen = () => {
+          clearTimeout(wsTimeout)
+          console.log(`Spot WebSocket connected (socket ${batchIndex + 1}/${symbolBatches.length}, ${limitedSymbols.length} symbols)`)
         }
-      }, 10000)
 
-      spotWs.onopen = () => {
-        clearTimeout(wsTimeout)
-        console.log('Spot WebSocket connected')
-      }
-
-      spotWs.onmessage = (event) => {
+        spotWs.onmessage = (event) => {
         // Component unmount edilmişse mesaj işleme
         if (!isMountedRef.current) return
         
@@ -490,29 +468,23 @@ export default function SpotCoinsPage() {
         }
       }
 
-      spotWs.onerror = (error) => {
-        clearTimeout(wsTimeout)
-        console.error('Spot WebSocket error:', error)
-      }
+        spotWs.onerror = () => { clearTimeout(wsTimeout) }
 
-      spotWs.onclose = (event) => {
-        clearTimeout(wsTimeout)
-        // Component unmount edilmişse yeniden bağlanma
-        if (isMountedRef.current && wsRef.current === spotWs) {
-          console.log('Spot WebSocket disconnected, reconnecting...', event.code, event.reason)
-          setTimeout(() => {
-            const currentSymbols = Array.from(coinsMapRef.current.keys())
-            if (isMountedRef.current && currentSymbols.length > 0 && wsRef.current === spotWs) {
-              subscribeToWebSocket(currentSymbols)
-            }
-          }, 3000)
+        spotWs.onclose = () => {
+          clearTimeout(wsTimeout)
+          if (isMountedRef.current && wsRef.current.includes(spotWs)) {
+            setTimeout(() => {
+              const currentSymbols = Array.from(coinsMapRef.current.keys())
+              if (isMountedRef.current && currentSymbols.length > 0) subscribeToWebSocket(currentSymbols)
+            }, 3000)
+          }
         }
-      }
 
-      wsRef.current = spotWs
-    } catch (error) {
-      console.error('Failed to create Spot WebSocket:', error)
-    }
+        wsRef.current.push(spotWs)
+      } catch (error) {
+        console.error('Failed to create Spot WebSocket:', error)
+      }
+    })
   }
 
   const sortCoins = useCallback((coinList: SpotCoin[], by: SortBy, order: SortOrder): SpotCoin[] => {
@@ -583,35 +555,31 @@ export default function SpotCoinsPage() {
     return () => {
       isMountedRef.current = false
 
-      if (wsRef.current) {
+      wsRef.current.forEach((ws) => {
         try {
-          wsRef.current.onmessage = null
-          wsRef.current.onerror = null
-          wsRef.current.onclose = null
-          wsRef.current.onopen = null
-          if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
-            wsRef.current.close()
-          }
+          ws.onmessage = null
+          ws.onerror = null
+          ws.onclose = null
+          ws.onopen = null
+          if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) ws.close()
         } catch (error) {
           console.error('Error closing spot WebSocket:', error)
         }
-        wsRef.current = null
-      }
+      })
+      wsRef.current = []
 
-      if (tradesWsRef.current) {
+      tradesWsRef.current.forEach((ws) => {
         try {
-          tradesWsRef.current.onmessage = null
-          tradesWsRef.current.onerror = null
-          tradesWsRef.current.onclose = null
-          tradesWsRef.current.onopen = null
-          if (tradesWsRef.current.readyState === WebSocket.OPEN || tradesWsRef.current.readyState === WebSocket.CONNECTING) {
-            tradesWsRef.current.close()
-          }
+          ws.onmessage = null
+          ws.onerror = null
+          ws.onclose = null
+          ws.onopen = null
+          if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) ws.close()
         } catch (error) {
           console.error('Error closing Spot Trade WebSocket:', error)
         }
-        tradesWsRef.current = null
-      }
+      })
+      tradesWsRef.current = []
     }
   }, [])
 
@@ -1107,7 +1075,15 @@ export default function SpotCoinsPage() {
                                 <TrendingDown style={{ width: '16px', height: '16px', color: '#ef4444' }} />
                               )}
                             </span>
-                            <span>{coin.symbol}</span>
+                            <span
+                              style={
+                                symbolsWithKlinesRequestedRef.current.has(coin.symbol)
+                                  ? { color: '#3b82f6' }
+                                  : undefined
+                              }
+                            >
+                              {coin.symbol}
+                            </span>
                           </div>
                         </td>
                         
