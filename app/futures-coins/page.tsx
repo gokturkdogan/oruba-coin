@@ -31,8 +31,8 @@ export default function FuturesCoinsPage() {
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<SortBy>('volume')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
-  const wsRef = useRef<WebSocket | null>(null) // Ticker WebSocket
-  const tradesWsRef = useRef<WebSocket | null>(null) // Trade WebSocket
+  const wsRef = useRef<WebSocket[]>([]) // Ticker WebSocket(s) - 200'lük batch'ler, max 3 socket
+  const tradesWsRef = useRef<WebSocket[]>([]) // Trade WebSocket(s) - aynı mantık
   const coinsMapRef = useRef<Map<string, FuturesCoin>>(new Map())
   const previousPricesRef = useRef<Map<string, number>>(new Map())
   const hourlyVolumeStartTimeRef = useRef<Map<string, number>>(new Map()) // Her coin için saatlik hacim başlangıç zamanı
@@ -191,46 +191,35 @@ export default function FuturesCoinsPage() {
   }
 
   const subscribeToTradeWebSocket = (symbols: string[]) => {
-    // Close existing trade WebSocket
-    if (tradesWsRef.current) {
-      if (tradesWsRef.current.readyState === WebSocket.OPEN || tradesWsRef.current.readyState === WebSocket.CONNECTING) {
-        try {
-          tradesWsRef.current.onopen = null
-          tradesWsRef.current.onerror = null
-          tradesWsRef.current.onclose = null
-          tradesWsRef.current.onmessage = null
-          tradesWsRef.current.close()
-        } catch (e) {
-          console.error('Error closing Futures Trade WebSocket:', e)
+    tradesWsRef.current.forEach((ws) => {
+      try {
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          ws.onmessage = null
+          ws.onerror = null
+          ws.onclose = null
+          ws.onopen = null
+          ws.close()
         }
+      } catch (e) {
+        console.error('Error closing Futures Trade WebSocket:', e)
       }
-      tradesWsRef.current = null
-    }
+    })
+    tradesWsRef.current = []
 
     if (symbols.length === 0) return
 
-    // Binance allows up to 200 streams in a single connection
-    const limitedSymbols = symbols.slice(0, 200).map((s) => s.toUpperCase())
-    const tradeStreams = limitedSymbols
-      .map((s) => `${s.toLowerCase()}@aggTrade`)
-      .join('/')
+    const BATCH_SIZE = 200
+    const MAX_SOCKETS = 3
+    const symbolBatches: string[][] = []
+    for (let i = 0; i < symbols.length && symbolBatches.length < MAX_SOCKETS; i += BATCH_SIZE) {
+      symbolBatches.push(symbols.slice(i, i + BATCH_SIZE))
+    }
 
-    // Futures Trade WebSocket
-    const futuresTradeWsUrl = `wss://fstream.binance.com/stream?streams=${tradeStreams}`
-
-    // Helper function to update coins and trigger re-render (throttled for performance)
     let lastUpdateTime = 0
     const updateCoinsDisplay = () => {
       if (!isMountedRef.current) return
-      
       const now = Date.now()
-      const timeSinceLastUpdate = now - lastUpdateTime
-      
-      // Throttle: Maksimum 300ms'de bir güncelle (3-4 FPS - smooth)
-      if (timeSinceLastUpdate < 300) {
-        return
-      }
-      
+      if (now - lastUpdateTime < 300) return
       const updatedCoins = Array.from(coinsMapRef.current.values())
       const sorted = sortCoins(updatedCoins, sortByRef.current, sortOrderRef.current)
       const filtered = searchCoins(sorted, searchRef.current)
@@ -238,156 +227,112 @@ export default function FuturesCoinsPage() {
       lastUpdateTime = now
     }
 
-    try {
-      const futuresTradeWs = new WebSocket(futuresTradeWsUrl)
-      
-      const wsTimeout = setTimeout(() => {
-        if (futuresTradeWs.readyState === WebSocket.CONNECTING) {
-          console.warn('Futures Trade WebSocket connection timeout, closing...')
-          try {
-            futuresTradeWs.close()
-          } catch (e) {
-            console.error('Error closing timed-out Futures Trade WebSocket:', e)
+    symbolBatches.forEach((batch, batchIndex) => {
+      const limitedSymbols = batch.map((s) => s.toUpperCase())
+      const tradeStreams = limitedSymbols.map((s) => `${s.toLowerCase()}@aggTrade`).join('/')
+      const futuresTradeWsUrl = `wss://fstream.binance.com/stream?streams=${tradeStreams}`
+
+      try {
+        const futuresTradeWs = new WebSocket(futuresTradeWsUrl)
+        const wsTimeout = setTimeout(() => {
+          if (futuresTradeWs.readyState === WebSocket.CONNECTING) {
+            try { futuresTradeWs.close() } catch (e) { /* ignore */ }
+            if (isMountedRef.current && tradesWsRef.current.includes(futuresTradeWs)) {
+              setTimeout(() => {
+                const currentSymbols = Array.from(coinsMapRef.current.keys())
+                if (isMountedRef.current && currentSymbols.length > 0) subscribeToTradeWebSocket(currentSymbols)
+              }, 2000)
+            }
           }
-          
-          if (isMountedRef.current && tradesWsRef.current === futuresTradeWs) {
-            setTimeout(() => {
-              const currentSymbols = Array.from(coinsMapRef.current.keys())
-              if (isMountedRef.current && currentSymbols.length > 0) {
-                subscribeToTradeWebSocket(currentSymbols)
-              }
-            }, 2000)
-          }
+        }, 10000)
+
+        futuresTradeWs.onopen = () => {
+          clearTimeout(wsTimeout)
+          console.log(`Futures Trade WebSocket connected (socket ${batchIndex + 1}/${symbolBatches.length}, ${limitedSymbols.length} symbols)`)
         }
-      }, 10000)
 
-      futuresTradeWs.onopen = () => {
-        clearTimeout(wsTimeout)
-        console.log('Futures Trade WebSocket connected')
-      }
-
-      futuresTradeWs.onmessage = (event) => {
-        if (!isMountedRef.current) return
-        
-        try {
-          const message = JSON.parse(event.data)
-          if (message.stream && message.data) {
-            const stream = message.stream
+        futuresTradeWs.onmessage = (event) => {
+          if (!isMountedRef.current) return
+          try {
+            const message = JSON.parse(event.data)
+            if (!message.stream || !message.data) return
+            const symbol = message.stream.split('@')[0].toUpperCase()
             const data = message.data
-            const symbol = stream.split('@')[0].toUpperCase()
-            
-            // Sadece sayfa açıldıktan sonraki trade'leri işle (başlangıç zamanından sonra)
             const oneHourAgo = hourlyVolumeStartTimeRef.current.get(symbol)
             if (!oneHourAgo) return
-            
-            const tradeTime = data.T || data.t || 0 // Trade zamanı
+            const tradeTime = data.T || data.t || 0
             const currentTime = Date.now()
-            
-            // Trade zamanı başlangıç zamanından sonraki ve şu anki zamandan önceki trade'ler için
             if (tradeTime < oneHourAgo || tradeTime > currentTime) return
-            
-            if (isMountedRef.current && coinsMapRef.current.has(symbol)) {
-              const existingCoin = coinsMapRef.current.get(symbol)!
-              
-              // Trade bilgilerini al
-              const price = parseFloat(data.p || data.price || '0')
-              const quantity = parseFloat(data.q || data.quantity || '0')
-              const quoteAmount = price * quantity // USDT cinsinden hacim
-              
-              // isBuyerMaker: false = alış (buy), true = satış (sell)
-              const isBuyerMaker = data.m !== undefined ? data.m : (data.isBuyerMaker !== undefined ? data.isBuyerMaker : false)
-              
-              // Mevcut saatlik hacimleri al
-              const currentHourlyVolume = parseFloat(existingCoin.hourlyFuturesVolume || '0')
-              const currentHourlyBuyVolume = parseFloat(existingCoin.hourlyFuturesBuyVolume || '0')
-              const currentHourlySellVolume = parseFloat(existingCoin.hourlyFuturesSellVolume || '0')
-              
-              // Yeni trade'i saatlik hacimlere ekle
-              let updatedHourlyVolume = currentHourlyVolume + quoteAmount
-              let updatedHourlyBuyVolume = currentHourlyBuyVolume
-              let updatedHourlySellVolume = currentHourlySellVolume
-              
-              if (!isBuyerMaker) {
-                // Alış trade'i
-                updatedHourlyBuyVolume = currentHourlyBuyVolume + quoteAmount
-              } else {
-                // Satış trade'i
-                updatedHourlySellVolume = currentHourlySellVolume + quoteAmount
-              }
-              
-              // Coin verisini güncelle
-              const updatedCoin: FuturesCoin = {
-                ...existingCoin,
-                hourlyFuturesVolume: updatedHourlyVolume.toFixed(2),
-                hourlyFuturesBuyVolume: updatedHourlyBuyVolume.toFixed(2),
-                hourlyFuturesSellVolume: updatedHourlySellVolume.toFixed(2),
-              }
-              
-              coinsMapRef.current.set(symbol, updatedCoin)
-              updateCoinsDisplay()
+            if (!coinsMapRef.current.has(symbol)) return
+            const existingCoin = coinsMapRef.current.get(symbol)!
+            const price = parseFloat(data.p || data.price || '0')
+            const quantity = parseFloat(data.q || data.quantity || '0')
+            const quoteAmount = price * quantity
+            const isBuyerMaker = data.m !== undefined ? data.m : (data.isBuyerMaker !== undefined ? data.isBuyerMaker : false)
+            const currentHourlyVolume = parseFloat(existingCoin.hourlyFuturesVolume || '0')
+            const currentHourlyBuyVolume = parseFloat(existingCoin.hourlyFuturesBuyVolume || '0')
+            const currentHourlySellVolume = parseFloat(existingCoin.hourlyFuturesSellVolume || '0')
+            let updatedHourlyBuyVolume = currentHourlyBuyVolume
+            let updatedHourlySellVolume = currentHourlySellVolume
+            if (!isBuyerMaker) updatedHourlyBuyVolume = currentHourlyBuyVolume + quoteAmount
+            else updatedHourlySellVolume = currentHourlySellVolume + quoteAmount
+            const updatedCoin: FuturesCoin = {
+              ...existingCoin,
+              hourlyFuturesVolume: (currentHourlyVolume + quoteAmount).toFixed(2),
+              hourlyFuturesBuyVolume: updatedHourlyBuyVolume.toFixed(2),
+              hourlyFuturesSellVolume: updatedHourlySellVolume.toFixed(2),
             }
+            coinsMapRef.current.set(symbol, updatedCoin)
+            updateCoinsDisplay()
+          } catch (error) {
+            console.error('Error parsing Futures Trade WebSocket message:', error)
           }
-        } catch (error) {
-          console.error('Error parsing Futures Trade WebSocket message:', error)
         }
-      }
 
-      futuresTradeWs.onerror = (error) => {
-        clearTimeout(wsTimeout)
-        console.error('Futures Trade WebSocket error:', error)
-      }
-
-      futuresTradeWs.onclose = (event) => {
-        clearTimeout(wsTimeout)
-        if (isMountedRef.current && tradesWsRef.current === futuresTradeWs) {
-          console.log('Futures Trade WebSocket disconnected, reconnecting...', event.code, event.reason)
-          setTimeout(() => {
-            const currentSymbols = Array.from(coinsMapRef.current.keys())
-            if (isMountedRef.current && currentSymbols.length > 0 && tradesWsRef.current === futuresTradeWs) {
-              subscribeToTradeWebSocket(currentSymbols)
-            }
-          }, 3000)
+        futuresTradeWs.onerror = () => { clearTimeout(wsTimeout) }
+        futuresTradeWs.onclose = () => {
+          clearTimeout(wsTimeout)
+          if (isMountedRef.current && tradesWsRef.current.includes(futuresTradeWs)) {
+            setTimeout(() => {
+              const currentSymbols = Array.from(coinsMapRef.current.keys())
+              if (isMountedRef.current && currentSymbols.length > 0) subscribeToTradeWebSocket(currentSymbols)
+            }, 3000)
+          }
         }
-      }
 
-      tradesWsRef.current = futuresTradeWs
-    } catch (error) {
-      console.error('Failed to create Futures Trade WebSocket:', error)
-    }
+        tradesWsRef.current.push(futuresTradeWs)
+      } catch (error) {
+        console.error('Failed to create Futures Trade WebSocket:', error)
+      }
+    })
   }
 
   const subscribeToWebSocket = (symbols: string[]) => {
-    // Close existing connections
-    if (wsRef.current) {
-      if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
-        try {
-          wsRef.current.onopen = null
-          wsRef.current.onerror = null
-          wsRef.current.onclose = null
-          wsRef.current.onmessage = null
-          wsRef.current.close()
-        } catch (e) {
-          console.error('Error closing Futures WebSocket:', e)
+    wsRef.current.forEach((ws) => {
+      try {
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          ws.onmessage = null
+          ws.onerror = null
+          ws.onclose = null
+          ws.onopen = null
+          ws.close()
         }
+      } catch (e) {
+        console.error('Error closing Futures WebSocket:', e)
       }
-      wsRef.current = null
-    }
+    })
+    wsRef.current = []
 
     if (symbols.length === 0) return
 
-    // Binance allows up to 200 streams in a single connection
-    // We'll subscribe to top 200 symbols (Binance limit)
-    const limitedSymbols = symbols.slice(0, 200).map((s) => s.toUpperCase())
-    const streams = limitedSymbols
-      .map((s) => `${s.toLowerCase()}@ticker`)
-      .join('/')
+    const BATCH_SIZE = 200
+    const MAX_SOCKETS = 3
+    const symbolBatches: string[][] = []
+    for (let i = 0; i < symbols.length && symbolBatches.length < MAX_SOCKETS; i += BATCH_SIZE) {
+      symbolBatches.push(symbols.slice(i, i + BATCH_SIZE))
+    }
 
-    // Futures WebSocket
-    const futuresWsUrl = `wss://fstream.binance.com/stream?streams=${streams}`
-
-    // Helper function to update coins and trigger re-render
     const updateCoinsDisplay = () => {
-      // Only update if component is still mounted
       if (!isMountedRef.current) return
       const updatedCoins = Array.from(coinsMapRef.current.values())
       const sorted = sortCoins(updatedCoins, sortByRef.current, sortOrderRef.current)
@@ -395,124 +340,94 @@ export default function FuturesCoinsPage() {
       setCoins(filtered)
     }
 
-    // Futures WebSocket
-    try {
-      const futuresWs = new WebSocket(futuresWsUrl)
-      
-      const wsTimeout = setTimeout(() => {
-        if (futuresWs.readyState === WebSocket.CONNECTING) {
-          console.warn('Futures WebSocket connection timeout, closing...')
-          try {
-            futuresWs.close()
-          } catch (e) {
-            console.error('Error closing timed-out Futures WebSocket:', e)
+    symbolBatches.forEach((batch, batchIndex) => {
+      const limitedSymbols = batch.map((s) => s.toUpperCase())
+      const streams = limitedSymbols.map((s) => `${s.toLowerCase()}@ticker`).join('/')
+      const futuresWsUrl = `wss://fstream.binance.com/stream?streams=${streams}`
+
+      try {
+        const futuresWs = new WebSocket(futuresWsUrl)
+        const wsTimeout = setTimeout(() => {
+          if (futuresWs.readyState === WebSocket.CONNECTING) {
+            try { futuresWs.close() } catch (e) { /* ignore */ }
+            if (isMountedRef.current && wsRef.current.includes(futuresWs)) {
+              setTimeout(() => {
+                const currentSymbols = Array.from(coinsMapRef.current.keys())
+                if (isMountedRef.current && currentSymbols.length > 0) subscribeToWebSocket(currentSymbols)
+              }, 2000)
+            }
           }
-          
-          if (isMountedRef.current && wsRef.current === futuresWs) {
+        }, 10000)
+
+        futuresWs.onopen = () => {
+          clearTimeout(wsTimeout)
+          console.log(`Futures WebSocket connected (socket ${batchIndex + 1}/${symbolBatches.length}, ${limitedSymbols.length} symbols)`)
+        }
+
+        futuresWs.onmessage = (event) => {
+          if (!isMountedRef.current) return
+          try {
+            const message = JSON.parse(event.data)
+            if (!message.stream || !message.data) return
+            const symbol = message.stream.split('@')[0].toUpperCase()
+            const data = message.data
+            if (!coinsMapRef.current.has(symbol)) return
+            const existingCoin = coinsMapRef.current.get(symbol)!
+            const previousPrice = previousPricesRef.current.get(symbol)
+            const currentPrice = parseFloat(data.c || data.lastPrice || '0')
+
+            const updatedCoin: FuturesCoin = {
+              symbol,
+              price: data.c || data.lastPrice || '0',
+              priceChangePercent: data.P || data.priceChangePercent || '0',
+              volume: data.v || data.volume || '0',
+              quoteVolume: data.q || data.quoteVolume || '0',
+              hourlyFuturesVolume: existingCoin.hourlyFuturesVolume || '0',
+              hourlyFuturesBuyVolume: existingCoin.hourlyFuturesBuyVolume || '0',
+              hourlyFuturesSellVolume: existingCoin.hourlyFuturesSellVolume || '0',
+            }
+
+            if (previousPrice !== undefined && previousPrice !== 0 && currentPrice !== 0 && currentPrice !== previousPrice) {
+              const priceDiff = Math.abs(currentPrice - previousPrice)
+              const priceChangePercent = (priceDiff / previousPrice) * 100
+              if (priceChangePercent >= 0.001 || priceDiff >= 0.00000001) {
+                const flashType = currentPrice > previousPrice ? 'up' : 'down'
+                setFlashAnimations((prev) => ({ ...prev, [symbol]: flashType }))
+                setTimeout(() => {
+                  if (isMountedRef.current) {
+                    setFlashAnimations((prev) => {
+                      const { [symbol]: _, ...rest } = prev
+                      return rest
+                    })
+                  }
+                }, 1200)
+              }
+            }
+
+            previousPricesRef.current.set(symbol, currentPrice)
+            coinsMapRef.current.set(symbol, updatedCoin)
+            updateCoinsDisplay()
+          } catch (error) {
+            console.error('Error parsing Futures WebSocket message:', error)
+          }
+        }
+
+        futuresWs.onerror = () => { clearTimeout(wsTimeout) }
+        futuresWs.onclose = () => {
+          clearTimeout(wsTimeout)
+          if (isMountedRef.current && wsRef.current.includes(futuresWs)) {
             setTimeout(() => {
               const currentSymbols = Array.from(coinsMapRef.current.keys())
-              if (isMountedRef.current && currentSymbols.length > 0) {
-                subscribeToWebSocket(currentSymbols)
-              }
-            }, 2000)
+              if (isMountedRef.current && currentSymbols.length > 0) subscribeToWebSocket(currentSymbols)
+            }, 3000)
           }
         }
-      }, 10000)
 
-      futuresWs.onopen = () => {
-        clearTimeout(wsTimeout)
-        console.log('Futures WebSocket connected')
+        wsRef.current.push(futuresWs)
+      } catch (error) {
+        console.error('Failed to create Futures WebSocket:', error)
       }
-
-      futuresWs.onmessage = (event) => {
-        // Component unmount edilmişse mesaj işleme
-        if (!isMountedRef.current) return
-        
-        try {
-          const message = JSON.parse(event.data)
-          if (message.stream && message.data) {
-            const stream = message.stream
-            const data = message.data
-            const symbol = stream.split('@')[0].toUpperCase()
-
-            // Only update if this symbol is in our map and component is mounted
-            if (isMountedRef.current && coinsMapRef.current.has(symbol)) {
-              const existingCoin = coinsMapRef.current.get(symbol)!
-              const previousPrice = previousPricesRef.current.get(symbol)
-              const currentPrice = parseFloat(data.c || data.lastPrice || '0')
-
-              // Update coin data - preserve hourly volumes from API
-              const updatedCoin: FuturesCoin = {
-                symbol,
-                price: data.c || data.lastPrice || '0',
-                priceChangePercent: data.P || data.priceChangePercent || '0',
-                volume: data.v || data.volume || '0',
-                quoteVolume: data.q || data.quoteVolume || '0',
-                hourlyFuturesVolume: existingCoin.hourlyFuturesVolume || '0', // Preserve hourly volume from API
-                hourlyFuturesBuyVolume: existingCoin.hourlyFuturesBuyVolume || '0', // Preserve hourly buy volume from API
-                hourlyFuturesSellVolume: existingCoin.hourlyFuturesSellVolume || '0', // Preserve hourly sell volume from API
-              }
-              
-              // Check if price changed and trigger flash animation
-              if (isMountedRef.current && previousPrice !== undefined && previousPrice !== 0 && currentPrice !== 0 && currentPrice !== previousPrice) {
-                const priceDiff = Math.abs(currentPrice - previousPrice)
-                const priceChangePercent = (priceDiff / previousPrice) * 100
-                
-                if (priceChangePercent >= 0.001 || priceDiff >= 0.00000001) {
-                  const flashType = currentPrice > previousPrice ? 'up' : 'down'
-                  
-                  if (isMountedRef.current) {
-                    setFlashAnimations(prev => ({
-                      ...prev,
-                      [symbol]: flashType
-                    }))
-                    
-                    setTimeout(() => {
-                      if (isMountedRef.current) {
-                        setFlashAnimations(prev => {
-                          const { [symbol]: _, ...rest } = prev
-                          return rest
-                        })
-                      }
-                    }, 1200)
-                  }
-                }
-              }
-              
-              // Update previous price
-              previousPricesRef.current.set(symbol, currentPrice)
-              coinsMapRef.current.set(symbol, updatedCoin)
-              updateCoinsDisplay()
-            }
-          }
-        } catch (error) {
-          console.error('Error parsing Futures WebSocket message:', error)
-        }
-      }
-
-      futuresWs.onerror = (error) => {
-        clearTimeout(wsTimeout)
-        console.error('Futures WebSocket error:', error)
-      }
-
-      futuresWs.onclose = (event) => {
-        clearTimeout(wsTimeout)
-        // Component unmount edilmişse yeniden bağlanma
-        if (isMountedRef.current && wsRef.current === futuresWs) {
-          console.log('Futures WebSocket disconnected, reconnecting...', event.code, event.reason)
-          setTimeout(() => {
-            const currentSymbols = Array.from(coinsMapRef.current.keys())
-            if (isMountedRef.current && currentSymbols.length > 0 && wsRef.current === futuresWs) {
-              subscribeToWebSocket(currentSymbols)
-            }
-          }, 3000)
-        }
-      }
-
-      wsRef.current = futuresWs
-    } catch (error) {
-      console.error('Failed to create Futures WebSocket:', error)
-    }
+    })
   }
 
   const sortCoins = useCallback((coinList: FuturesCoin[], by: SortBy, order: SortOrder): FuturesCoin[] => {
@@ -581,35 +496,36 @@ export default function FuturesCoinsPage() {
 
     return () => {
       isMountedRef.current = false
+      const tickerSockets = wsRef.current
+      const tradeSockets = tradesWsRef.current
+      wsRef.current = []
+      tradesWsRef.current = []
 
-      if (wsRef.current) {
-        try {
-          wsRef.current.onmessage = null
-          wsRef.current.onerror = null
-          wsRef.current.onclose = null
-          wsRef.current.onopen = null
-          if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
-            wsRef.current.close()
-          }
-        } catch (error) {
-          console.error('Error closing futures WebSocket:', error)
-        }
-        wsRef.current = null
+      const closeAll = () => {
+        tickerSockets.forEach((ws) => {
+          try {
+            ws.onmessage = null
+            ws.onerror = null
+            ws.onclose = null
+            ws.onopen = null
+            if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) ws.close()
+          } catch (_) { /* ignore */ }
+        })
+        tradeSockets.forEach((ws) => {
+          try {
+            ws.onmessage = null
+            ws.onerror = null
+            ws.onclose = null
+            ws.onopen = null
+            if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) ws.close()
+          } catch (_) { /* ignore */ }
+        })
       }
 
-      if (tradesWsRef.current) {
-        try {
-          tradesWsRef.current.onmessage = null
-          tradesWsRef.current.onerror = null
-          tradesWsRef.current.onclose = null
-          tradesWsRef.current.onopen = null
-          if (tradesWsRef.current.readyState === WebSocket.OPEN || tradesWsRef.current.readyState === WebSocket.CONNECTING) {
-            tradesWsRef.current.close()
-          }
-        } catch (error) {
-          console.error('Error closing Futures Trade WebSocket:', error)
-        }
-        tradesWsRef.current = null
+      if (typeof requestAnimationFrame !== 'undefined') {
+        requestAnimationFrame(() => closeAll())
+      } else {
+        setTimeout(closeAll, 0)
       }
     }
   }, [])

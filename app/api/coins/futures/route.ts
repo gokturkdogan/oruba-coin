@@ -74,17 +74,13 @@ export async function GET(request: NextRequest) {
     // Sort by quote volume (descending)
     coins.sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
     
-    // Calculate hourly volumes for top 200 coins (to avoid rate limiting)
-    const topCoins = coins.slice(0, 200)
+    // Calculate hourly volumes for all coins (spot ile aynı: tüm liste, endTime=now, batch rate limit)
+    const topCoins = coins
     const hourlyVolumePromises = topCoins.map(async (coin) => {
       try {
-        // Get current time and 1 hour ago
         const now = Date.now()
         const oneHourAgo = now - (60 * 60 * 1000)
-        
-        // Fetch 1-minute klines for the last hour (60 minutes)
-        // We'll fetch more than needed to ensure we cover the full hour
-        const klines = await getFuturesKlines(coin.symbol, '1m', 120)
+        const klines = await getFuturesKlines(coin.symbol, '1m', 120, now)
         
         if (!klines || klines.length === 0) {
           return { 
@@ -134,10 +130,10 @@ export async function GET(request: NextRequest) {
       }
     })
     
-    // Process in batches to avoid rate limiting (10 coins per batch, 200ms delay)
+    // Process in batches to avoid rate limiting (~1200/min: 10 per batch, 500ms between batches - spot ile aynı)
     const hourlyVolumes: Record<string, { volume: string, buyVolume: string, sellVolume: string }> = {}
     const batchSize = 10
-    const delayBetweenBatches = 200
+    const delayBetweenBatches = 500
     
     for (let i = 0; i < hourlyVolumePromises.length; i += batchSize) {
       const batch = hourlyVolumePromises.slice(i, i + batchSize)

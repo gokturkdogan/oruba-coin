@@ -282,13 +282,13 @@ export async function getKlines(symbol: string, interval: string = '1h', limit: 
   }
 }
 
-export async function getFuturesKlines(symbol: string, interval: string = '1h', limit: number = 24) {
+export async function getFuturesKlines(symbol: string, interval: string = '1h', limit: number = 24, endTime?: number) {
   try {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 20000) // 20 saniye timeout
-    
+    const endParam = endTime != null ? `&endTime=${endTime}` : ''
     const response = await fetch(
-      `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+      `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}${endParam}`,
       { signal: controller.signal }
     )
     
