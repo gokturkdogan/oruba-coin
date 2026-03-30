@@ -6,10 +6,18 @@ import { sendBulkNotifications } from "@/lib/web-push"
 
 export const runtime = "nodejs"
 
+const subscriptionItemSchema = z.object({
+  endpoint: z.string(),
+  auth: z.string(),
+  p256dh: z.string(),
+  email: z.string().nullable().optional(),
+})
+
 const requestSchema = z.object({
   symbol: z.string().min(1),
   volumeUsd: z.number().finite().nonnegative(),
   windowMinutes: z.number().int().positive().default(15),
+  subscriptions: z.array(subscriptionItemSchema).optional(),
 })
 
 function extractBearerToken(request: NextRequest) {
@@ -58,35 +66,45 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
-  const subscriptions = await prisma.pushSubscription.findMany({
-    include: {
-      user: {
-        select: {
-          email: true,
-        },
-      },
-    },
-  })
-  if (!subscriptions.length) {
+  // Use worker-provided subscriptions if available, otherwise fall back to DB
+  let formatted: Array<{ endpoint: string; keys: { auth: string; p256dh: string } }>
+  let emailByEndpoint: Map<string, string>
+
+  if (params.subscriptions?.length) {
+    formatted = params.subscriptions.map((sub) => ({
+      endpoint: sub.endpoint,
+      keys: { auth: sub.auth, p256dh: sub.p256dh },
+    }))
+    emailByEndpoint = new Map(
+      params.subscriptions
+        .filter((sub) => sub.email)
+        .map((sub) => [sub.endpoint, sub.email!])
+    )
+    console.log(`[futures-volume-alert] Using ${formatted.length} worker-cached subscriptions (no DB query)`)
+  } else {
+    const dbSubs = await prisma.pushSubscription.findMany({
+      include: { user: { select: { email: true } } },
+    })
+    formatted = dbSubs.map((sub) => ({
+      endpoint: sub.endpoint,
+      keys: { auth: sub.auth, p256dh: sub.p256dh },
+    }))
+    emailByEndpoint = new Map(
+      dbSubs
+        .filter((sub) => sub.user?.email)
+        .map((sub) => [sub.endpoint, sub.user!.email])
+    )
+    console.log(`[futures-volume-alert] Fetched ${formatted.length} subscriptions from DB (no cache provided)`)
+  }
+
+  if (!formatted.length) {
     return NextResponse.json({ success: false, message: "No subscriptions registered" })
   }
 
-  console.log(`[futures-volume-alert] Broadcasting to ${subscriptions.length} subscriptions`, {
+  console.log(`[futures-volume-alert] Broadcasting to ${formatted.length} subscriptions`, {
     symbol: params.symbol,
     volumeUsd: params.volumeUsd,
   })
-
-  const formatted = subscriptions.map((sub) => ({
-    endpoint: sub.endpoint,
-    keys: { auth: sub.auth, p256dh: sub.p256dh },
-  }))
-  
-  // Map endpoint to email for tracking
-  const endpointToEmail = new Map(
-    subscriptions
-      .filter((sub) => sub.user?.email)
-      .map((sub) => [sub.endpoint, sub.user!.email])
-  )
 
   const title = "Vadeli Hacim Uyarısı"
   const body = `${params.symbol.toUpperCase()} 15dk vadeli hacim: $${formatNumber(params.volumeUsd)}`
@@ -97,44 +115,42 @@ export async function POST(request: NextRequest) {
     url: `/coins/${params.symbol.toUpperCase()}`,
   })
 
-  const successful = subscriptions.length - failed.length
-  
-  // Get successful subscription endpoints (not in failed list)
-  const failedEndpoints = new Set(failed.map((f) => f.endpoint))
-  const successfulSubscriptions = subscriptions.filter(
-    (sub) => !failedEndpoints.has(sub.endpoint)
-  )
-  const successfulEmails = successfulSubscriptions
-    .map((sub) => sub.user?.email)
+  const successful = formatted.length - failed.length
+
+  const failedEndpointSet = new Set(failed.map((f) => f.endpoint))
+  const successfulEmails = formatted
+    .filter((sub) => !failedEndpointSet.has(sub.endpoint))
+    .map((sub) => emailByEndpoint.get(sub.endpoint))
     .filter((email): email is string => !!email)
+
+  const failedEndpointList = failed.map((f) => f.endpoint)
 
   console.log(`[futures-volume-alert] Push results`, {
     symbol: params.symbol,
-    total: subscriptions.length,
+    total: formatted.length,
     successful,
     failed: failed.length,
     errors: errors?.length || 0,
-    failedEndpoints: failed.map((f) => f.endpoint.substring(0, 50) + "..."),
+    failedEndpoints: failedEndpointList.map((e) => e.substring(0, 50) + "..."),
     successfulEmails,
   })
 
-  if (failed.length) {
+  // Only clean up DB if subscriptions came from DB (no worker cache)
+  if (!params.subscriptions?.length && failed.length) {
     const deleted = await prisma.pushSubscription.deleteMany({
       where: {
-        endpoint: {
-          in: failed.map((subscription) => subscription.endpoint),
-        },
+        endpoint: { in: failedEndpointList },
       },
     })
-    console.log(`[futures-volume-alert] Removed ${deleted.count} invalid subscriptions`)
+    console.log(`[futures-volume-alert] Removed ${deleted.count} invalid subscriptions from DB`)
   }
 
   return NextResponse.json({
     success: true,
-    total: subscriptions.length,
+    total: formatted.length,
     successful,
     failed: failed.length,
-    removed: failed.length,
+    failedEndpoints: failedEndpointList,
     successfulEmails,
   })
 }
