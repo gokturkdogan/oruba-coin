@@ -1,5 +1,5 @@
 # Oruba Coin 🚀
-
+ 
 Oruba Coin is a sleek crypto market companion built to keep traders on top of spot and futures action in real time. Track the coins that matter, get alerted when prices move, and dive into full-screen charts wherever you are.
 
 ## ✨ Highlights
